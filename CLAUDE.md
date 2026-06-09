@@ -1,0 +1,65 @@
+# CLAUDE.md — Slideo
+
+Arbeitsanweisungen für KI an diesem Projekt. **Maßgeblich ist [docs/slideo-spec.md](docs/slideo-spec.md)** (bei Widerspruch: Spec gewinnt, im Zweifel den Entwickler fragen).
+
+## Kernkonventionen (aus Spec §13)
+
+1. Spec-Doc ist die Wahrheit.
+2. **Markdown ist primäres Content-Format.** Nie direkt Tiptap-JSON für Inhalte schreiben.
+   Ausnahme: Zonen mit `content_type: 'html'` (Spec §14) — dann rohes HTML in `zone.html`.
+3. **Kein AI-Layer in der App** (keine Anthropic/OpenAI/Ollama-Calls). Einzige AI-Schnittstelle ist der MCP-Server.
+4. **State lebt im Zustand-Store** ([src/store/presentation.ts](src/store/presentation.ts)), kein lokaler React-State für Präsentationsdaten.
+5. **Rust für I/O, React für UI.**
+6. UUIDs für Zone-IDs (`crypto.randomUUID()` / `uuid::new_v4()`).
+7. Keine Breaking Changes am Dateiformat ohne `version`-Bump.
+
+## Architektur-Entscheidungen (dieser Session)
+
+- **MCP-Sync (Phase 4, umgesetzt):** **Live über lokalen Socket**. Eine Binary, zwei Modi
+  (`slideo` = App, `slideo mcp` = stdio-Server). Die App ([ipc.rs](src-tauri/src/ipc.rs))
+  öffnet einen TCP-Socket (127.0.0.1, Port in `<config>/slideo/ipc.json`), hält den
+  autoritativen State, mutiert via [tools.rs](src-tauri/src/tools.rs) und emittiert Tauri-Events
+  (`mcp:presentation`, `mcp:active-slide`) → Frontend-Bridge
+  ([mcp-bridge.ts](src/lib/mcp-bridge.ts)) spiegelt live in den Store; das Frontend pusht
+  Änderungen via `sync_presentation` zurück (kein Echo, da der Sync-Command kein Event
+  feuert). MCP-Protokoll ([mcp.rs](src-tauri/src/mcp.rs)) ist **hand-gerolltes JSON-RPC 2.0**
+  (bewusste Abweichung von Spec §10/rmcp — rmcp ist 0.1→0.16 stark gewandert, der stdio-Teil
+  ist nur ein dünner Weiterleiter). Auto-Registrierung in Claude-Config:
+  [claude_config.rs](src-tauri/src/claude_config.rs).
+- **Renderer ohne Tailwind im Iframe:** Slide-Inhalt wird über CSS-Custom-Properties
+  (Tokens) + eigenes Stylesheet gerendert ([src/lib/renderer.ts](src/lib/renderer.ts)),
+  damit die Page offline/self-contained bleibt. Tailwind ist nur App-Chrome.
+- **`.slideo` Reader/Writer** arbeiten bewusst mit `serde_json::Value` (preserve_order),
+  nicht mit typisierten Structs → Schema-Hoheit bleibt beim Frontend, saubere Git-Diffs.
+
+## Design-System (App-Chrome)
+
+Ästhetik: **light, minimalistisch, premium** — orientiert an Penwright (vswrite-desktop).
+Gilt nur fürs App-Chrome; Slide-Inhalt/Tokens sind davon unabhängig.
+
+- **Farben** (Tailwind `chrome.*` in [tailwind.config.ts](tailwind.config.ts)): bg `#fafafa`,
+  surface `#ffffff`, border `#ececec`, text `#1a1a1a`, ein ruhiger Blau-Akzent
+  (`accent #4f7df9`, für Text/Buttons auf Weiß `accent-600 #2f63e6` wegen WCAG AA),
+  Custom-HTML-Zonen = gedämpfte Terrakotta (`warn`).
+- **Icons:** Google **Material Symbols** (Outlined), selbst-gehostet via npm `material-symbols`
+  (offline, kein CDN) — Wrapper [src/components/ui/Icon.tsx](src/components/ui/Icon.tsx), Default wght 300.
+  Keine Emoji/Unicode-Glyphen.
+- **Prinzipien:** Hierarchie über Typo + dünne 1px-Borders statt Schatten; Hover sehr subtil
+  (bg ODER text, nicht beides); Tabs als Unterstrich-Indikator; sichtbare Focus-Rings;
+  `prefers-reduced-motion` respektiert. Restraint > Dekoration.
+
+## Befehle
+
+```bash
+npm run dev          # Browser-only UI-Loop (kein Datei-I/O)
+npm run tauri:dev    # volle Desktop-App
+npm run typecheck && npm run build
+cd src-tauri && cargo check && cargo test
+```
+
+## Stand
+
+MVP funktional komplett (Phasen 1–5): Editor, HTML-Zonen, Live-Preview, Präsentationsmodus +
+integrierte Speaker-View, MCP-Server, Undo/Shortcuts/Toasts/Close-Guard. Offen (Post-MVP):
+echtes Speaker-Zweitfenster, Bild-Drag&Drop in `assets/`, Cross-Platform-Builds, Font-Subset.
+Siehe [README.md](README.md).

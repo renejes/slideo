@@ -1,0 +1,15 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#e94560"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- Stilisiertes "S" als gestapelte Slides -->
+  <g fill="#ffffff">
+    <rect x="300" y="316" width="424" height="104" rx="52"/>
+    <rect x="300" y="460" width="424" height="104" rx="52" opacity="0.85"/>
+    <rect x="300" y="604" width="424" height="104" rx="52" opacity="0.7"/>
+  </g>
+</svg>
