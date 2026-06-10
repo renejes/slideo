@@ -18,6 +18,8 @@ const selectClass =
 export function ZoneToolbar({ zone }: ZoneToolbarProps) {
   const updateZoneLabel = usePresentationStore((s) => s.updateZoneLabel)
   const updateZoneStyle = usePresentationStore((s) => s.updateZoneStyle)
+  const setZoneLayout = usePresentationStore((s) => s.setZoneLayout)
+  const setZoneReveal = usePresentationStore((s) => s.setZoneReveal)
   const setZoneContentType = usePresentationStore((s) => s.setZoneContentType)
   const deleteZone = usePresentationStore((s) => s.deleteZone)
   const addMediaToZone = usePresentationStore((s) => s.addMediaToZone)
@@ -62,9 +64,9 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
       <div className="ml-auto flex items-center gap-1.5">
         <select
           value={zone.style.layout}
-          onChange={(e) => updateZoneStyle(zone.id, { layout: e.target.value as ZoneLayout })}
+          onChange={(e) => setZoneLayout(zone.id, e.target.value as ZoneLayout)}
           className={selectClass}
-          title="Layout"
+          title="Layout (Zwei Spalten fügt automatisch einen +++ Spaltentrenner ein)"
         >
           {ZONE_LAYOUTS.map((l) => (
             <option key={l.value} value={l.value}>
@@ -85,6 +87,23 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
             </option>
           ))}
         </select>
+
+        {!isHtml && (
+          <button
+            onClick={() => setZoneReveal(zone.id, zone.reveal === 'steps' ? 'none' : 'steps')}
+            className={
+              'flex h-7 w-7 items-center justify-center rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
+              (zone.reveal === 'steps'
+                ? 'bg-chrome-accent-soft text-chrome-accent-600'
+                : 'text-chrome-muted hover:bg-chrome-surface-2 hover:text-chrome-text')
+            }
+            title="Schrittweise einblenden (Builds): Blöcke nacheinander im Präsentationsmodus"
+            aria-label="Schrittweise einblenden"
+            aria-pressed={zone.reveal === 'steps'}
+          >
+            <Icon name="animation" size={17} weight={400} />
+          </button>
+        )}
 
         <input
           ref={fileRef}

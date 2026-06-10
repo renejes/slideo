@@ -40,6 +40,11 @@ pub fn guess_mime(name: &str) -> String {
         "weba" => "audio/webm",
         "m4a" => "audio/mp4",
         "aac" => "audio/aac",
+        // Fonts (Spec §19.4)
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "otf" => "font/otf",
         _ => "application/octet-stream",
     }
     .to_string()

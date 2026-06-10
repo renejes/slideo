@@ -13,18 +13,48 @@ export function PreviewPane() {
   const presentation = usePresentationStore((s) => s.presentation)
   const assets = usePresentationStore((s) => s.assets)
   const activeZoneId = usePresentationStore((s) => s.activeZoneId)
+  const reorderZoneBlocks = usePresentationStore((s) => s.reorderZoneBlocks)
+  const resizeZoneImage = usePresentationStore((s) => s.resizeZoneImage)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [html, setHtml] = useState('')
 
   // Debounced Full-Page-Render (vermeidet Iframe-Reload bei jedem Tastendruck).
+  // editable: Markdown-Blöcke per Drag umsortierbar (Spec §18.1 / interaktive Vorschau).
   useEffect(() => {
     if (!presentation) return
     const id = setTimeout(
-      () => setHtml(renderFullPage(presentation, { present: false, assets, assetUrlBase: ASSET_BASE })),
+      () =>
+        setHtml(
+          renderFullPage(presentation, {
+            present: false,
+            assets,
+            assetUrlBase: ASSET_BASE,
+            editable: true,
+          }),
+        ),
       220,
     )
     return () => clearTimeout(id)
   }, [presentation, assets])
+
+  // Block-Reorder und Bild-Resize aus der Vorschau übernehmen.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const d = e.data || {}
+      if (d.type === 'slideo:reorder-blocks' && typeof d.zoneId === 'string' && Array.isArray(d.order)) {
+        reorderZoneBlocks(d.zoneId, d.order as number[])
+      } else if (
+        d.type === 'slideo:resize-image' &&
+        typeof d.zoneId === 'string' &&
+        typeof d.blockIndex === 'number' &&
+        typeof d.width === 'string'
+      ) {
+        resizeZoneImage(d.zoneId, d.blockIndex, typeof d.imgIndex === 'number' ? d.imgIndex : 0, d.width)
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [reorderZoneBlocks, resizeZoneImage])
 
   const activeIndex = useMemo(() => {
     if (!presentation) return 0

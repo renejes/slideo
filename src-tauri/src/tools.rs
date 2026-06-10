@@ -348,6 +348,26 @@ pub fn handle(
             ok(json!({ "ok": true }), Effect::Presentation)
         }
 
+        // ----- Themes / Presets -----
+        "list_presets" => ok(json!({ "presets": crate::presets::list() }), Effect::None),
+        "apply_preset" => {
+            let name = req_str(params, "name")?;
+            let preset = crate::presets::tokens(&name)
+                .ok_or_else(|| format!("Theme '{name}' nicht gefunden"))?;
+            let p = pres_mut(pres)?;
+            let tokens = p
+                .get_mut("tokens")
+                .and_then(|t| t.as_object_mut())
+                .ok_or("Kein 'tokens'-Objekt")?;
+            if let Some(obj) = preset.as_object() {
+                for (k, v) in obj {
+                    tokens.insert(k.clone(), v.clone());
+                }
+            }
+            touch_modified(p);
+            ok(json!({ "ok": true, "applied": name }), Effect::Presentation)
+        }
+
         // ----- Styles -----
         "set_zone_style" => {
             let id = req_str(params, "id")?;
@@ -393,6 +413,33 @@ pub fn handle(
             ok(json!({ "ok": true }), Effect::Presentation)
         }
 
+        // ----- Notes -----
+        "set_zone_notes" => {
+            let id = req_str(params, "id")?;
+            let notes = req_str(params, "notes")?;
+            let p = pres_mut(pres)?;
+            let zones = zones_mut(p)?;
+            let idx = zone_index(zones, &id)?;
+            zones[idx]["notes"] = json!(notes);
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+
+        // ----- Builds (Spec §19.1) -----
+        "set_zone_reveal" => {
+            let id = req_str(params, "id")?;
+            let mode = req_str(params, "mode")?;
+            if mode != "none" && mode != "steps" {
+                return Err("mode muss 'none' oder 'steps' sein".into());
+            }
+            let p = pres_mut(pres)?;
+            let zones = zones_mut(p)?;
+            let idx = zone_index(zones, &id)?;
+            zones[idx]["reveal"] = json!(mode);
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+
         // ----- Assets -----
         "list_assets" => {
             let list: Vec<Value> = assets
@@ -400,6 +447,37 @@ pub fn handle(
                 .map(|a| json!({ "name": a.name, "mime": a.mime }))
                 .collect();
             ok(json!({ "assets": list }), Effect::None)
+        }
+
+        // ----- Komponenten (Spec §18.7) -----
+        "list_components" => ok(json!({ "components": crate::components::list() }), Effect::None),
+        "insert_component" => {
+            let zone_id = req_str(params, "zone_id")?;
+            let kind = req_str(params, "type")?;
+            let comp_params = p_param(params, "params").cloned().unwrap_or(json!({}));
+            let mode = opt_str(params, "mode").unwrap_or_else(|| "replace".to_string());
+            let html = crate::components::render(&kind, &comp_params)?;
+            let p = pres_mut(pres)?;
+            let zones = zones_mut(p)?;
+            let idx = zone_index(zones, &zone_id)?;
+            let zone = &mut zones[idx];
+            let new_html = if mode == "append" {
+                let existing = zone
+                    .get("html")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string());
+                match existing {
+                    Some(e) => format!("{e}\n{html}"),
+                    None => html,
+                }
+            } else {
+                html
+            };
+            zone["content_type"] = json!("html");
+            zone["html"] = json!(new_html);
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
         }
 
         // ----- Presentation Mode -----
@@ -413,6 +491,27 @@ pub fn handle(
                 .and_then(|v| v.as_i64())
                 .ok_or("Pflichtfeld 'index' (Zahl) fehlt")?;
             ok(json!({ "index": index }), Effect::ActiveSlide(index))
+        }
+        "set_transition" => {
+            let kind = req_str(params, "kind")?;
+            if !["none", "fade", "slide", "zoom"].contains(&kind.as_str()) {
+                return Err("kind muss 'none', 'fade', 'slide' oder 'zoom' sein".into());
+            }
+            let duration = p_param(params, "duration_ms")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(500)
+                .max(0);
+            let p = pres_mut(pres)?;
+            let meta = p
+                .get_mut("meta")
+                .and_then(|m| m.as_object_mut())
+                .ok_or("Kein 'meta'-Objekt")?;
+            meta.insert(
+                "transition".to_string(),
+                json!({ "kind": kind, "duration_ms": duration }),
+            );
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
         }
 
         other => Err(format!("Unbekanntes Tool: {other}")),
@@ -430,23 +529,36 @@ Bild-Folien. Markdown bleibt im WYSIWYG-Editor bearbeitbar.\n\
 2. Gestalte das Look & Feel über DESIGN-TOKENS (set_tokens_bulk: color-primary, color-bg, \
 color-text, color-accent, font-heading, font-body, font-size-base, border-radius …) und über \
 set_zone_style (layout: center|top|split|full, text_align, padding, background) — NICHT über \
-Inline-HTML/CSS. Beginne eine Präsentation typischerweise mit set_tokens_bulk.\n\
+Inline-HTML/CSS. SCHNELLSTART: list_presets + apply_preset wählt in einem Schritt ein stimmiges \
+Theme (editorial, dark-tech, warm, minimal, corporate); danach mit set_token feinjustieren.\n\
 3. Reiche Layouts gibt es auch mit Markdown – nutze sie statt HTML: set_zone_style layout \
 'hero' (große Titel-Folie), 'split' (ZWEI SPALTEN – trenne die beiden Spalten im Markdown mit \
 einer eigenen Zeile '+++'; eine Spalte kann ein Bild sein, z.B. ![](assets/x.png)), 'center', \
 'top', 'full'.\n\
-4. Für GESTYLTEN, aber editierbaren Text: Markdown + set_zone_css (zonen-gescoptes \
+4. FERTIGE KOMPONENTEN statt handgeschriebenem HTML: Für Diagramme, KPI-Karten, Zeitstrahl, \
+Vergleich, Fortschritt, Zitat, Hinweis nutze list_components + insert_component(zone_id, type, \
+params). Diese Komponenten sind bereits token-bewusst (themebar) und sehen gut aus — der \
+schnellste Weg zu hochwertigen Inhalten.\n\
+5. Für GESTYLTEN, aber editierbaren Text: Markdown + set_zone_css (zonen-gescoptes \
 Custom-CSS) statt HTML. So bleibt der Text im Editor lesbar/bearbeitbar UND hat volles \
 CSS-Styling. Beispiel: set_zone_css(id, 'h1 { letter-spacing: -.02em } strong { color: \
-var(--color-accent) }'). Greife erst danach zu content_type 'html' — NUR für Interaktives/\
-Animiertes (Charts, SVG, JS, Demos) ODER für Video/Audio: <video controls src=\"assets/x.mp4\"> \
-bzw. <audio controls src=\"assets/x.mp3\"> (Asset zuvor mit list_assets finden). Video/Audio \
-funktionieren nur in HTML-Zonen, nicht in Markdown.\n\
-5. WENN du HTML nutzt: style AUSSCHLIESSLICH über die CSS-Variablen der Design-Tokens \
+var(--color-accent) }').\n\
+6. Bild-Positionierung in Markdown-Zonen: ein normales Bild ist ![](assets/x.png). Für Größe/\
+Ausrichtung/Umfluss schreibe rohes <img>: <img src=\"assets/x.png\" style=\"width:50%\" \
+class=\"align-right\"> bzw. class=\"float-left\" (Textumfluss). Klassen: align-left|center|right, \
+float-left|right.\n\
+7. EIGENES HTML (content_type 'html') NUR für Interaktives/Animiertes, das die Komponenten nicht \
+abdecken: eigene Charts (SVG/JS), CSS/JS-Animationen (@keyframes), interaktive SVGs/Diagramme, \
+eingebettete Player, Demos — ODER Video/Audio: <video controls src=\"assets/x.mp4\"> bzw. \
+<audio controls src=\"assets/x.mp3\"> (Asset zuvor mit list_assets finden; Video/Audio nur in \
+HTML-Zonen).\n\
+8. WENN du HTML nutzt: style AUSSCHLIESSLICH über die CSS-Variablen der Design-Tokens \
 (var(--color-primary), var(--color-bg), var(--color-text), var(--color-accent), \
-var(--font-heading), var(--font-body), var(--border-radius) …). Verwende KEINE hartkodierten \
-Farben/Fonts. So kann der Mensch auch HTML-Folien global über die Token-Sidebar umgestalten.\n\
-6. Halte HTML-Folien fokussiert und klein, damit sie wartbar bleiben."
+var(--font-heading), var(--font-body), var(--border-radius) …). KEINE hartkodierten Farben/Fonts. \
+Halte HTML-Folien fokussiert und klein.\n\
+9. Optional: set_zone_notes(id, notes) für Sprechernotizen (nur in der Speaker-View sichtbar); \
+set_transition(kind, duration_ms) für den deck-weiten Folienübergang (none|fade|slide|zoom); \
+set_zone_reveal(id, 'steps') für Builds (Blöcke der Folie erscheinen schrittweise)."
 }
 
 /// MCP-Prompt-Definitionen (`prompts/list`). Der "slideo_guide"-Prompt ist die
@@ -469,9 +581,10 @@ bestehen aus 'Zones' (Slides). Ziel: eine schöne Präsentation, die für den Me
 editierbar und global umgestaltbar bleibt.\n\n";
 
     let workflow = "EMPFOHLENER ABLAUF:\n\
-1) Designsystem zuerst: set_tokens_bulk mit einem stimmigen Set — color-primary, color-secondary, \
-color-bg, color-surface, color-text, color-accent, font-heading, font-body, font-size-base, \
-spacing-base, border-radius. (get_tokens zeigt die aktuellen Werte.)\n\
+1) Designsystem zuerst: ENTWEDER apply_preset(name) für ein fertiges Theme (list_presets zeigt \
+editorial, dark-tech, warm, minimal, corporate) ODER set_tokens_bulk mit einem stimmigen Set — \
+color-primary, color-secondary, color-bg, color-surface, color-text, color-accent, font-heading, \
+font-body, font-size-base, spacing-base, border-radius. (get_tokens zeigt die aktuellen Werte.)\n\
 2) Folien anlegen: create_zone + set_zone_content (content_type 'markdown'). Schreibe klaren, \
 knappen Markdown-Inhalt (eine Kernaussage pro Folie).\n\
 3) Layout je Folie über set_zone_style:\n\
@@ -480,12 +593,24 @@ knappen Markdown-Inhalt (eine Kernaussage pro Folie).\n\
 Eine Spalte kann ein Bild sein.\n\
    - 'center' / 'top' / 'full': einspaltig.\n\
    - text_align (left|center|right), padding, background (überschreibt color-bg, z.B. Gradient).\n\
-4) Bilder: vorhandene Assets mit list_assets entdecken und als ![](assets/<name>) referenzieren \
-(der Mensch legt Assets in der App ab — Import oder Settings). Alternativ per URL/Data-URI.\n\n";
+4) Bilder: vorhandene Assets mit list_assets entdecken und als ![](assets/<name>) referenzieren. \
+Für Größe/Ausrichtung/Umfluss rohes <img> nutzen: <img src=\"assets/x.png\" style=\"width:50%\" \
+class=\"align-right\"> (Klassen: align-left|center|right, float-left|right).\n\
+5) Reiche Inhalte ohne HTML-Handarbeit: insert_component(zone_id, type, params) setzt fertige, \
+token-bewusste Komponenten ein — list_components zeigt Typen + Parameter: stat_cards (KPIs), \
+bar_chart, line_chart (Trend), donut_chart (Anteile), progress, quote, timeline, comparison \
+(zwei Spalten), callout. Bevorzuge diese für Daten/Diagramme/Vergleiche.\n\
+6) Feinschliff: set_zone_notes(id, notes) für Sprechernotizen (nur Speaker-View); \
+set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom); \
+set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
+Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden).\n\n";
 
     let principles = "WICHTIGE PRINZIPIEN (Editierbarkeit):\n\
-- BEVORZUGE Markdown + Tokens + Layouts. Markdown-Folien bleiben im WYSIWYG-Editor bearbeitbar.\n\
-- content_type 'html' NUR für Interaktives/Animiertes (Charts, SVG, JS, Demos).\n\
+- BEVORZUGE Markdown + Tokens + Layouts + fertige Komponenten. Markdown-Folien bleiben im \
+WYSIWYG-Editor bearbeitbar, Komponenten bleiben themebar.\n\
+- Eigenes content_type 'html' NUR für Interaktives/Animiertes, das die Komponenten nicht abdecken \
+(eigene Charts SVG/JS, CSS-@keyframes-Animationen, interaktive SVGs, eingebettete Player, Demos) \
+ODER Video/Audio. Das volle Browser-Repertoire ist erlaubt — aber klein und fokussiert halten.\n\
 - WENN HTML: style ausschließlich über die Token-CSS-Variablen (var(--color-primary), \
 var(--font-heading), var(--color-bg), var(--border-radius) …), NIE hartkodierte Farben/Fonts — \
 so bleibt die Folie über die Token-Sidebar global themebar.\n\
@@ -608,6 +733,18 @@ pub fn tool_schemas() -> Value {
             "inputSchema": obj()
         },
         {
+            "name": "list_presets",
+            "description": "Listet die verfügbaren Theme-Presets (kuratierte Design-Token-Bündel) mit Name, Label und Beschreibung. Wende eines mit apply_preset an, um in einem Schritt ein stimmiges Farb-/Font-System zu setzen.",
+            "inputSchema": obj()
+        },
+        {
+            "name": "apply_preset",
+            "description": "Wendet ein Theme-Preset an (setzt die Design-Tokens des Presets per Bulk). Schneller Start für ein konsistentes Look & Feel; danach kann per set_token/set_tokens_bulk feinjustiert werden. Verfügbare Namen via list_presets.",
+            "inputSchema": { "type": "object", "properties": {
+                "name": s("Preset-Name, z.B. 'editorial', 'dark-tech', 'warm', 'minimal', 'corporate' (siehe list_presets)")
+            }, "required": ["name"] }
+        },
+        {
             "name": "set_zone_style",
             "description": "Setzt Style-Properties einer Zone: layout/padding/background/text_align (im 'style'-Objekt) und/oder zonen-gescoptes 'custom_css'. Mit custom_css stylst du eine Markdown-Folie frei, ohne den Text in HTML zu vergraben (Text bleibt editierbar). Mindestens eines von 'style'/'custom_css' angeben.",
             "inputSchema": { "type": "object", "properties": {
@@ -635,9 +772,40 @@ pub fn tool_schemas() -> Value {
             }, "required": ["id", "css"] }
         },
         {
+            "name": "set_zone_notes",
+            "description": "Setzt die Sprechernotizen (Speaker Notes) einer Zone. Notizen erscheinen NUR in der Speaker-View während der Präsentation, nie auf der Folie selbst. Ideal für Stichpunkte, was der Vortragende zu dieser Folie sagen will.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "notes": s("Sprechernotizen als reiner Text (mehrzeilig erlaubt). Leerer String löscht die Notizen.")
+            }, "required": ["id", "notes"] }
+        },
+        {
+            "name": "set_zone_reveal",
+            "description": "Schaltet Builds (schrittweises Einblenden) einer Markdown-Zone. 'steps' = die Top-Level-Blöcke (Absätze/Bullets/Bilder) erscheinen im Präsentationsmodus nacheinander pro Pfeil/Klick; 'none' = alles sofort (Default). Nur Markdown-Zonen ohne 'split'.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "mode": { "type": "string", "enum": ["none", "steps"], "description": "steps = schrittweise, none = sofort" }
+            }, "required": ["id", "mode"] }
+        },
+        {
             "name": "list_assets",
             "description": "Listet die in der Präsentation hinterlegten Assets (Bilder) mit Dateiname + MIME-Typ. Referenziere ein Asset im Inhalt als 'assets/<name>', z.B. Markdown ![](assets/logo.png) oder HTML <img src=\"assets/logo.png\">. Der Mensch legt Assets in der App ab (Import/Settings).",
             "inputSchema": obj()
+        },
+        {
+            "name": "list_components",
+            "description": "Listet fertige, token-bewusste HTML-Komponenten (Kennzahlen-Karten, Balkendiagramm, Fortschritt, Zitat, Zeitstrahl, Vergleich, Hinweis-Box) mit Typ, Label, Beschreibung und Parametern. Mit insert_component in eine Zone einsetzen. Schneller Weg zu hochwertigen, themebaren Inhalten ohne eigenes HTML.",
+            "inputSchema": obj()
+        },
+        {
+            "name": "insert_component",
+            "description": "Erzeugt eine fertige, token-bewusste HTML-Komponente und setzt sie in eine Zone (die Zone wird zu content_type 'html'). Die Komponente nutzt ausschließlich Token-CSS-Variablen und bleibt damit über die Token-Sidebar global themebar. Verfügbare Typen + Parameter via list_components. Tipp: vorher create_zone, dann hier einsetzen.",
+            "inputSchema": { "type": "object", "properties": {
+                "zone_id": s("UUID der Ziel-Zone"),
+                "type": s("Komponententyp, z.B. 'bar_chart', 'stat_cards', 'timeline', 'comparison' (siehe list_components)"),
+                "params": { "type": "object", "description": "Parameter der Komponente (Struktur je Typ, siehe list_components), z.B. { \"items\": [{ \"label\": \"Q1\", \"value\": 40 }] }" },
+                "mode": { "type": "string", "enum": ["replace", "append"], "description": "replace (Default): Zoneninhalt ersetzen; append: an bestehendes HTML der Zone anhängen" }
+            }, "required": ["zone_id", "type"] }
         },
         {
             "name": "get_slide_count",
@@ -648,6 +816,14 @@ pub fn tool_schemas() -> Value {
             "name": "set_active_slide",
             "description": "Springt im Präsentationsmodus zu einem bestimmten Slide.",
             "inputSchema": { "type": "object", "properties": { "index": { "type": "number", "description": "0-basierter Index des Slides" } }, "required": ["index"] }
+        },
+        {
+            "name": "set_transition",
+            "description": "Setzt den präsentationsweiten Folienübergang (Animation beim Folienwechsel im Präsentationsmodus und im HTML-Export). 'none' = reines Scrollen (Default).",
+            "inputSchema": { "type": "object", "properties": {
+                "kind": { "type": "string", "enum": ["none", "fade", "slide", "zoom"], "description": "none (kein Übergang), fade (Überblenden), slide (horizontal Schieben), zoom (Ein-/Auszoomen)" },
+                "duration_ms": { "type": "number", "description": "Dauer des Übergangs in Millisekunden (Default 500)" }
+            }, "required": ["kind"] }
         }
     ])
 }
@@ -704,10 +880,35 @@ mod tests {
         let zone = call("get_zone", json!({ "id": new_id }), &mut pres, &mut fp);
         assert_eq!(zone["custom_css"], "p { font-weight: 600 }");
 
+        // Speaker Notes
+        call("set_zone_notes", json!({ "id": new_id, "notes": "Hier langsam sprechen." }), &mut pres, &mut fp);
+        let zone = call("get_zone", json!({ "id": new_id }), &mut pres, &mut fp);
+        assert_eq!(zone["notes"], "Hier langsam sprechen.");
+
+        // Transition (deck-weit, in meta)
+        call("set_transition", json!({ "kind": "fade", "duration_ms": 400 }), &mut pres, &mut fp);
+        let meta = call("get_presentation_meta", json!({}), &mut pres, &mut fp);
+        assert_eq!(pres.as_ref().unwrap()["meta"]["transition"]["kind"], "fade");
+        assert_eq!(pres.as_ref().unwrap()["meta"]["transition"]["duration_ms"], 400);
+        let _ = meta;
+        assert!(handle("set_transition", &json!({ "kind": "spin" }), &mut pres, &mut fp, &[]).is_err());
+
         // Tokens
         call("set_token", json!({ "key": "color-primary", "value": "#ffffff" }), &mut pres, &mut fp);
         let tokens = call("get_tokens", json!({}), &mut pres, &mut fp);
         assert_eq!(tokens["color-primary"], "#ffffff");
+
+        // Komponente einsetzen: Zone wird HTML, nutzt Token-Variablen
+        call(
+            "insert_component",
+            json!({ "zone_id": first_id, "type": "bar_chart", "params": { "items": [{ "label": "A", "value": 10 }] } }),
+            &mut pres,
+            &mut fp,
+        );
+        let zone = call("get_zone", json!({ "id": first_id }), &mut pres, &mut fp);
+        assert_eq!(zone["content_type"], "html");
+        assert!(zone["html"].as_str().unwrap().contains("var(--color-primary)"));
+        assert!(handle("insert_component", &json!({ "zone_id": first_id, "type": "nope" }), &mut pres, &mut fp, &[]).is_err());
 
         // Reorder: neue Zone nach vorn
         call("reorder_zones", json!({ "ordered_ids": [new_id, first_id] }), &mut pres, &mut fp);
@@ -725,6 +926,21 @@ mod tests {
     fn missing_required_field_errors() {
         let (mut pres, mut fp) = (Some(new_presentation("x")), None);
         assert!(handle("create_zone", &json!({}), &mut pres, &mut fp, &[]).is_err());
+    }
+
+    #[test]
+    fn apply_preset_sets_tokens() {
+        let (mut pres, mut fp) = (Some(new_presentation("x")), None);
+        // Unbekanntes Preset → Fehler.
+        assert!(handle("apply_preset", &json!({ "name": "gibts-nicht" }), &mut pres, &mut fp, &[]).is_err());
+        // Bekanntes Preset → Tokens werden übernommen.
+        call("apply_preset", json!({ "name": "dark-tech" }), &mut pres, &mut fp);
+        let tokens = call("get_tokens", json!({}), &mut pres, &mut fp);
+        assert_eq!(tokens["color-accent"], "#22d3ee");
+        assert_eq!(tokens["color-bg"], "#0b0f17");
+        // list_presets enthält alle fünf.
+        let presets = call("list_presets", json!({}), &mut pres, &mut fp);
+        assert_eq!(presets["presets"].as_array().unwrap().len(), 5);
     }
 }
 

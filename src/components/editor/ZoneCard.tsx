@@ -95,6 +95,9 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
 
       {/* Custom-CSS-Panel: stylt den Text, ohne ihn in HTML zu vergraben */}
       <CssPanel zone={zone} />
+
+      {/* Speaker-Notes-Panel: nur in der Speaker-View sichtbar */}
+      <NotesPanel zone={zone} />
     </div>
   )
 }
@@ -125,6 +128,41 @@ function CssPanel({ zone }: { zone: Zone }) {
             <code className="font-mono">h1 {'{'} letter-spacing: -.02em {'}'}</code>. Token-Variablen
             wie <code className="font-mono">var(--color-accent)</code> bleiben themebar.
           </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function NotesPanel({ zone }: { zone: Zone }) {
+  const updateZoneNotes = usePresentationStore((s) => s.updateZoneNotes)
+  const notes = zone.notes ?? ''
+  const hasNotes = !!notes.trim()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="border-t border-chrome-border">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-chrome-muted transition-colors hover:text-chrome-text"
+      >
+        <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} weight={400} />
+        <Icon name="sticky_note_2" size={15} weight={400} />
+        Notizen
+        {hasNotes && (
+          <span className="h-1.5 w-1.5 rounded-full bg-chrome-accent-600" title="Notizen vorhanden" />
+        )}
+        <span className="ml-auto text-[11px] text-chrome-faint">nur in der Speaker-View</span>
+      </button>
+      {open && (
+        <div className="px-4 pb-3.5">
+          <textarea
+            value={notes}
+            onChange={(e) => updateZoneNotes(zone.id, e.target.value)}
+            placeholder="Sprechernotizen für diese Folie …"
+            rows={3}
+            className="w-full resize-y rounded-lg border border-chrome-border bg-chrome-bg px-3 py-2 text-[13px] leading-relaxed text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-1 focus:ring-chrome-accent/30"
+          />
         </div>
       )}
     </div>

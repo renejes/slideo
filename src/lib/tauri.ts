@@ -71,3 +71,24 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
   })
   return selected ?? null
 }
+
+/** "Speichern unter"-Dialog für den HTML-Export (eigenständige, teilbare Datei). */
+export async function pickExportHtmlPath(defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const selected = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'HTML', extensions: ['html'] }],
+  })
+  return selected ?? null
+}
+
+/** Schreibt eine fertige, eigenständige HTML-Page an den Pfad. */
+export function exportHtmlFile(path: string, html: string): Promise<void> {
+  return invoke<void>('export_html', { path, html })
+}
+
+/** Schreibt die print-optimierte Page in eine Temp-Datei und öffnet sie im Browser (PDF). */
+export function openPrintView(html: string): Promise<string> {
+  return invoke<string>('open_print_view', { html })
+}

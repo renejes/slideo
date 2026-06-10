@@ -1,8 +1,10 @@
 mod claude_config;
 mod commands;
+mod components;
 mod file;
 mod ipc;
 mod mcp;
+mod presets;
 mod state;
 mod tools;
 
@@ -70,6 +72,8 @@ pub fn run() {
             commands::sync_presentation,
             commands::sync_assets,
             commands::set_file_path,
+            commands::export_html,
+            commands::open_print_view,
         ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Slideo-App");

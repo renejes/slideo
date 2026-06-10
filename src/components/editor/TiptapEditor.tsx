@@ -3,6 +3,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { useEffect, useRef } from 'react'
 import { baseExtensions } from '@/lib/tiptap-extensions'
 import { editorToMarkdown } from '@/lib/tiptap-markdown'
+import { ImageToolbar } from './ImageToolbar'
 
 interface TiptapEditorProps {
   /** Initialer Inhalt als Markdown (wird nur beim Mount gesetzt). */
@@ -27,7 +28,7 @@ export function TiptapEditor({ initialMarkdown, onChange, onFocus }: TiptapEdito
     ],
     content: initialMarkdown,
     editorProps: {
-      attributes: { class: 'tiptap-content' },
+      attributes: { class: 'tiptap-content', spellcheck: 'true' },
     },
     onUpdate: ({ editor }) => {
       onChangeRef.current(editorToMarkdown(editor))
@@ -52,5 +53,10 @@ export function TiptapEditor({ initialMarkdown, onChange, onFocus }: TiptapEdito
     }
   }, [editor, initialMarkdown])
 
-  return <EditorContent editor={editor} />
+  return (
+    <>
+      <ImageToolbar editor={editor} />
+      <EditorContent editor={editor} />
+    </>
+  )
 }

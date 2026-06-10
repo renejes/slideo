@@ -63,3 +63,47 @@ pub fn sync_assets(assets: Vec<Asset>, state: State<'_, AppState>) {
 pub fn set_file_path(path: Option<String>, state: State<'_, AppState>) {
     *state.file_path.lock().unwrap() = path.map(PathBuf::from);
 }
+
+/// Schreibt eine fertige, eigenständige HTML-Page (Export/Teilen) an `path`.
+/// Das Frontend rendert die Page (alle Assets inline) und reicht den String durch.
+#[tauri::command]
+pub fn export_html(path: String, html: String) -> Result<(), String> {
+    std::fs::write(&path, html).map_err(|e| format!("Export fehlgeschlagen: {e}"))
+}
+
+/// Öffnet eine print-optimierte HTML-Page (PDF-Export) im Standardbrowser.
+/// Der WKWebView unterstützt `window.print()` nicht zuverlässig — daher schreiben
+/// wir die Page in eine Temp-Datei und öffnen sie extern; der Nutzer druckt dort
+/// mit „Als PDF sichern" (Cmd/Strg+P). Gibt den Pfad der Temp-Datei zurück.
+#[tauri::command]
+pub fn open_print_view(html: String) -> Result<String, String> {
+    let path = std::env::temp_dir().join("slideo-export.html");
+    std::fs::write(&path, html).map_err(|e| format!("Schreiben fehlgeschlagen: {e}"))?;
+    open_in_default_app(&path)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Öffnet einen Pfad mit der Standard-App des Betriebssystems.
+fn open_in_default_app(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let mut cmd = std::process::Command::new("open");
+    #[cfg(target_os = "macos")]
+    cmd.arg(path);
+
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start", ""]).arg(path);
+        c
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(path);
+        c
+    };
+
+    cmd.spawn().map_err(|e| format!("Öffnen fehlgeschlagen: {e}"))?;
+    Ok(())
+}

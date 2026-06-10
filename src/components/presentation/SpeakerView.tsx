@@ -11,11 +11,15 @@ interface SpeakerViewProps {
   index: number
   /** Verstrichene Zeit in Sekunden. */
   elapsed: number
+  /** Aktueller Build-Schritt der Folie (0-basiert). */
+  step?: number
+  /** Anzahl Build-Schritte der aktuellen Folie. */
+  stepTotal?: number
 }
 
 // Integrierte Speaker-Ansicht: große aktuelle Folie, Vorschau der nächsten,
 // Timer, Folienzähler und Notizen — alles im selben Fenster.
-export function SpeakerView({ presentation, index, elapsed }: SpeakerViewProps) {
+export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal = 1 }: SpeakerViewProps) {
   const assets = usePresentationStore((s) => s.assets)
   const html = useMemo(
     () => renderFullPage(presentation, { present: false, assets, assetUrlBase: ASSET_BASE }),
@@ -46,6 +50,7 @@ export function SpeakerView({ presentation, index, elapsed }: SpeakerViewProps) 
           <span className="text-3xl font-semibold tabular-nums">{formatTime(elapsed)}</span>
           <span className="text-sm text-white/50 tabular-nums">
             {Math.min(index + 1, count)} / {count}
+            {stepTotal > 1 && <span className="text-white/30"> · Schritt {step + 1}/{stepTotal}</span>}
           </span>
         </div>
 

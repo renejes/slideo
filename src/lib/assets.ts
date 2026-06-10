@@ -71,3 +71,36 @@ export function mediaKind(mime: string): MediaKind {
 export function shortId(): string {
   return crypto.randomUUID().slice(0, 8)
 }
+
+/** Kleingeschriebene Dateiendung (ohne Punkt), oder '' wenn keine. */
+export function extFromName(name: string): string {
+  const i = name.lastIndexOf('.')
+  return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
+}
+
+/** CSS `format(...)`-String für `@font-face` aus der Dateiendung. */
+export function fontFormat(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case 'woff2':
+      return 'woff2'
+    case 'woff':
+      return 'woff'
+    case 'ttf':
+      return 'truetype'
+    case 'otf':
+      return 'opentype'
+    default:
+      return 'woff2'
+  }
+}
+
+/** Leitet aus einem Datei-/Asset-Namen einen lesbaren Font-Familiennamen ab. */
+export function familyFromName(name: string): string {
+  const base = name.replace(/\.[^.]+$/, '') // Endung weg
+  return (
+    base
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() || 'Schrift'
+  )
+}

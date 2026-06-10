@@ -60,6 +60,46 @@ cd src-tauri && cargo check && cargo test
 ## Stand
 
 MVP funktional komplett (Phasen 1–5): Editor, HTML-Zonen, Live-Preview, Präsentationsmodus +
-integrierte Speaker-View, MCP-Server, Undo/Shortcuts/Toasts/Close-Guard. Offen (Post-MVP):
-echtes Speaker-Zweitfenster, Bild-Drag&Drop in `assets/`, Cross-Platform-Builds, Font-Subset.
-Siehe [README.md](README.md).
+integrierte Speaker-View, MCP-Server, Undo/Shortcuts/Toasts/Close-Guard.
+
+**Roadmap §18 (umgesetzt):** Speaker-Notes (§18.2), HTML- & PDF-Export + Teilen (§18.4/18.5),
+Themes/Presets (§18.6), Folien-Transitions (§18.3), Bild-Positionierung „Light" **und „Medium"**
+(§18.1: Bild-Toolbar + **Block-Drag in der interaktiven Vorschau** + automatische `+++`-Spalten),
+Komponenten-Bibliothek + erweiterter Agenten-Skill (§18.7).
+
+**Roadmap §19 (umgesetzt):** Daten-Diagramme (§19.2: `line_chart`/`donut_chart`, 9 Komponenten
+gesamt), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds** (§19.1:
+`set_zone_reveal`, parent-autoritative Präsentations-Nav — Auto-Animate offen), Vorlagen & Marke
+(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck (§19.9).
+**MCP-Tools: 30** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`,
+`set_transition`, `list_components`/`insert_component`.
+
+**Wichtig (Architektur):** Visuelles Umsortieren passiert in der **Vorschau** (`renderFullPage({editable:true})`
+umhüllt Blöcke, Drag-Script → `slideo:reorder-blocks` → Store `reorderZoneBlocks`), NICHT im
+Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasiert (Reihenfolge, kein x/y).
+
+**Konventionen aus dieser Roadmap-Session:**
+- **Single Source of Truth über die FFI-Grenze:** Presets in [src/lib/presets.ts](src/lib/presets.ts)
+  **und** [src-tauri/src/presets.rs](src-tauri/src/presets.rs) gespiegelt halten (wie `DEFAULT_TOKENS`).
+  Komponenten leben **nur** in Rust ([src-tauri/src/components.rs](src-tauri/src/components.rs)) — eine
+  künftige UI-Palette soll denselben Generator via Tauri-Command nutzen (keine TS-Duplikation).
+- **Token-Pflicht für Komponenten/HTML:** ausschließlich `var(--color-*)`/`var(--font-*)`/
+  `var(--border-radius)` — nie hartkodierte Farben/Fonts, sonst nicht themebar.
+- **Bild-Positionierung:** Default-Bilder bleiben Markdown `![]()`; mit Größe/Ausrichtung/Float
+  werden sie als rohes `<img style="width:.." class="align-*|float-*">` serialisiert
+  ([src/lib/tiptap-image.ts](src/lib/tiptap-image.ts)) — round-trip-sicher über markdown-it.
+- **Transitions:** `meta.transition` (additiv, optional); Renderer-Deck-Modus nur bei `present`
+  und `kind!=='none'` — Scroll-Snap-Default bleibt unangetastet & abwärtskompatibel.
+- **WKWebView-Lücken → Pointer-Events / kein nativer Browser-Convenience-Call:** HTML5-DnD und
+  `window.print()` sind unzuverlässig. Block-Drag/Bild-Resize laufen über Pointer-Events;
+  PDF via `open_print_view` (Temp-Datei → Standardbrowser).
+- **Builds parent-autoritativ:** PresentationMode hält Folie+Schritt, Audience-Iframe hat keine
+  eigene Tastatur (nur Standalone-Export), reagiert nur auf `slideo:show {index, step}`.
+- **Additive Datenmodell-Felder** (optional, `version` bleibt "1.0"): `meta.transition`, `meta.logo`,
+  `zone.reveal`, `presentation.fonts`, Bild-`width/align/float`.
+
+Offen (Post-MVP): GUI-Verifikation der §18/§19-Features; **§19.3 Presenter-Tools** (Übersicht/Sprung,
+Laser/Stift, echtes Zweitfenster, Auto-Advance), **Auto-Animate/Morph**, **§19.5 PPTX-Export**,
+**Outline-Modus + Versionshistorie**, **§19.8 Medien** (Drag&Drop-Import, Crop, Aufnahme),
+**Komponenten-Palette** (Polish), Asset-Positionierung „Large", Cross-Platform-Builds + Signing,
+Font-Subset. Siehe [README.md](README.md) und [docs/next-steps.md](docs/next-steps.md).

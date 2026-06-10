@@ -6,17 +6,38 @@ import {
   type ContentType,
   type DesignTokens,
   type AssetMap,
+  type TransitionKind,
+  type RevealMode,
+  type LogoPosition,
   DEFAULT_TOKENS,
   DEFAULT_ZONE_STYLE,
   FILE_FORMAT_VERSION,
 } from '@/types'
-import { markdownToHtml } from '@/lib/markdown-tiptap'
-import { assetsToMap, mapToAssets, parseDataUri, mimeToExt, mediaKind, shortId } from '@/lib/assets'
+import { markdownToHtml, splitMarkdownBlocks, setBlockImageWidth } from '@/lib/markdown-tiptap'
+import { renderStandalonePage, renderPrintPage } from '@/lib/renderer'
+import { exportPdfViaPrint } from '@/lib/print'
+import { findPreset } from '@/lib/presets'
+import type { DeckTemplate } from '@/lib/templates'
+import { setAssetResolver } from '@/lib/asset-resolver'
+import {
+  assetsToMap,
+  mapToAssets,
+  parseDataUri,
+  mimeToExt,
+  mediaKind,
+  shortId,
+  familyFromName,
+  extFromName,
+} from '@/lib/assets'
 import {
   loadPresentationFile,
   savePresentationFile,
   pickOpenPath,
   pickSavePath,
+  pickExportHtmlPath,
+  exportHtmlFile,
+  openPrintView,
+  isTauri,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
 
@@ -40,11 +61,13 @@ interface PresentationState {
   undo: () => void
 
   // Lifecycle
-  newPresentation: (title: string) => void
+  newPresentation: (title: string, template?: DeckTemplate) => void
   loadPresentation: (path: string) => Promise<void>
   openPresentationDialog: () => Promise<void>
   savePresentation: (path?: string) => Promise<void>
   savePresentationAsDialog: () => Promise<void>
+  exportHtml: () => Promise<void>
+  exportPdf: () => Promise<void>
 
   // Zones
   createZone: (afterId?: string, markdown?: string) => string
@@ -55,17 +78,38 @@ interface PresentationState {
   setZoneContentType: (id: string, contentType: ContentType) => void
   updateZoneStyle: (id: string, style: Partial<ZoneStyle>) => void
   updateZoneLabel: (id: string, label: string) => void
+  updateZoneNotes: (id: string, notes: string) => void
+  /** Ersetzt alle Vorkommen deck-weit (Markdown- bzw. HTML-Inhalt). Gibt die Anzahl zurück. */
+  replaceAllInDeck: (search: string, replace: string) => number
+  /** Schaltet Builds (schrittweises Einblenden) für eine Zone (Spec §19.1). */
+  setZoneReveal: (id: string, mode: RevealMode) => void
+  /** Setzt das Layout und verwaltet bei 'split' den '+++'-Spaltentrenner automatisch. */
+  setZoneLayout: (id: string, layout: ZoneStyle['layout']) => void
+  /** Sortiert die Markdown-Blöcke einer Zone um (Drag in der Vorschau). */
+  reorderZoneBlocks: (id: string, order: number[]) => void
+  /** Setzt die Breite eines Bildes (Resize-Anfasser in der Vorschau), z.B. "63%". */
+  resizeZoneImage: (id: string, blockIndex: number, imgIndex: number, width: string) => void
   reorderZones: (orderedIds: string[]) => void
 
   // Assets
   addMediaToZone: (zoneId: string, dataUri: string) => void
   addAssetToLibrary: (dataUri: string) => string
   removeAsset: (name: string) => void
+  /** Lädt eine Schriftdatei als Asset + registriert sie als Font (Spec §19.4). */
+  addFont: (dataUri: string, fileName: string) => void
+  /** Setzt das Marken-Logo (Bild-Asset auf jeder Folie, Spec §19.4). */
+  setLogo: (dataUri: string) => void
+  setLogoPosition: (position: LogoPosition) => void
+  clearLogo: () => void
 
   // Tokens
   setToken: (key: string, value: string) => void
   setTokensBulk: (tokens: Record<string, string>) => void
   resetTokens: () => void
+  applyPreset: (name: string) => void
+
+  // Präsentation (deck-weit)
+  setTransition: (kind: TransitionKind, durationMs?: number) => void
 
   // UI
   setActiveZone: (id: string | null) => void
@@ -112,13 +156,25 @@ function htmlStarter(): string {
   ].join('\n')
 }
 
-function makePresentation(title: string): Presentation {
+function makePresentation(title: string, template?: DeckTemplate): Presentation {
   const created = now()
+  const preset = template?.preset ? findPreset(template.preset) : undefined
+  const tokens = preset ? { ...DEFAULT_TOKENS, ...preset.tokens } : { ...DEFAULT_TOKENS }
+  const seeds = template
+    ? template.zones(title)
+    : [{ markdown: `# ${title}\n\nDein erster Slide. Leg los.` }]
+  const zones = seeds.map((s, i) => {
+    const z = makeZone(i, s.markdown)
+    z.label = `Slide ${i + 1}`
+    if (s.layout) z.style.layout = s.layout
+    if (s.reveal) z.reveal = s.reveal
+    return z
+  })
   return {
     version: FILE_FORMAT_VERSION,
     meta: { title, created, modified: created },
-    tokens: { ...DEFAULT_TOKENS },
-    zones: [makeZone(0, `# ${title}\n\nDein erster Slide. Leg los.`)],
+    tokens,
+    zones,
   }
 }
 
@@ -131,6 +187,9 @@ const PAST_CAP = 50
 const clone = (p: Presentation): Presentation => JSON.parse(JSON.stringify(p))
 
 export const usePresentationStore = create<PresentationState>((set, get) => {
+  // Bild-Anzeige im Editor: `assets/<name>` → aktuelle Data-URI auflösen.
+  setAssetResolver((name) => get().assets[name])
+
   /** Hängt einen Snapshot an die Undo-History (gekappt auf PAST_CAP). */
   function pushHistory(p: Presentation): void {
     set({ past: [...get().past, clone(p)].slice(-PAST_CAP) })
@@ -173,8 +232,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     mode: 'editor',
     activeSlideIndex: 0,
 
-    newPresentation: (title) => {
-      const presentation = makePresentation(title || 'Unbenannt')
+    newPresentation: (title, template) => {
+      const presentation = makePresentation(title || 'Unbenannt', template)
       set({
         presentation,
         filePath: null,
@@ -237,6 +296,42 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const safeName = presentation.meta.title.replace(/[^\w\-]+/g, '-').toLowerCase() || 'presentation'
       const path = await pickSavePath(`${safeName}.slideo`)
       if (path) await get().savePresentation(path)
+    },
+
+    exportHtml: async () => {
+      const { presentation, assets } = get()
+      if (!presentation) return
+      const safeName = presentation.meta.title.replace(/[^\w\-]+/g, '-').toLowerCase() || 'presentation'
+      const path = await pickExportHtmlPath(`${safeName}.html`)
+      if (!path) return
+      try {
+        const html = renderStandalonePage(presentation, assets)
+        await exportHtmlFile(path, html)
+        notify('Als HTML exportiert — überall im Browser abspielbar.', 'success')
+      } catch (e) {
+        console.error('[slideo] export_html fehlgeschlagen:', e)
+        notify(`Export fehlgeschlagen: ${errMsg(e)}`, 'error')
+      }
+    },
+
+    exportPdf: async () => {
+      const { presentation, assets } = get()
+      if (!presentation) return
+      if (isTauri()) {
+        // WKWebView kann window.print() nicht zuverlässig — print-Page in den
+        // Standardbrowser auslagern; dort „Drucken → Als PDF sichern".
+        try {
+          await openPrintView(renderPrintPage(presentation, assets))
+          notify('Im Browser geöffnet — dort „Drucken → Als PDF sichern" (Cmd/Strg+P).', 'info')
+        } catch (e) {
+          console.error('[slideo] open_print_view fehlgeschlagen:', e)
+          notify(`PDF-Export fehlgeschlagen: ${errMsg(e)}`, 'error')
+        }
+      } else {
+        // Reiner Browser-Dev: direkter Iframe-Druck funktioniert.
+        exportPdfViaPrint(presentation, assets)
+        notify('Druckdialog geöffnet — „Als PDF sichern".', 'info')
+      }
     },
 
     createZone: (afterId, markdown = '') => {
@@ -327,6 +422,108 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       }))
     },
 
+    updateZoneNotes: (id, notes) => {
+      // Texteingabe: kein History-Snapshot (analog Markdown/CSS).
+      mutate(
+        (p) => ({
+          ...p,
+          zones: p.zones.map((z) => (z.id === id ? { ...z, notes } : z)),
+        }),
+        false,
+      )
+    },
+
+    replaceAllInDeck: (search, replace) => {
+      if (!search) return 0
+      let count = 0
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => {
+          if (z.content_type === 'html') {
+            const text = z.html ?? ''
+            const n = text.split(search).length - 1
+            if (n === 0) return z
+            count += n
+            return { ...z, html: text.split(search).join(replace) }
+          }
+          const n = z.markdown.split(search).length - 1
+          if (n === 0) return z
+          count += n
+          return { ...z, markdown: z.markdown.split(search).join(replace) }
+        }),
+      }))
+      return count
+    },
+
+    setZoneReveal: (id, mode) => {
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => (z.id === id ? { ...z, reveal: mode } : z)),
+      }))
+    },
+
+    setZoneLayout: (id, layout) => {
+      const SEP = /^[ \t]*\+\+\+[ \t]*$/
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => {
+          if (z.id !== id) return z
+          const style = { ...z.style, layout }
+          // +++-Trenner nur in Markdown-Zonen automatisch verwalten.
+          if (z.content_type !== 'markdown') return { ...z, style }
+          if (layout === 'split' && z.style.layout !== 'split') {
+            // Zwei Spalten: sicherstellen, dass ein Trenner existiert.
+            const hasSep = z.markdown.split('\n').some((l) => SEP.test(l))
+            const markdown = hasSep ? z.markdown : `${z.markdown.trim()}\n\n+++\n\n`
+            return { ...z, markdown, style }
+          }
+          if (layout !== 'split' && z.style.layout === 'split') {
+            // Einspaltig: Trenner entfernen, Inhalte zusammenführen.
+            const markdown = z.markdown
+              .split('\n')
+              .filter((l) => !SEP.test(l))
+              .join('\n')
+              .replace(/\n{3,}/g, '\n\n')
+              .trim()
+            return { ...z, markdown, style }
+          }
+          return { ...z, style }
+        }),
+      }))
+    },
+
+    reorderZoneBlocks: (id, order) => {
+      const current = get().presentation
+      const zone = current?.zones.find((z) => z.id === id)
+      if (!zone || zone.content_type !== 'markdown') return
+      const blocks = splitMarkdownBlocks(zone.markdown)
+      // Permutation validieren (gleiche Länge, jeder Index genau einmal).
+      if (order.length !== blocks.length) return
+      const seen = new Set(order)
+      if (seen.size !== blocks.length || order.some((i) => i < 0 || i >= blocks.length)) return
+      const markdown = order.map((i) => blocks[i]).join('\n\n')
+      if (markdown === zone.markdown) return // keine Änderung
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)),
+      }))
+      set({ activeZoneId: id })
+    },
+
+    resizeZoneImage: (id, blockIndex, _imgIndex, width) => {
+      const zone = get().presentation?.zones.find((z) => z.id === id)
+      if (!zone || zone.content_type !== 'markdown') return
+      const blocks = splitMarkdownBlocks(zone.markdown)
+      if (blockIndex < 0 || blockIndex >= blocks.length) return
+      const updated = setBlockImageWidth(blocks[blockIndex], width)
+      if (updated === blocks[blockIndex]) return
+      const next = blocks.slice()
+      next[blockIndex] = updated
+      const markdown = next.join('\n\n')
+      mutate((p) => ({ ...p, zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)) }))
+      set({ activeZoneId: id })
+    },
+
     reorderZones: (orderedIds) => {
       mutate((p) => {
         const byId = new Map(p.zones.map((z) => [z.id, z]))
@@ -350,6 +547,39 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const next = { ...get().assets }
       delete next[name]
       set({ assets: next, isDirty: true })
+    },
+
+    addFont: (dataUri, fileName) => {
+      const ext = extFromName(fileName) || 'woff2'
+      const family = familyFromName(fileName)
+      const asset = `font-${shortId()}.${ext}`
+      set({ assets: { ...get().assets, [asset]: dataUri }, isDirty: true })
+      mutate((p) => ({ ...p, fonts: [...(p.fonts ?? []), { family, asset }] }))
+      notify(`Schrift „${family}" hinzugefügt — in der Schriftart-Auswahl wählbar.`, 'success')
+    },
+
+    setLogo: (dataUri) => {
+      const asset = get().addAssetToLibrary(dataUri)
+      mutate((p) => ({
+        ...p,
+        meta: { ...p.meta, logo: { asset, position: p.meta.logo?.position ?? 'bottom-right' } },
+      }))
+      notify('Logo gesetzt — erscheint auf jeder Folie.', 'success')
+    },
+
+    setLogoPosition: (position) => {
+      mutate((p) =>
+        p.meta.logo ? { ...p, meta: { ...p.meta, logo: { ...p.meta.logo, position } } } : p,
+      )
+    },
+
+    clearLogo: () => {
+      mutate((p) => {
+        if (!p.meta.logo) return p
+        const meta = { ...p.meta }
+        delete meta.logo
+        return { ...p, meta }
+      })
     },
 
     addMediaToZone: (zoneId, dataUri) => {
@@ -402,6 +632,29 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
     resetTokens: () => {
       mutate((p) => ({ ...p, tokens: { ...DEFAULT_TOKENS } }))
+    },
+
+    applyPreset: (name) => {
+      const preset = findPreset(name)
+      if (!preset) {
+        notify(`Theme „${name}" nicht gefunden.`, 'error')
+        return
+      }
+      mutate((p) => ({ ...p, tokens: { ...p.tokens, ...preset.tokens } }))
+      notify(`Theme „${preset.label}" angewendet.`, 'success')
+    },
+
+    setTransition: (kind, durationMs) => {
+      mutate((p) => ({
+        ...p,
+        meta: {
+          ...p.meta,
+          transition: {
+            kind,
+            duration_ms: durationMs ?? p.meta.transition?.duration_ms ?? 500,
+          },
+        },
+      }))
     },
 
     setActiveZone: (id) => set({ activeZoneId: id }),

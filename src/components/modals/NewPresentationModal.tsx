@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/store/settings'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
 import { confirmDialog, getDesktopDir, joinPath, pickDirectory } from '@/lib/dialog'
+import { TEMPLATES, findTemplate } from '@/lib/templates'
 
 function safeFileName(name: string): string {
   const cleaned = name
@@ -29,6 +30,7 @@ export function NewPresentationModal() {
 
   const tauri = isTauri()
   const [name, setName] = useState('Meine Präsentation')
+  const [templateId, setTemplateId] = useState('blank')
   const [location, setLocation] = useState<string | null>(defaultProjectDir)
   const [busy, setBusy] = useState(false)
 
@@ -56,7 +58,7 @@ export function NewPresentationModal() {
         )
         if (!ok) return // Modal bleibt offen
       }
-      newPresentation(name || 'Unbenannt')
+      newPresentation(name || 'Unbenannt', findTemplate(templateId))
 
       if (tauri && location) {
         const path = await joinPath(location, `${safeFileName(name)}.slideo`)
@@ -96,6 +98,28 @@ export function NewPresentationModal() {
             className="rounded-lg border border-chrome-border bg-white px-3 py-2 text-[14px] text-chrome-text focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
           />
         </label>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-medium text-chrome-secondary">Vorlage</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTemplateId(t.id)}
+                title={t.description}
+                className={
+                  'flex flex-col items-start gap-0.5 rounded-lg border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
+                  (templateId === t.id
+                    ? 'border-chrome-accent bg-chrome-accent-soft'
+                    : 'border-chrome-border hover:border-chrome-border-strong')
+                }
+              >
+                <span className="text-[13px] font-medium text-chrome-text">{t.label}</span>
+                <span className="text-[11px] leading-snug text-chrome-muted">{t.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[12px] font-medium text-chrome-secondary">Speicherort</span>

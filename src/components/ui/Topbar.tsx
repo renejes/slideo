@@ -22,6 +22,8 @@ export function Topbar() {
   const filePath = usePresentationStore((s) => s.filePath)
   const openDialog = usePresentationStore((s) => s.openPresentationDialog)
   const save = usePresentationStore((s) => s.savePresentation)
+  const exportHtml = usePresentationStore((s) => s.exportHtml)
+  const exportPdf = usePresentationStore((s) => s.exportPdf)
   const setMode = usePresentationStore((s) => s.setMode)
   const openModal = useUiStore((s) => s.openModal)
 
@@ -69,9 +71,38 @@ export function Topbar() {
           <Icon name="save" size={18} />
           Speichern
         </button>
+        <button
+          onClick={() => exportHtml()}
+          className={ghost}
+          disabled={!presentation || !tauri}
+          title={
+            fileHint ?? 'Als eigenständige .html-Datei exportieren — überall im Browser abspielbar und teilbar'
+          }
+        >
+          <Icon name="ios_share" size={18} />
+          Teilen
+        </button>
+        <button
+          onClick={() => exportPdf()}
+          className={ghost}
+          disabled={!presentation}
+          title={'Als PDF exportieren (öffnet den Druckdialog → „Als PDF sichern“)'}
+        >
+          <Icon name="picture_as_pdf" size={18} />
+          PDF
+        </button>
 
         <span className="mx-1 h-5 w-px bg-chrome-border" />
 
+        <button
+          onClick={() => openModal('find')}
+          className={ghost + ' !px-2'}
+          disabled={!presentation}
+          title="Suchen & Ersetzen (Cmd/Ctrl+F)"
+          aria-label="Suchen & Ersetzen"
+        >
+          <Icon name="search" size={18} />
+        </button>
         <button
           onClick={() => openModal('settings')}
           className={ghost + ' !px-2'}

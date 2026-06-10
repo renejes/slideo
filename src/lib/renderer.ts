@@ -1,7 +1,7 @@
-import type { Presentation, Zone, AssetMap } from '@/types'
-import { markdownToHtml } from './markdown-tiptap'
+import type { Presentation, Zone, AssetMap, TransitionKind } from '@/types'
+import { markdownToHtml, splitMarkdownBlocks } from './markdown-tiptap'
 import { tokensToCssString } from './tokens'
-import { mediaKind, parseDataUri } from './assets'
+import { mediaKind, parseDataUri, fontFormat, extFromName } from './assets'
 
 // Renderer: Markdown + Tokens → in sich geschlossene HTML-Page.
 //
@@ -90,6 +90,34 @@ function resolveAssetRefs(html: string, assets?: AssetMap, urlBase?: string): st
     out = out.split(`assets/${name}`).join(replacement)
   }
   return out
+}
+
+/**
+ * `@font-face`-Regeln für hochgeladene Schriften (Spec §19.4): Familienname +
+ * Asset-Datei → Data-URI aus der Asset-Map. So sind Custom-Fonts in Vorschau,
+ * Präsentation und im self-contained Export verfügbar.
+ */
+function fontFaceCss(presentation: Presentation, assets?: AssetMap): string {
+  const fonts = presentation.fonts
+  if (!fonts || fonts.length === 0 || !assets) return ''
+  return fonts
+    .map((f) => {
+      const dataUri = assets[f.asset]
+      if (!dataUri) return ''
+      const fmt = fontFormat(extFromName(f.asset))
+      return `@font-face { font-family: ${JSON.stringify(f.family)}; src: url(${dataUri}) format('${fmt}'); font-display: swap; }`
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** Marken-Logo (Spec §19.4) als `<img>` mit aufgelöster Quelle, oder ''. */
+function logoHtml(presentation: Presentation, assets?: AssetMap): string {
+  const logo = presentation.meta.logo
+  if (!logo || !assets) return ''
+  const src = assets[logo.asset]
+  if (!src) return ''
+  return `<img class="slideo-logo slideo-logo-${logo.position}" src="${src}" alt="" />`
 }
 
 /** Stylesheet für Layout-Container + Content-Elemente (token-getrieben). */
@@ -189,48 +217,301 @@ body {
 }
 .slideo-content pre code { background: none; padding: 0; }
 .slideo-content img { max-width: 100%; border-radius: var(--border-radius); }
+/* Bild-Positionierung (Spec §18.1): Ausrichtung im Fluss + Float mit Umfluss. */
+.slideo-content img.align-left   { display: block; margin-right: auto; }
+.slideo-content img.align-center { display: block; margin-left: auto; margin-right: auto; }
+.slideo-content img.align-right  { display: block; margin-left: auto; }
+.slideo-content img.float-left   { float: left; margin: 0.2em 1.25em 0.75em 0; }
+.slideo-content img.float-right  { float: right; margin: 0.2em 0 0.75em 1.25em; }
+.slideo-content::after { content: ""; display: block; clear: both; }
 .slideo-content hr { border: 0; border-top: 1px solid var(--color-surface); margin: 1.5em 0; }
 .slideo-content table { border-collapse: collapse; width: 100%; }
 .slideo-content th, .slideo-content td { border: 1px solid var(--color-surface); padding: 0.5em 0.75em; }
+
+/* Editier-Modus (nur Vorschau): umsortierbare Blöcke + Drag-Handle. */
+.slideo-block { position: relative; }
+.slideo-block > :first-child { margin-top: 0; }
+.slideo-block > :last-child { margin-bottom: 0; }
+.slideo-block + .slideo-block { margin-top: 0.75em; }
+.slideo-block > .slideo-drag {
+  position: absolute; left: -1.7rem; top: 0.15em;
+  width: 1.15rem; height: 1.35rem; border-radius: 5px;
+  cursor: grab; touch-action: none; opacity: 0; transition: opacity 0.12s ease;
+  background-color: rgba(127,127,127,0.16);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='%23999'><circle cx='5.5' cy='4' r='1.3'/><circle cx='10.5' cy='4' r='1.3'/><circle cx='5.5' cy='8' r='1.3'/><circle cx='10.5' cy='8' r='1.3'/><circle cx='5.5' cy='12' r='1.3'/><circle cx='10.5' cy='12' r='1.3'/></svg>");
+  background-size: 0.95rem; background-repeat: no-repeat; background-position: center;
+}
+.slideo-block:hover > .slideo-drag { opacity: 0.85; }
+.slideo-block > .slideo-drag:active { cursor: grabbing; }
+.slideo-block.slideo-dragging { opacity: 0.4; }
+/* Bild-Resize-Anfasser (rechte Kante), nur Vorschau. */
+.slideo-resize {
+  position: fixed; z-index: 50;
+  width: 11px; height: 32px; border-radius: 6px;
+  background: var(--color-accent); cursor: ew-resize; touch-action: none;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.55), 0 1px 3px rgba(0,0,0,0.3);
+}
+/* Builds (Schritt-Einblenden), nur In-App-Präsentation. */
+.slideo-fragment { opacity: 0; transform: translateY(10px); transition: opacity 0.35s ease, transform 0.35s ease; }
+.slideo-fragment.is-shown { opacity: 1; transform: none; }
+.slideo-fragment > :first-child { margin-top: 0; }
+.slideo-fragment > :last-child { margin-bottom: 0; }
+.slideo-fragment + .slideo-fragment { margin-top: 0.6em; }
+/* Marken-Logo auf jeder Folie (Spec §19.4). */
+.slideo-logo { position: absolute; z-index: 5; max-height: 9%; max-width: 22%; height: auto; width: auto; opacity: 0.95; pointer-events: none; }
+.slideo-logo-top-left { top: 4%; left: 4%; }
+.slideo-logo-top-right { top: 4%; right: 4%; }
+.slideo-logo-bottom-left { bottom: 4%; left: 4%; }
+.slideo-logo-bottom-right { bottom: 4%; right: 4%; }
 `.trim()
 
 /**
  * Navigations-Script für Iframe ↔ Parent (postMessage).
- * `keys` schaltet Tastatur-Navigation ein (nur im Präsentationsmodus).
+ * - In-App-Präsentation & Vorschau: **parent-autoritativ** — keine eigene Tastatur,
+ *   reagiert auf `slideo:goto {index}` und `slideo:show {index, step}` (Builds).
+ * - `standalone` (exportierte .html, ohne Parent): eigene Tastatur + Klick-Navigation.
+ * - `deck` (Transition aktiv): Aktiv-Folie-Modell statt Scroll-Snap (is-active/is-prev).
+ * `slideo:show` blendet zudem `.slideo-fragment`-Elemente bis `step` ein (Spec §19.1).
  */
-function navScript(keys: boolean): string {
+function navScript(standalone: boolean, deck: boolean, durationMs: number): string {
   return `
 (function () {
-  // REPORT: nur der Präsentations-Deck (Tastatur aktiv) meldet den Index zurück.
-  // Vorschau-Iframes (z.B. Speaker-Ansicht) dürfen NICHT melden, sonst entsteht
-  // eine Rückkopplung über die "nächste Folie".
-  var REPORT = ${keys ? 'true' : 'false'};
+  var DECK = ${deck ? 'true' : 'false'};
+  var DURATION = ${Math.max(0, Math.round(durationMs))};
+  var root = document.documentElement;
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slideo-zone'));
   var current = 0;
+  var leaveTimer = null;
   function clamp(i) { return Math.max(0, Math.min(i, slides.length - 1)); }
+  function clearPrev() { for (var k = 0; k < slides.length; k++) slides[k].classList.remove('is-prev'); }
+  // Builds: in der aktiven Folie Fragmente bis 'step' zeigen, sonst alle.
+  function applyFragments(activeIdx, step) {
+    for (var zi = 0; zi < slides.length; zi++) {
+      var frs = slides[zi].querySelectorAll('.slideo-fragment');
+      for (var fi = 0; fi < frs.length; fi++) {
+        var fragIdx = parseInt(frs[fi].getAttribute('data-frag'), 10);
+        if (zi !== activeIdx || fragIdx <= step) frs[fi].classList.add('is-shown');
+        else frs[fi].classList.remove('is-shown');
+      }
+    }
+  }
   function go(i, smooth) {
+    var prev = current;
     current = clamp(i);
-    var el = slides[current];
-    if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
-    if (REPORT) parent.postMessage({ type: 'slideo:index', index: current, count: slides.length }, '*');
+    if (DECK) {
+      root.setAttribute('data-dir', current >= prev ? 'fwd' : 'back');
+      for (var k = 0; k < slides.length; k++) {
+        slides[k].classList.toggle('is-active', k === current);
+        slides[k].classList.toggle('is-prev', k === prev && prev !== current);
+      }
+      if (leaveTimer) clearTimeout(leaveTimer);
+      leaveTimer = setTimeout(clearPrev, DURATION + 60);
+    } else {
+      var el = slides[current];
+      if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    }
   }
   ${
-    keys
-      ? `window.addEventListener('keydown', function (e) {
+    standalone
+      ? `// Standalone-Export: eigene Tastatur + Klick (kein Parent-Fenster).
+  window.addEventListener('keydown', function (e) {
     if (['ArrowRight','ArrowDown','PageDown',' '].indexOf(e.key) !== -1) { e.preventDefault(); go(current + 1, true); }
     else if (['ArrowLeft','ArrowUp','PageUp'].indexOf(e.key) !== -1) { e.preventDefault(); go(current - 1, true); }
     else if (e.key === 'Home') { e.preventDefault(); go(0, true); }
     else if (e.key === 'End') { e.preventDefault(); go(slides.length - 1, true); }
+  });
+  function syncCurrent() {
+    if (DECK) return;
+    var best = 0, bestDist = Infinity;
+    for (var k = 0; k < slides.length; k++) {
+      var d = Math.abs(slides[k].getBoundingClientRect().top);
+      if (d < bestDist) { bestDist = d; best = k; }
+    }
+    current = best;
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('a,button,input,textarea,select,label,video,audio,iframe,[contenteditable],[data-no-advance]')) return;
+    syncCurrent();
+    go(current + (e.clientX < window.innerWidth * 0.25 ? -1 : 1), true);
   });`
       : ''
   }
   window.addEventListener('message', function (e) {
     var d = e.data || {};
     if (d.type === 'slideo:goto') go(d.index, d.smooth !== false);
+    else if (d.type === 'slideo:show') { go(d.index, d.smooth !== false); applyFragments(d.index, d.step | 0); }
   });
+  if (DECK) go(0, false); // Folie 0 initial aktivieren
   parent.postMessage({ type: 'slideo:ready', count: slides.length }, '*');
 })();
 `.trim()
+}
+
+/**
+ * Edit-Script (nur Vorschau): **Pointer-basierte** Interaktionen (HTML5-DnD ist im
+ * WKWebView unzuverlässig).
+ *  1. Block-Reordering: Zug am `.slideo-drag`-Handle → neue Reihenfolge der
+ *     `data-block-index` an den Parent (slideo:reorder-blocks).
+ *  2. Bild-Resize: Anfasser an der rechten Bildkante → Breite stufenlos in %
+ *     (slideo:resize-image). Bleibt flussbasiert.
+ */
+function editScript(): string {
+  return `
+(function () {
+  function zoneOf(el) { return el && el.closest ? el.closest('.slideo-zone') : null; }
+
+  /* ---------- Block-Reordering ---------- */
+  var dragEl = null, dragZone = null;
+  function blockAtY(y) {
+    if (!dragZone) return null;
+    var els = dragZone.querySelectorAll('.slideo-block');
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) return els[i];
+    }
+    return null;
+  }
+  function onDragMove(e) {
+    if (!dragEl) return;
+    var over = blockAtY(e.clientY);
+    if (!over || over === dragEl) return;
+    var r = over.getBoundingClientRect();
+    var before = (e.clientY - r.top) < r.height / 2;
+    over.parentNode.insertBefore(dragEl, before ? over : over.nextSibling);
+  }
+  function onDragEnd() {
+    if (dragEl) {
+      dragEl.classList.remove('slideo-dragging');
+      document.documentElement.style.userSelect = '';
+      if (dragZone) {
+        var id = dragZone.id.replace(/^zone-/, '');
+        var blocks = dragZone.querySelectorAll('.slideo-block');
+        var order = [];
+        for (var i = 0; i < blocks.length; i++) order.push(parseInt(blocks[i].getAttribute('data-block-index'), 10));
+        parent.postMessage({ type: 'slideo:reorder-blocks', zoneId: id, order: order }, '*');
+      }
+    }
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', onDragEnd);
+    document.removeEventListener('pointercancel', onDragEnd);
+    dragEl = null; dragZone = null;
+  }
+
+  /* ---------- Bild-Resize ---------- */
+  var rh = document.createElement('div');
+  rh.className = 'slideo-resize';
+  rh.style.display = 'none';
+  document.body.appendChild(rh);
+  var hoverImg = null, resizeImg = null, resizeLeft = 0, resizeCW = 1;
+  function isImg(el) {
+    return el && el.tagName === 'IMG' && el.closest('.slideo-content') && el.closest('.slideo-zone');
+  }
+  function placeHandle(img) {
+    var r = img.getBoundingClientRect();
+    rh.style.left = (r.right - 6) + 'px';
+    rh.style.top = (r.top + r.height / 2 - 16) + 'px';
+    rh.style.display = 'block';
+  }
+  function hideHandle() { rh.style.display = 'none'; hoverImg = null; }
+  function onResizeMove(e) {
+    if (!resizeImg) return;
+    // Startkante + Containerbreite sind fixiert (bei zentrierten Bildern wandert
+    // die Kante sonst beim Skalieren → Oszillation).
+    var pct = Math.round((e.clientX - resizeLeft) / resizeCW * 100);
+    pct = Math.max(5, Math.min(100, pct));
+    resizeImg.style.width = pct + '%';
+    placeHandle(resizeImg);
+  }
+  function onResizeEnd() {
+    if (resizeImg) {
+      document.documentElement.style.userSelect = '';
+      var z = resizeImg.closest('.slideo-zone');
+      var block = resizeImg.closest('.slideo-block');
+      if (z && block) {
+        var imgs = block.querySelectorAll('img');
+        parent.postMessage({
+          type: 'slideo:resize-image',
+          zoneId: z.id.replace(/^zone-/, ''),
+          blockIndex: parseInt(block.getAttribute('data-block-index'), 10),
+          imgIndex: Array.prototype.indexOf.call(imgs, resizeImg),
+          width: resizeImg.style.width || '100%'
+        }, '*');
+      }
+    }
+    document.removeEventListener('pointermove', onResizeMove);
+    document.removeEventListener('pointerup', onResizeEnd);
+    document.removeEventListener('pointercancel', onResizeEnd);
+    resizeImg = null;
+  }
+  rh.addEventListener('pointerdown', function (e) {
+    if (!hoverImg) return;
+    e.preventDefault();
+    resizeImg = hoverImg;
+    var content = resizeImg.closest('.slideo-content');
+    resizeLeft = resizeImg.getBoundingClientRect().left;
+    resizeCW = content ? content.getBoundingClientRect().width : resizeImg.parentNode.getBoundingClientRect().width;
+    if (!resizeCW) resizeCW = 1;
+    document.documentElement.style.userSelect = 'none';
+    document.addEventListener('pointermove', onResizeMove);
+    document.addEventListener('pointerup', onResizeEnd);
+    document.addEventListener('pointercancel', onResizeEnd);
+  });
+
+  /* ---------- gemeinsamer Einstieg ---------- */
+  document.addEventListener('pointermove', function (e) {
+    if (dragEl || resizeImg) return; // während eines Zugs kein Hover-Update
+    if (e.target === rh) return;     // auf dem Anfasser bleiben
+    if (isImg(e.target)) { hoverImg = e.target; placeHandle(e.target); }
+    else hideHandle();
+  });
+  document.addEventListener('pointerdown', function (e) {
+    var handle = e.target.closest && e.target.closest('.slideo-drag');
+    if (!handle) return;
+    var block = handle.closest('.slideo-block');
+    if (!block) return;
+    e.preventDefault();
+    dragEl = block;
+    dragZone = zoneOf(block);
+    block.classList.add('slideo-dragging');
+    document.documentElement.style.userSelect = 'none';
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', onDragEnd);
+    document.addEventListener('pointercancel', onDragEnd);
+  });
+})();
+`.trim()
+}
+
+/** CSS für den Aktiv-Folie-Modus (Transitions). Ersetzt im Deck-Modus die Snap-Regeln. */
+function transitionCss(kind: TransitionKind, durationMs: number): string {
+  const d = `${Math.max(0, Math.round(durationMs))}ms`
+  const base = `
+html, body { height: 100%; overflow: hidden; }
+.slideo-zone {
+  position: absolute; inset: 0; height: 100vh;
+  opacity: 0; will-change: opacity, transform;
+  transition: opacity ${d} ease, transform ${d} ease;
+}
+.slideo-zone.is-active { opacity: 1; z-index: 2; }
+.slideo-zone.is-prev { z-index: 1; }`
+  if (kind === 'fade') {
+    return `${base}
+.slideo-zone.is-prev { opacity: 0; }`
+  }
+  if (kind === 'zoom') {
+    return `${base}
+.slideo-zone { transform: scale(1.04); }
+.slideo-zone.is-active { transform: scale(1); }
+.slideo-zone.is-prev { opacity: 0; transform: scale(0.98); }`
+  }
+  // slide (richtungsabhängig über data-dir)
+  return `${base}
+[data-dir="fwd"]  .slideo-zone { transform: translateX(100%); }
+[data-dir="back"] .slideo-zone { transform: translateX(-100%); }
+.slideo-zone.is-active { transform: translateX(0); }
+[data-dir="fwd"]  .slideo-zone.is-prev { opacity: 0; transform: translateX(-100%); }
+[data-dir="back"] .slideo-zone.is-prev { opacity: 0; transform: translateX(100%); }`
 }
 
 /** Markdown einer Zone in den inneren HTML-Inhalt rendern.
@@ -245,14 +526,65 @@ function renderMarkdownInner(markdown: string, layout: string): string {
   )
 }
 
+/**
+ * Editier-Modus (nur Vorschau): jeder Top-Level-Block wird umhüllt + per Drag
+ * umsortierbar gemacht. `data-block-index` mappt zurück auf splitMarkdownBlocks().
+ * Bei nur einem Block kein Wrapping (nichts umzusortieren).
+ */
+function renderEditableBlocks(markdown: string): string {
+  const blocks = splitMarkdownBlocks(markdown)
+  if (blocks.length === 0) return markdownToHtml(markdown)
+  // Immer umhüllen (auch Einzelblock → Bild-Resize braucht den data-block-index);
+  // das Reorder-Handle nur ab 2 Blöcken zeigen. Pointer-basiertes Drag (kein
+  // natives draggable — WKWebView unterstützt HTML5-DnD nicht zuverlässig).
+  const showHandle = blocks.length > 1
+  return blocks
+    .map(
+      (b, i) =>
+        `<div class="slideo-block" data-block-index="${i}">` +
+        (showHandle
+          ? `<span class="slideo-drag" data-drag-handle title="Ziehen zum Umsortieren"></span>`
+          : '') +
+        markdownToHtml(b) +
+        `</div>`,
+    )
+    .join('')
+}
+
+/**
+ * Builds (Spec §19.1): jeder Top-Level-Block wird ein `.slideo-fragment` mit
+ * `data-frag`-Index; das Nav-Script blendet sie schrittweise ein. Bei ≤1 Block
+ * gibt es nichts schrittweise zu zeigen → normaler Inhalt.
+ */
+function renderFragmentBlocks(markdown: string): string {
+  const blocks = splitMarkdownBlocks(markdown)
+  if (blocks.length <= 1) return markdownToHtml(markdown)
+  return blocks
+    .map((b, i) => `<div class="slideo-fragment" data-frag="${i}">${markdownToHtml(b)}</div>`)
+    .join('')
+}
+
 /** Rendert eine einzelne Zone als <section>-Element. */
-export function renderZoneSection(zone: Zone, assets?: AssetMap, urlBase?: string): string {
+export function renderZoneSection(
+  zone: Zone,
+  assets?: AssetMap,
+  urlBase?: string,
+  editable = false,
+  fragments = false,
+  logo = '',
+): string {
   // content_type entscheidet: markdown → Pipeline, html → roh einsetzen (Spec §14).
   // Bei HTML-Zonen werden Scripts bewusst NICHT gefiltert (volle Browser-Fähigkeiten).
+  // editable (Vorschau): Blöcke umsortierbar. fragments (In-App-Präsentation): Builds.
+  const isSplit = zone.style.layout === 'split'
   const rawInner =
     zone.content_type === 'html'
       ? zone.html ?? ''
-      : renderMarkdownInner(zone.markdown, zone.style.layout)
+      : editable && !isSplit
+        ? renderEditableBlocks(zone.markdown)
+        : fragments && zone.reveal === 'steps' && !isSplit
+          ? renderFragmentBlocks(zone.markdown)
+          : renderMarkdownInner(zone.markdown, zone.style.layout)
   const inner = resolveAssetRefs(rawInner, assets, urlBase)
   const { layout, padding, background, text_align } = zone.style
   const bg = background ?? 'var(--color-bg)'
@@ -267,6 +599,7 @@ export function renderZoneSection(zone: Zone, assets?: AssetMap, urlBase?: strin
     `style="${style}">` +
     customStyle +
     `<div class="slideo-content">${inner}</div>` +
+    logo +
     `</section>`
   )
 }
@@ -278,25 +611,46 @@ export interface RenderOptions {
   assets?: AssetMap
   /** Basis-URL des Custom-Protocols (Video/Audio streamen statt inline). */
   assetUrlBase?: string
+  /** standalone = exportierte .html (läuft ohne Parent): Klick-zum-Weiterblättern. */
+  standalone?: boolean
+  /** editable = Vorschau-Editiermodus: Markdown-Blöcke per Drag umsortierbar. */
+  editable?: boolean
 }
 
 /** Rendert die komplette Präsentation als eine self-contained HTML-Page. */
 export function renderFullPage(presentation: Presentation, options: RenderOptions = {}): string {
-  const { present = false, assets, assetUrlBase } = options
+  const { present = false, assets, assetUrlBase, standalone = false, editable = false } = options
+  // Builds (Fragmente) nur in der In-App-Präsentation (parent-gesteuert), nicht im
+  // Standalone-Export (zeigt v1 alles) und nicht in der Vorschau.
+  const fragments = present && !standalone
+  const logo = logoHtml(presentation, assets)
   const sections = presentation.zones
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((zone) => renderZoneSection(zone, assets, assetUrlBase))
+    .map((zone) => renderZoneSection(zone, assets, assetUrlBase, editable, fragments, logo))
     .join('\n')
 
-  const snapCss = present
-    ? `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+  // Transition (deck-weit) aus den Metadaten; fehlt = 'none' (reiner Scroll-Snap).
+  const transition = presentation.meta.transition
+  const kind: TransitionKind = transition?.kind ?? 'none'
+  const duration = transition?.duration_ms ?? 500
+  // Deck-Modus (Aktiv-Folie + CSS-Transition) nur im Präsentations-/Standalone-Modus
+  // UND wenn ein Übergang gewählt ist. Sonst bleibt das bewährte Scroll-Snap.
+  const deck = present && kind !== 'none'
+
+  const snapCss = !present
+    ? ''
+    : deck
+      ? transitionCss(kind, duration)
+      : `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
 .slideo-zone { scroll-snap-align: start; scroll-snap-stop: always; }
 html, body { height: 100%; overflow-x: hidden; }`
-    : ''
 
-  // Script immer einbinden (für gezieltes "goto"); Tastatur nur im Präsentationsmodus.
-  const script = `<script>${navScript(present)}</script>`
+  // Script immer einbinden (goto/show); eigene Tastatur nur im Standalone-Export.
+  // Im Editier-Modus zusätzlich das Drag-Reorder-Script.
+  const script =
+    `<script>${navScript(standalone, deck, duration)}</script>` +
+    (editable ? `<script>${editScript()}</script>` : '')
 
   return `<!doctype html>
 <html lang="de">
@@ -305,6 +659,7 @@ html, body { height: 100%; overflow-x: hidden; }`
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeAttr(presentation.meta.title)}</title>
 <style>
+${fontFaceCss(presentation, assets)}
 :root {
 ${tokensToCssString(presentation.tokens)}
 }
@@ -319,6 +674,58 @@ ${script}
 </html>`
 }
 
+/**
+ * Rendert die Präsentation als **eigenständige, teilbare** `.html`-Datei:
+ * alle Assets (auch Video/Audio) als Data-URI inline (kein Custom-Protocol),
+ * Vollbild-Snap, Tastatur- UND Klick-Navigation. Läuft in jedem Browser offline.
+ */
+export function renderStandalonePage(presentation: Presentation, assets?: AssetMap): string {
+  return renderFullPage(presentation, { present: true, standalone: true, assets })
+}
+
+/**
+ * Print-optimierte Page für den PDF-Export (Spec §18.4): jede Zone wird zu
+ * **einer** 16:9-Seite (1280×720) via `@page` + `page-break`. Kein Nav-Script;
+ * alle Assets als Data-URI inline. Über den WebView-Druck → „Als PDF sichern".
+ */
+export function renderPrintPage(presentation: Presentation, assets?: AssetMap): string {
+  const logo = logoHtml(presentation, assets)
+  const sections = presentation.zones
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map((zone) => renderZoneSection(zone, assets, undefined, false, false, logo))
+    .join('\n')
+
+  return `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>${escapeAttr(presentation.meta.title)}</title>
+<style>
+${fontFaceCss(presentation, assets)}
+:root {
+${tokensToCssString(presentation.tokens)}
+}
+${SLIDE_CSS}
+@page { size: 1280px 720px; margin: 0; }
+html, body { margin: 0; padding: 0; }
+/* Hintergrundfarben/-bilder mitdrucken (Token-Design), sonst druckt der Browser
+   sie standardmäßig weg → „anderes Design" im PDF. */
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+.slideo-zone {
+  width: 1280px; height: 720px; min-height: 0;
+  overflow: hidden;
+  page-break-after: always; break-after: page;
+}
+.slideo-zone:last-child { page-break-after: auto; break-after: auto; }
+</style>
+</head>
+<body>
+${sections}
+</body>
+</html>`
+}
+
 /** Rendert nur eine einzelne Zone als self-contained Mini-Page (z.B. Thumbnail). */
 export function renderSingleZonePage(
   presentation: Presentation,
@@ -327,9 +734,10 @@ export function renderSingleZonePage(
 ): string {
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8" /><style>
+${fontFaceCss(presentation, assets)}
 :root {
 ${tokensToCssString(presentation.tokens)}
 }
 ${SLIDE_CSS}
-</style></head><body>${renderZoneSection(zone, assets)}</body></html>`
+</style></head><body>${renderZoneSection(zone, assets, undefined, false, false, logoHtml(presentation, assets))}</body></html>`
 }

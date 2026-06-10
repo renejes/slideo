@@ -897,6 +897,8 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 ## 18. Roadmap: geplante Features (nächste Session)
 
 > Diese Features sind **geplant** und sollen in der nächsten Session integriert werden. Jeder Punkt nennt **Status**, **konkreten Plan** (Datenmodell / Store / Renderer / MCP / UI) und **Aufwand**. Empfohlene Reihenfolge in §18.8. Datenmodell-Erweiterungen additiv halten und `version` ggf. auf "1.1" anheben (abwärtskompatibel laden, §13.7).
+>
+> **STAND (umgesetzt in dieser Session):** §18.2 Speaker-Notes ✅ · §18.3 Transitions ✅ · §18.4 HTML-Export ✅ + PDF-Export ✅ · §18.5 Teilen ✅ (= HTML-Export) · §18.6 Themes/Presets ✅ · §18.1 **Light** (Bild-Positionierung) ✅ (Medium/Large offen) · §18.7 (A) Agenten-Skill ✅ + (B) Komponenten-Bibliothek ✅ (MCP + Rust-Generator; UI-Palette offen). MCP-Tools jetzt **29** (war 23). Datenmodell additiv erweitert (`meta.transition`, Bild-Attribute `width/align/float` via rohes `<img>`); `version` bewusst bei "1.0" belassen (alles optional & Value-basiert, abwärtskompatibel). Quelle-der-Wahrheit-Spiegel: Presets ([src/lib/presets.ts](../src/lib/presets.ts) ↔ [src-tauri/src/presets.rs](../src-tauri/src/presets.rs)); Komponenten nur in Rust ([src-tauri/src/components.rs](../src-tauri/src/components.rs)). **GUI-Verifikation steht aus** (Bubble-Toolbar, Transition-Animationen, PDF-Druck im WKWebView) — siehe [next-steps.md](next-steps.md).
 
 ### 18.1 Asset-/Element-Positionierung
 
@@ -904,11 +906,12 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 
 **Drei Ausbaustufen:**
 
-- **Light (klein) — bauen:** Ausrichtungs-/Größen-Helfer für Bilder (links / zentriert / rechts, Float mit Textumfluss, Größe S/M/L/voll). Bleibt im Fluss, deckt ~80 %.
+- **Bild-Resize (stufenlos) — ✅ UMGESETZT:** Anfasser an der rechten Bildkante **in der Vorschau** (Pointer-Events) setzt die Breite stufenlos in `%` (`slideo:resize-image` → Store `resizeZoneImage` → `setBlockImageWidth` schreibt `<img style="width:NN%">`). Bleibt flussbasiert. Ergänzt die S/M/L/Voll-Presets der Bubble-Toolbar.
+- **Light (klein) — ✅ UMGESETZT:** Ausrichtungs-/Größen-Helfer für Bilder (links / zentriert / rechts, Float mit Textumfluss, Größe S/M/L/voll). Bleibt im Fluss, deckt ~80 %.
   - *Umsetzung:* Tiptap-`Image`-Extension um Attribute `width` (z.B. `"50%"`) und `align`/`float` erweitern. Floating-Toolbar erscheint bei selektiertem Bild. **Persistenz:** Bilder mit Nicht-Default-Attributen werden als `<img src="…" style="width:50%" class="align-right">` (statt `![]()`) serialisiert — markdown-it (`html:true`) rendert das, Tiptap parst `width`/`align` zurück (round-trip-sicher). Default-Bilder bleiben `![]()`.
   - *Renderer:* Klassen `.align-left/center/right`, `.float-left/right` + `img`-Größen ins SLIDE_CSS.
 
-- **Medium — bauen:** Blöcke innerhalb einer Zone per **Drag umsortieren** + grobe Platzierung über Slots, mit Snap.
+- **Medium — ✅ UMGESETZT (Block-Drag in der Vorschau + Spalten-UI):** Blöcke per **Drag in der interaktiven Vorschau** umsortieren — dort, wo das echte Design sichtbar ist (bewusste Entscheidung: der Editor-Markdown-Fluss zeigt das Layout nicht, ein erster Editor-Handle-Ansatz via `tiptap-extension-global-drag-handle` wurde deshalb wieder entfernt). Mechanik: `renderFullPage({editable:true})` umhüllt jeden Top-Level-Block (`splitMarkdownBlocks` über markdown-it-Token-Grenzen) mit Drag-Handle + Index; das injizierte Drag-Script (**Pointer-Events**, NICHT HTML5-DnD — WKWebView unterstützt natives `draggable`/`drop` nicht zuverlässig) meldet die neue Reihenfolge an den Parent (`slideo:reorder-blocks`) → Store `reorderZoneBlocks` schreibt das Markdown neu ([PreviewPane.tsx](../src/components/preview/PreviewPane.tsx)). Plus Spalten-Slots über das `split`-Layout: der Layout-Dropdown verwaltet den `+++`-Trenner automatisch (Store `setZoneLayout`). **Noch offen (Richtung Large):** Drag *zwischen* den Spalten; nicht-`split`-Markdown-Zonen only (HTML/split-Zonen ohne Block-Drag).
   - *Umsetzung (in-flow, ohne neues Datenmodell):* Tiptap-Block-Drag-Handles (Reihenfolge von Absätzen/Bildern/Listen per Drag). Plus „Slot"-Platzierung über das bestehende `split`-Layout (zwei Spalten via `+++`) — als **UI-Buttons** statt manueller `+++`-Zeile, mit Drag zwischen den Spalten. Snap = Spalten/Grid.
   - *Datenmodell-Hinweis:* Bleibt zunächst im Markdown-Fluss (**kein** x/y). Erst wenn echtes Grid-Placement gewünscht ist, kommt ein optionales `blocks`-Array (Grid-Koordinaten col/row/span) — bewusst als **eigener Schritt** (Migration!).
 
@@ -917,17 +920,17 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 *Aufwand:* Light klein · Medium medium · Large groß.
 
 ### 18.2 Speaker Notes — fertigstellen
-- *Status:* Feld `notes` existiert, wird in der Speaker-View **angezeigt**, aber kein Editier-UI, kein MCP-Tool.
+- *Status:* ✅ **UMGESETZT.** Notizen-Panel pro Zone (ZoneCard, analog Custom-CSS), `updateZoneNotes`, MCP-Tool `set_zone_notes`.
 - *Plan:* Editier-UI als **einklappbares „Notizen"-Panel pro Zone** (analog zum Custom-CSS-Panel; einfaches Textarea). Store: `updateZoneNotes(id, notes)`. MCP: `set_zone_notes(id, notes)` (das `notes`-Feld ist in `get_zone` bereits enthalten).
 - *Aufwand:* klein.
 
 ### 18.3 Folien-Transitions
-- *Status:* keine.
+- *Status:* ✅ **UMGESETZT.** `meta.transition = { kind: none|fade|slide|zoom, duration_ms }`. Renderer schaltet im Präsentations-/Standalone-Modus von Scroll-Snap auf „Aktiv-Folie-Deck" (gestapelte Folien, `is-active`/`is-prev`, richtungsabhängiges `data-dir` für slide). MCP `set_transition`. UI-Picker im Design-Tab.
 - *Plan:* Präsentations-weiter Übergang `none|fade|slide|zoom` (+ Dauer) in `meta` (z.B. `meta.transition`). Im Präsentationsmodus von reinem Scroll-Snap auf „eine Folie aktiv + CSS-Transition beim Wechsel" umstellen (oder Snap beibehalten + Cross-Fade-Overlay). In-Folien-Element-Animationen vorerst über HTML-Zonen (CSS `@keyframes` funktioniert schon). MCP: `set_transition(kind, duration_ms)`.
 - *Aufwand:* klein–medium (ändert das Navigationsmodell von `PresentationMode`).
 
 ### 18.4 Export (PDF / self-contained HTML)
-- *Status:* keiner.
+- *Status:* ✅ **UMGESETZT.** HTML: `renderStandalonePage` (alle Assets inline, Klick-/Tastatur-Nav) → Tauri-Command `export_html`. PDF: `renderPrintPage` (jede Zone = 16:9-Seite via `@page`/`page-break`). **Wichtig:** WKWebView kann `window.print()` nicht zuverlässig — daher schreibt der Tauri-Command `open_print_view` die print-Page in eine Temp-Datei und öffnet sie im **Standardbrowser** (dort Cmd/Strg+P → „Als PDF sichern"); im reinen Browser-Dev wird direkt per Iframe gedruckt. Beide im Topbar („Teilen", „PDF").
 - *Plan:*
   - **HTML-Export:** `renderFullPage` erzeugt schon die volle Page. Für den Export **alle Assets als Data-URI inlinen** (auch Video — standalone-tauglich) + Navigations-Script → **eine einzige `.html`-Datei**, die in jedem Browser läuft. Frontend generiert den String, Tauri-Command schreibt die Datei.
   - **PDF-Export:** Print-Variante des Renderers (jede Zone = eine Seite via `@page`/`page-break`, 16:9), dann WebView-Druck → „Als PDF sichern" bzw. headless print-to-pdf.
@@ -940,13 +943,15 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 - *Aufwand:* kommt mit Export.
 
 ### 18.6 Themes / Presets
-- *Status:* keiner (Tokens existieren, aber keine Presets).
+- *Status:* ✅ **UMGESETZT.** 5 Presets (editorial, dark-tech, warm, minimal, corporate) als Token-Bündel; Theme-Picker in der Token-Sidebar; Store `applyPreset`; MCP `list_presets`/`apply_preset`. Quelle-der-Wahrheit-Spiegel TS ([presets.ts](../src/lib/presets.ts)) ↔ Rust ([presets.rs](../src-tauri/src/presets.rs)).
 - *Plan:* Set **vordefinierter Token-Bündel** (z.B. „Editorial", „Dark Tech", „Warm", „Minimal", „Corporate") als JSON, optional inkl. passender Default-Fonts/Layouts. UI: Theme-Picker in der Token-Sidebar → Preset anwenden (`setTokensBulk`). Store: `applyPreset(name)`. MCP: `list_presets`, `apply_preset(name)`.
 - *Aufwand:* klein–medium.
 
 ### 18.7 Interaktivität: Agenten-Skill erweitern + fertige Komponenten
 
 **Ziel:** Die *Fähigkeit* ist da (HTML-Zonen können alles, was ein Browser kann); was fehlt, ist **Zugänglichkeit** — die KI soll die Möglichkeiten *kennen*, und es soll **fertige, token-bewusste Komponenten** geben, die KI und Mensch per Aufruf einsetzen.
+
+> *Status:* ✅ **(A) UMGESETZT** (Agenten-Skill: `server_instructions` + `slideo_guide` briefen jetzt Komponenten, volles Interaktivitäts-Repertoire, Bild-Positionierung, Notes, Presets, Transitions). ✅ **(B) UMGESETZT** als MCP + Rust-Generator: [components.rs](../src-tauri/src/components.rs) mit 9 Komponenten (stat_cards, bar_chart, line_chart, donut_chart, progress, quote, timeline, comparison, callout — Charts via §19.2), MCP `list_components`/`insert_component`. **OFFEN:** die **UI-Palette** im Editor (soll denselben Rust-Generator über einen Tauri-Command nutzen — keine Template-Duplikation).
 
 **(A) Agenten-Skill erweitern** (`slideo_guide` + `instructions`):
 - Die KI explizit über das **volle Interaktivitäts-Repertoire** briefen: Charts (SVG/JS), Animationen (CSS/JS), eingebettete Player, interaktive SVGs, Diagramme, Timelines, Vergleiche — und **wie**: in HTML-Zonen, **immer mit Token-CSS-Variablen**, klein/wartbar halten.
@@ -968,3 +973,48 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 5. **Asset-Positionierung Light** (Bild-Toolbar), dann **Medium** (Block-Drag).
 6. **Interaktivität:** Agenten-Skill erweitern + **Komponenten-Bibliothek** (iterativ wachsen lassen).
 7. **PDF-Export** (medium).
+
+## 19. Roadmap II — Richtung „vollwertige Präsentationssoftware"
+
+> Nächstes Programm nach §18 (Markt-Lückenanalyse vs. PowerPoint/Keynote/Slides, Gamma/Pitch/Beautiful.ai, reveal.js). Sequenziell umsetzen, v1-Scope je Punkt, additive Datenmodell-Erweiterungen. Interaktionslastige Teile brauchen GUI-Verifikation durch den Menschen.
+
+### 19.2 Daten-Diagramme (echte Charts) — ✅ UMGESETZT (v1)
+- ✅ Komponenten-Bibliothek ([components.rs](../src-tauri/src/components.rs)) um `line_chart` + `donut_chart` erweitert (zusätzlich zum `bar_chart`) — token-bewusste SVGs aus Daten `[{label, value}]`, eingesetzt via `insert_component`. 9 Komponenten gesamt, cargo-getestet.
+- Später: visueller Tabellen-/Daten-Editor (braucht §18.7-Komponenten-Palette-UI, damit Mensch ohne KI einsetzen kann).
+
+### 19.7 Barrierefreiheit — ✅ UMGESETZT
+- ✅ Alt-Text-Feld an der Bild-Toolbar ([ImageToolbar.tsx](../src/components/editor/ImageToolbar.tsx)) → schreibt `![alt](…)` bzw. `<img alt="…">` (round-trip über SlideoImage).
+- ✅ WCAG-Kontrast-Check (Text/Bg, Accent/Bg) im Design-Tab ([contrast.ts](../src/lib/contrast.ts) + TokenEditor), Badge AA/AAA/zu-niedrig.
+
+### 19.1 In-Folien-Animationen (Builds + Auto-Animate) — *Flagship*
+- ✅ **Builds (Schritt-Einblenden) UMGESETZT:** Zone-Flag `reveal:'steps'` (additiv, optional). Renderer umhüllt Top-Level-Blöcke als `.slideo-fragment` (nur In-App-Präsentation, nicht Standalone/Vorschau). **Parent-autoritative Navigation:** PresentationMode hält `activeSlideIndex` + `activeStep`, sendet `slideo:show {index, step}` an das (nicht fokussierte) Audience-Iframe; das Iframe hat KEINE eigene Tastatur mehr (nur der Standalone-Export). Vorwärts = nächstes Fragment ODER nächste Folie; Speaker-View zeigt „Schritt s/n". MCP `set_zone_reveal`, UI-Toggle (⚡/animation) in der ZoneToolbar. (30 MCP-Tools.) Tsx-verifiziert; GUI-Prüfung steht aus.
+- **Auto-Animate/Morph (OFFEN, Folgeschritt):** gleiche `data-id`-Elemente zwischen benachbarten Folien per FLIP animieren (reveal.js-Stil).
+- **v1-Grenzen:** Builds nur in der In-App-Präsentation (Standalone-`.html` zeigt alles statisch); Speaker-Preview zeigt die Folie voll (Schritt nur als Zähler).
+
+### 19.3 Präsentier-Werkzeuge — *medium; Zweitfenster medium–groß*
+- Folien-Übersicht / Sprung-Grid (Taste → Raster aller Folien, Klick springt).
+- Laser/Stift-Overlay (Canvas über der Folie, Pointer-Events; Farbe aus Tokens).
+- Echtes **Zweitfenster** auf separatem Display (Tauri Multi-Window + Event-Sync; Speaker im Hauptfenster, Folien im zweiten).
+- Auto-Advance / Kiosk-Loop (Timings pro Folie, selbstlaufend).
+
+### 19.4 Vorlagen & Marke — *medium*
+- ✅ **Custom-Fonts-Upload UMGESETZT:** Font-Datei (woff2/woff/ttf/otf) → Asset in `assets/` + `presentation.fonts` ({family, asset}); Renderer injiziert `@font-face` (Vorschau/Präsentation/Export); im Design-Tab „Schriften"-Upload + Auswahl-Datalist für die Font-Felder ([fonts in renderer.ts](../src/lib/renderer.ts), Store `addFont`). guess_mime kennt Font-Endungen.
+- ✅ **Logo/Brand UMGESETZT:** `meta.logo = { asset, position }` (additiv); Renderer zeigt das Logo absolut in der gewählten Ecke **jeder** Folie (auch Export/PDF). Upload + Position + Entfernen im Design-Tab „Logo" (Store `setLogo`/`setLogoPosition`/`clearLogo`).
+- ✅ **Starter-Templates UMGESETZT:** [templates.ts](../src/lib/templates.ts) — 4 Decks (Leer, Pitch, Vortrag, Editorial) mit Token-Preset + Seed-Zonen (inkl. Layouts + Builds); auswählbar im Neu-Dialog (`newPresentation(title, template)`).
+- *Polish:* Font-/Logo-Assets erscheinen aktuell auch in der Settings-Asset-Library als „kaputtes" Thumbnail (eigene Kachel später).
+
+### 19.5 PPTX-Export — *medium (v1)*
+- v1 **bild-basiert:** jede Folie als PNG rendern (Canvas/headless) → `pptxgenjs` legt je ein Vollbild-Bild pro Folie an. Editierbares OOXML (Text/Shapes) ist deutlich größer, später.
+
+### 19.8 Medien & Assets — *klein–groß*
+- Bild-**Drag&Drop-Import** (in Editor/Vorschau). Bild-**Crop**. **Icon-/Stock**-Einfügen (Inline-SVG-Komponenten).
+- (groß) **Aufnahme/Narration** pro Folie + Video-Export (MediaRecorder).
+
+### 19.9 Produktivität — *klein–medium*
+- ✅ **Suchen & Ersetzen UMGESETZT:** deck-weites Modal ([FindReplaceModal.tsx](../src/components/modals/FindReplaceModal.tsx)), Live-Trefferzahl, Store `replaceAllInDeck` (Markdown + HTML aller Zonen). Öffnen per Cmd/Ctrl+F oder Topbar-Lupe.
+- ✅ **Rechtschreibung UMGESETZT:** `spellcheck` am Tiptap-Editor.
+- **Outline-Modus (OFFEN):** alle Folientexte als editierbare Gliederung.
+- **Versionshistorie (OFFEN):** lokale Snapshots der `.slideo`.
+
+### 19.10 Empfohlene Reihenfolge
+19.2 (Charts, sofort) → 19.7 (A11y, klein) → 19.1 Builds (Flagship) → 19.3 (Presenter-Tools) → 19.4 (Vorlagen/Fonts) → 19.9 (Produktivität) → 19.8 (Medien) → 19.5 (PPTX) → 19.1 Auto-Animate.

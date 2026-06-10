@@ -145,10 +145,21 @@ mod tests {
     fn tools_list_contains_all() {
         let resp = handle_message("tools/list", &json!({}), &Some(json!(2))).unwrap();
         let tools = resp["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 23, "alle Tools aus Spec §5 + set_zone_css + list_assets erwartet");
+        assert_eq!(
+            tools.len(),
+            30,
+            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components erwartet"
+        );
+        assert!(tools.iter().any(|t| t["name"] == "set_zone_reveal"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_content"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_css"));
+        assert!(tools.iter().any(|t| t["name"] == "set_zone_notes"));
         assert!(tools.iter().any(|t| t["name"] == "list_assets"));
+        assert!(tools.iter().any(|t| t["name"] == "list_presets"));
+        assert!(tools.iter().any(|t| t["name"] == "apply_preset"));
+        assert!(tools.iter().any(|t| t["name"] == "set_transition"));
+        assert!(tools.iter().any(|t| t["name"] == "list_components"));
+        assert!(tools.iter().any(|t| t["name"] == "insert_component"));
     }
 
     #[test]

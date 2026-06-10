@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ModalKind = 'new' | 'settings'
+export type ModalKind = 'new' | 'settings' | 'find'
 
 interface UiState {
   modal: ModalKind | null

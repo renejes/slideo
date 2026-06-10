@@ -6,13 +6,66 @@ export interface Presentation {
   meta: PresentationMeta
   tokens: DesignTokens
   zones: Zone[]
+  fonts?: FontFace[] // hochgeladene Schriften (Spec §19.4), optional/additiv
 }
+
+/** Eine eingebettete Schrift: Familienname + Asset-Datei in `assets/`. */
+export interface FontFace {
+  family: string
+  asset: string
+}
+
+/** Breit verfügbare System-Fonts für die Schriftart-Auswahl (+ hochgeladene). */
+export const SYSTEM_FONTS = [
+  'Inter',
+  'Helvetica Neue',
+  'Arial',
+  'Georgia',
+  'Times New Roman',
+  'Courier New',
+  'Verdana',
+  'Trebuchet MS',
+  'Palatino',
+]
 
 export interface PresentationMeta {
   title: string
   created: string // ISO 8601
   modified: string // ISO 8601
+  transition?: Transition // optional; fehlt = 'none' (reiner Scroll-Snap)
+  logo?: BrandLogo // optionales Marken-Logo auf jeder Folie (Spec §19.4)
 }
+
+export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+
+export interface BrandLogo {
+  asset: string // Bild-Asset in assets/
+  position: LogoPosition
+}
+
+export const LOGO_POSITIONS: { value: LogoPosition; label: string }[] = [
+  { value: 'top-left', label: 'Oben links' },
+  { value: 'top-right', label: 'Oben rechts' },
+  { value: 'bottom-left', label: 'Unten links' },
+  { value: 'bottom-right', label: 'Unten rechts' },
+]
+
+export type TransitionKind = 'none' | 'fade' | 'slide' | 'zoom'
+
+/** Präsentations-weiter Folienübergang (Spec §18.3). */
+export interface Transition {
+  kind: TransitionKind
+  duration_ms: number
+}
+
+export const DEFAULT_TRANSITION: Transition = { kind: 'none', duration_ms: 500 }
+
+export const TRANSITIONS: { value: TransitionKind; label: string }[] = [
+  { value: 'none', label: 'Keiner' },
+  { value: 'fade', label: 'Überblenden' },
+  { value: 'slide', label: 'Schieben' },
+  { value: 'zoom', label: 'Zoom' },
+]
 
 export interface DesignTokens {
   'color-primary': string
@@ -31,6 +84,9 @@ export interface DesignTokens {
 
 export type ContentType = 'markdown' | 'html'
 
+/** Builds (Spec §19.1): 'steps' = Top-Level-Blöcke schrittweise einblenden. */
+export type RevealMode = 'none' | 'steps'
+
 export interface Zone {
   id: string // UUID v4
   label: string // z.B. "Slide 1"
@@ -40,7 +96,8 @@ export interface Zone {
   html: string | null // genutzt wenn content_type === 'html'
   custom_css: string // optionales, auf diese Zone gescoptes CSS (Text bleibt sauber)
   style: ZoneStyle
-  notes: string // Speaker Notes (MVP: Feld existiert, kein UI)
+  notes: string // Speaker Notes
+  reveal?: RevealMode // optional; fehlt = 'none' (Builds, Spec §19.1)
 }
 
 export type ZoneLayout = 'center' | 'top' | 'split' | 'full' | 'hero'

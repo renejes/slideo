@@ -53,7 +53,11 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
   UI **live** per Tauri-Event.
 - **Auto-Registrierung:** Beim App-Start wird Slideo idempotent in die
   `claude_desktop_config.json` eingetragen (nur falls Claude Desktop installiert ist).
-- 21 Tools (Spec §5): Presentation, Zones, Content, Tokens, Styles, Presentation-Mode.
+- **30 Tools:** Presentation, Zones, Content, Tokens, Styles, Presentation-Mode,
+  Speaker-Notes (`set_zone_notes`), Builds (`set_zone_reveal`), Themes
+  (`list_presets`/`apply_preset`), Transitions (`set_transition`), Komponenten
+  (`list_components`/`insert_component`), Assets (`list_assets`), Custom-CSS (`set_zone_css`).
+- **MCP-Prompt `slideo_guide`:** aufrufbarer Leitfaden, wie eine KI Slideo hochwertig nutzt.
 
 > Voraussetzung: Die Slideo-App muss **laufen**, damit der MCP-Server sich verbinden kann.
 
@@ -65,21 +69,29 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
 - ✅ Live-Preview (isoliertes Iframe) + Vollbild-Präsentationsmodus mit Tastatur-Navigation
 - ✅ **Integrierte Speaker-View** (aktuelle + nächste Folie, Timer, Notizen, Zähler; Taste `s`)
 - ✅ Light/minimalistisches Design (Penwright-nah) + Material-Symbols-Icons
-- ✅ **MCP-Server** (21 Tools, Live-Socket, Auto-Registrierung) — verifiziert per Unit- + E2E-Test
+- ✅ **MCP-Server** (30 Tools, Live-Socket, Auto-Registrierung) — verifiziert per Unit- + E2E-Test
 - ✅ Undo (Cmd/Ctrl+Z), Shortcuts (Cmd+S/N), Toast-Feedback, Unsaved-Changes-Guard
 - ✅ **Neue-Präsentation-Modal** (Name + Speicherort) + **Settings-Menü** (Shell)
 - ✅ **Bild-Import** über `assets/`-Ordner im ZIP — Referenz `assets/<name>`, im Renderer zu
   Data-URI aufgelöst; Asset-Roundtrip getestet. Bilder per URL/Data-URI gehen weiterhin direkt.
 
+### Roadmap §18/§19 — umgesetzt (siehe [docs/slideo-spec.md](docs/slideo-spec.md))
+
+- ✅ **Speaker-Notes**, **HTML- & PDF-Export + Teilen**, **Themes/Presets** (5), **Folien-Transitions**
+  (fade/slide/zoom), **Bild-Positionierung** Light (Toolbar) + Medium (Block-Drag/Resize **in der Vorschau**),
+  **Komponenten-Bibliothek** (9, inkl. Charts) + erweiterter Agenten-Skill.
+- ✅ **In-Folien-Builds** (schrittweises Einblenden), **Barrierefreiheit** (Alt-Text + WCAG-Kontrast),
+  **Custom-Fonts** (Upload → `@font-face`), **Logo/Brand** auf jeder Folie, **Starter-Templates**
+  (Pitch/Vortrag/Editorial), **Suchen & Ersetzen** + Rechtschreibung.
+
 ### Shortcuts
-`Cmd/Ctrl+S` speichern · `Cmd/Ctrl+N` neu · `Cmd/Ctrl+Z` rückgängig ·
-Präsentation: `←/→/Leertaste` navigieren · `s` Speaker-Ansicht · `Esc` verlassen
+`Cmd/Ctrl+S` speichern · `Cmd/Ctrl+N` neu · `Cmd/Ctrl+Z` rückgängig · `Cmd/Ctrl+F` Suchen & Ersetzen ·
+Präsentation: `←/→/Leertaste` navigieren (Builds Schritt für Schritt) · `s` Speaker-Ansicht · `Esc` verlassen
 
-### Bewusst noch offen (nach dem MVP)
+### Bewusst noch offen (nächste Schritte, siehe [docs/next-steps.md](docs/next-steps.md))
 
-- Echtes Speaker-Zweitfenster auf separatem Display (aktuell integriert/umschaltbar)
-- Bild-Import per **Drag&Drop** in den Editor (Button-Import ist da)
-- Asset-Verwaltung-UI (ungenutzte Assets aufräumen, umbenennen)
-- Plattformübergreifende Builds (Windows/Linux) verifizieren
-- Material-Symbols-Font auf genutzte Icons subsetten (Bundle-Größe)
+- **Presenter-Tools** (§19.3): Folien-Übersicht/Sprung, Laser/Stift, echtes Zweitfenster, Auto-Advance
+- **Auto-Animate/Morph** (§19.1, zweite Hälfte) · **PPTX-Export** (§19.5) · **Outline-Modus + Versionshistorie** (§19.9)
+- **Medien** (§19.8): Drag&Drop-Bildimport, Crop, Aufnahme/Narration · **Komponenten-Palette** (manuell, Polish)
+- Plattformübergreifende Builds (Windows/Linux) + Signing/Notarization · Material-Symbols-Font subsetten
 # slideo

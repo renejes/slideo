@@ -9,6 +9,7 @@ import { CloseGuard } from '@/components/CloseGuard'
 import { Topbar } from '@/components/ui/Topbar'
 import { NewPresentationModal } from '@/components/modals/NewPresentationModal'
 import { SettingsModal } from '@/components/modals/SettingsModal'
+import { FindReplaceModal } from '@/components/modals/FindReplaceModal'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { EditorCanvas } from '@/components/editor/EditorCanvas'
 import { PreviewPane } from '@/components/preview/PreviewPane'
@@ -35,6 +36,9 @@ export default function App() {
       } else if (key === 'n') {
         e.preventDefault()
         openNew()
+      } else if (key === 'f') {
+        e.preventDefault()
+        openModal('find')
       } else if (key === 'z' && !e.shiftKey) {
         // In Editoren (Tiptap/CodeMirror, Inputs) deren eigenes Undo nicht stören.
         const ae = document.activeElement as HTMLElement | null
@@ -91,6 +95,7 @@ export default function App() {
       )}
       {modal === 'new' && <NewPresentationModal />}
       {modal === 'settings' && <SettingsModal />}
+      {modal === 'find' && <FindReplaceModal />}
       <Toaster />
       <CloseGuard />
     </div>
