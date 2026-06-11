@@ -1,12 +1,20 @@
-import { useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal, modalGhostBtn } from '@/components/ui/Modal'
 import { Icon } from '@/components/ui/Icon'
 import { useSettingsStore } from '@/store/settings'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
+import { notify } from '@/store/toast'
 import { isTauri } from '@/lib/tauri'
 import { pickDirectory } from '@/lib/dialog'
 import { mediaKind, parseDataUri } from '@/lib/assets'
+import {
+  getMcpStatus,
+  setMcpTarget,
+  type McpStatus,
+  type McpTarget,
+} from '@/lib/mcp-registration'
+import { McpTargetCards, mcpTargetLabel } from '@/components/ui/McpTargetCards'
 
 const APP_VERSION = '0.1.0'
 
@@ -59,6 +67,11 @@ export function SettingsModal() {
           </Row>
         </Section>
 
+        {/* KI-Verbindung (MCP) */}
+        <Section title="KI-Verbindung (MCP)">
+          <McpConnection />
+        </Section>
+
         {/* Assets */}
         <Section title="Assets">
           <AssetManager />
@@ -67,8 +80,7 @@ export function SettingsModal() {
         {/* Platzhalter für künftige Bereiche */}
         <Section title="Bald verfügbar">
           <p className="py-1 text-[12px] text-chrome-muted">
-            Weitere Einstellungen (Theme, Fonts, KI-Verbindung, Asset-Verwaltung) folgen hier
-            nach und nach.
+            Weitere Einstellungen (Theme, Fonts) folgen hier nach und nach.
           </p>
         </Section>
 
@@ -87,6 +99,78 @@ export function SettingsModal() {
         </Section>
       </div>
     </Modal>
+  )
+}
+
+// Auswahl, wo sich Slideo als MCP-Server anmeldet. Genau ein Ziel ist aktiv;
+// der Rust-Backend-Command registriert es und meldet die anderen ab.
+function McpConnection() {
+  const tauri = isTauri()
+  const [status, setStatus] = useState<McpStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState<McpTarget | null>(null)
+
+  const refresh = useCallback(async () => {
+    try {
+      setStatus(await getMcpStatus())
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tauri) void refresh()
+    else setLoading(false)
+  }, [tauri, refresh])
+
+  async function choose(key: McpTarget) {
+    if (busy || !status || key === status.target) return
+    setBusy(key)
+    try {
+      const next = await setMcpTarget(key)
+      setStatus(next)
+      notify(`MCP-Ziel aktiv: ${mcpTargetLabel(key)}`, 'success')
+    } catch (e) {
+      notify(e instanceof Error ? e.message : String(e), 'error')
+      // Realen Zustand zurückholen — der Wechsel wurde nicht übernommen.
+      await refresh()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (!tauri)
+    return <p className="py-1 text-[12px] text-chrome-muted">Nur in der Desktop-App verfügbar.</p>
+  if (loading) return <p className="py-1 text-[12px] text-chrome-muted">Status wird geladen…</p>
+  if (!status) return <p className="py-1 text-[12px] text-chrome-muted">Status nicht verfügbar.</p>
+
+  return (
+    <div className="flex flex-col gap-2.5 py-1">
+      <p className="text-[12px] leading-relaxed text-chrome-muted">
+        Wo soll sich Slideo als MCP-Server anmelden? Es ist immer genau{' '}
+        <span className="text-chrome-secondary">ein Ziel aktiv</span> — die anderen werden
+        automatisch abgemeldet.
+      </p>
+      <McpTargetCards
+        status={status}
+        selected={status.target}
+        busy={busy}
+        disabled={!!busy}
+        showActiveBadge
+        onSelect={choose}
+      />
+      {status.lastError && (
+        <div className="flex items-start gap-2 rounded-lg border border-chrome-warn/30 bg-chrome-warn-soft px-3 py-2">
+          <Icon
+            name="warning"
+            size={16}
+            weight={400}
+            className="mt-0.5 shrink-0 text-chrome-warn"
+          />
+          <p className="text-[12px] leading-relaxed text-chrome-warn">{status.lastError}</p>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
 use crate::file::{self, Asset};
+use crate::mcp_registration::{self, Target};
 use crate::state::AppState;
 use serde::Serialize;
 use serde_json::Value;
@@ -81,6 +82,24 @@ pub fn open_print_view(html: String) -> Result<String, String> {
     std::fs::write(&path, html).map_err(|e| format!("Schreiben fehlgeschlagen: {e}"))?;
     open_in_default_app(&path)?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Liefert das aktuelle MCP-Registrierungs-Ziel + Verfügbarkeit/Status je Ziel
+/// (für die Einstellungen). Macht u.a. eine Live-Probe gegen Meta-MCP.
+#[tauri::command]
+pub fn mcp_status() -> Value {
+    mcp_registration::status()
+}
+
+/// Setzt das aktive MCP-Ziel (`meta` | `claude` | `desktop`): registriert es und
+/// deregistriert die anderen beiden. Gibt bei Erfolg den frischen Status zurück;
+/// schlägt die Registrierung fehl (z.B. Meta-MCP down), bleibt alles unverändert
+/// und der Fehler wird gemeldet.
+#[tauri::command]
+pub fn mcp_set_target(target: String) -> Result<Value, String> {
+    let t = Target::from_key(&target).ok_or_else(|| format!("Unbekanntes Ziel: {target}"))?;
+    mcp_registration::set_target(t)?;
+    Ok(mcp_registration::status())
 }
 
 /// Öffnet einen Pfad mit der Standard-App des Betriebssystems.

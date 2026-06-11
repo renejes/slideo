@@ -93,7 +93,7 @@ src-tauri/src/
   presets.rs        # Theme-Presets (Spiegel von src/lib/presets.ts)
   components.rs     # token-bewusste HTML/SVG-Komponenten-Generatoren (§18.7/§19.2)
   state.rs          # AppState (presentation, file_path, assets)
-  claude_config.rs  # Auto-Eintrag in claude_desktop_config.json
+  mcp_registration.rs # MCP-Ziel-Registrierung mit Startauswahl (Claude Desktop / Meta-MCP / Claude Code), genau eines aktiv
   file/             # reader.rs, writer.rs (ZIP + Assets), mod.rs (Asset-Typ, guess_mime inkl. Fonts, Tests)
   commands.rs       # …, export_html, open_print_view (PDF im Browser)
 

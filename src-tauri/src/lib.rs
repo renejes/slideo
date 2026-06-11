@@ -1,9 +1,9 @@
-mod claude_config;
 mod commands;
 mod components;
 mod file;
 mod ipc;
 mod mcp;
+mod mcp_registration;
 mod presets;
 mod state;
 mod tools;
@@ -62,8 +62,10 @@ pub fn run() {
         .setup(|app| {
             // Lokalen IPC-Socket für den MCP-Server starten …
             ipc::start(app.handle().clone());
-            // … und Slideo in der Claude-Desktop-Config registrieren.
-            claude_config::ensure_registered();
+            // … und das gewählte MCP-Ziel (Meta-MCP / Claude Code / Claude Desktop)
+            // idempotent herstellen. Im Hintergrund-Thread, da es Netz-Probe (Meta-MCP)
+            // und Datei-I/O macht und den App-Start nicht blockieren soll.
+            std::thread::spawn(mcp_registration::reconcile_on_startup);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,6 +76,8 @@ pub fn run() {
             commands::set_file_path,
             commands::export_html,
             commands::open_print_view,
+            commands::mcp_status,
+            commands::mcp_set_target,
         ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Slideo-App");

@@ -24,8 +24,26 @@ Arbeitsanweisungen für KI an diesem Projekt. **Maßgeblich ist [docs/slideo-spe
   Änderungen via `sync_presentation` zurück (kein Echo, da der Sync-Command kein Event
   feuert). MCP-Protokoll ([mcp.rs](src-tauri/src/mcp.rs)) ist **hand-gerolltes JSON-RPC 2.0**
   (bewusste Abweichung von Spec §10/rmcp — rmcp ist 0.1→0.16 stark gewandert, der stdio-Teil
-  ist nur ein dünner Weiterleiter). Auto-Registrierung in Claude-Config:
-  [claude_config.rs](src-tauri/src/claude_config.rs).
+  ist nur ein dünner Weiterleiter).
+- **MCP-Ziel-Registrierung mit Startauswahl ([mcp_registration.rs](src-tauri/src/mcp_registration.rs)):**
+  Slideo meldet sich als MCP-Server bei **genau einem** von drei Zielen an, die anderen zwei
+  werden dereginstriert (kein Doppel-Eintrag): `desktop` (Claude Desktop,
+  `claude_desktop_config.json`), `meta` (Meta-MCP, lokaler Aggregator-Proxy auf
+  `http://localhost:3663`), `claude` (Claude Code, `~/.claude.json`, User-Scope). Beim Start
+  wird der Zustand **idempotent** hergestellt (Ziel registrieren, andere entfernen) —
+  Reihenfolge: erst registrieren, nur bei Erfolg die anderen aufräumen (Meta-MCP down ⇒ Fehler
+  melden, **nichts** still woanders eintragen). Ziel-Auflösung: CLI-Flag `--mcp-target=meta|claude|desktop`
+  > persistiert (`<config>/slideo/mcp.json`) > Default (**Claude Desktop, sonst Meta-MCP falls
+  erreichbar, sonst Claude Code**). **Erststart:** Ist noch nichts persistiert (und kein CLI-Flag),
+  registriert der Start **nichts** — `status().configured == false` triggert das Erststart-Modal
+  ([McpSetupModal.tsx](src/components/modals/McpSetupModal.tsx)) mit vorausgewähltem Default; erst
+  „Aktivieren" (`mcp_set_target`) trägt den Server ein. Ziel-Karten geteilt zwischen Modal und
+  Settings ([McpTargetCards.tsx](src/components/ui/McpTargetCards.tsx)). Meta-MCP: registrieren per `POST /register` (dedupe per name),
+  deregistrieren per Datei-Edit der `com.metamcp.desktop/config.json` (`servers`, nur `name=="slideo"`,
+  `profiles`/`active_profile` unangetastet). Claude Desktop/Code: direktes Editieren von `mcpServers`
+  (nicht via `claude`-CLI — GUI-Apps erben den Shell-PATH nicht). HTTP gegen Meta-MCP ist
+  hand-gerollt über std-TCP (kein HTTP-Crate). UI: Einstellungen → „KI-Verbindung (MCP)"
+  ([SettingsModal.tsx](src/components/modals/SettingsModal.tsx)), Commands `mcp_status`/`mcp_set_target`.
 - **Renderer ohne Tailwind im Iframe:** Slide-Inhalt wird über CSS-Custom-Properties
   (Tokens) + eigenes Stylesheet gerendert ([src/lib/renderer.ts](src/lib/renderer.ts)),
   damit die Page offline/self-contained bleibt. Tailwind ist nur App-Chrome.

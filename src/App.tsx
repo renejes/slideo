@@ -1,14 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
 import { startMcpBridge } from '@/lib/mcp-bridge'
+import { getMcpStatus } from '@/lib/mcp-registration'
 import { Icon } from '@/components/ui/Icon'
 import { Toaster } from '@/components/ui/Toaster'
 import { CloseGuard } from '@/components/CloseGuard'
 import { Topbar } from '@/components/ui/Topbar'
 import { NewPresentationModal } from '@/components/modals/NewPresentationModal'
 import { SettingsModal } from '@/components/modals/SettingsModal'
+import { McpSetupModal } from '@/components/modals/McpSetupModal'
 import { FindReplaceModal } from '@/components/modals/FindReplaceModal'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { EditorCanvas } from '@/components/editor/EditorCanvas'
@@ -22,8 +24,22 @@ export default function App() {
   const undo = usePresentationStore((s) => s.undo)
   const modal = useUiStore((s) => s.modal)
   const openModal = useUiStore((s) => s.openModal)
+  const [showMcpSetup, setShowMcpSetup] = useState(false)
 
   const openNew = () => openModal('new')
+
+  // Erststart-Auswahl der MCP-Verbindung: zeigen, solange noch kein Ziel gewählt
+  // wurde (Backend hat dann nichts registriert — das passiert erst nach der Auswahl).
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    void getMcpStatus().then((s) => {
+      if (!cancelled && s && !s.configured) setShowMcpSetup(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Globale Shortcuts: Cmd/Ctrl+S speichern, Cmd/Ctrl+N neu, Cmd/Ctrl+Z rückgängig.
   useEffect(() => {
@@ -96,6 +112,7 @@ export default function App() {
       {modal === 'new' && <NewPresentationModal />}
       {modal === 'settings' && <SettingsModal />}
       {modal === 'find' && <FindReplaceModal />}
+      {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />
     </div>
