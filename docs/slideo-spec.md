@@ -992,10 +992,10 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 - **v1-Grenzen:** Builds nur in der In-App-Präsentation (Standalone-`.html` zeigt alles statisch); Speaker-Preview zeigt die Folie voll (Schritt nur als Zähler).
 
 ### 19.3 Präsentier-Werkzeuge — *medium; Zweitfenster medium–groß*
-- Folien-Übersicht / Sprung-Grid (Taste → Raster aller Folien, Klick springt).
-- Laser/Stift-Overlay (Canvas über der Folie, Pointer-Events; Farbe aus Tokens).
-- Echtes **Zweitfenster** auf separatem Display (Tauri Multi-Window + Event-Sync; Speaker im Hauptfenster, Folien im zweiten).
-- Auto-Advance / Kiosk-Loop (Timings pro Folie, selbstlaufend).
+- ✅ **Folien-Übersicht / Sprung-Grid UMGESETZT:** Taste `g` (oder Steuerleisten-Button) → Raster aller Folien über der Präsentation ([SlideOverview.tsx](../src/components/presentation/SlideOverview.tsx)); Klick/Enter springt zur Folie (Schritt 0), Pfeiltasten bewegen die Auswahl, `g`/`Esc` schließt. Thumbnails sind statische Single-Zone-Pages (`renderSingleZonePage`, kein Nav-Script) → leichtgewichtig; Iframe `pointer-events:none`, der umschließende Button fängt den Klick.
+- ✅ **Laser-/Stift-Overlay UMGESETZT:** Canvas über der Audience-Folie ([AnnotationLayer.tsx](../src/components/presentation/AnnotationLayer.tsx)), **Pointer-Events**; Laser = flüchtiger Leucht-Komet (rAF-Schweif), Stift = bleibende Striche; Farbe aus `--color-accent`. Tasten `l`/`p` (toggeln), `c` löscht; Annotationen werden bei Folienwechsel/Löschen via Remount (`key`) geleert. Overlay nur über der Audience-Folie (nicht Speaker-View).
+- ✅ **Auto-Advance / Kiosk-Loop UMGESETZT:** Taste `a` startet/stoppt; Sekunden pro Schritt wählbar (Steuerleiste, 3–20 s); am Ende → Schleife (Loop-Toggle) oder Stopp. Advanced wird über `doStep(1)` (build-bewusst), pausiert bei offener Übersicht. **v1:** globales Intervall (Präsentationszeit-State, nicht persistiert) statt per-Folie-Timings.
+- **Echtes Zweitfenster (OFFEN, größter Brocken):** separates Display (Tauri Multi-Window + Event-Sync; Speaker im Hauptfenster, Folien im zweiten). Braucht GUI-/Multi-Display-Verifikation.
 
 ### 19.4 Vorlagen & Marke — *medium*
 - ✅ **Custom-Fonts-Upload UMGESETZT:** Font-Datei (woff2/woff/ttf/otf) → Asset in `assets/` + `presentation.fonts` ({family, asset}); Renderer injiziert `@font-face` (Vorschau/Präsentation/Export); im Design-Tab „Schriften"-Upload + Auswahl-Datalist für die Font-Felder ([fonts in renderer.ts](../src/lib/renderer.ts), Store `addFont`). guess_mime kennt Font-Endungen.
@@ -1003,12 +1003,15 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 - ✅ **Starter-Templates UMGESETZT:** [templates.ts](../src/lib/templates.ts) — 4 Decks (Leer, Pitch, Vortrag, Editorial) mit Token-Preset + Seed-Zonen (inkl. Layouts + Builds); auswählbar im Neu-Dialog (`newPresentation(title, template)`).
 - *Polish:* Font-/Logo-Assets erscheinen aktuell auch in der Settings-Asset-Library als „kaputtes" Thumbnail (eigene Kachel später).
 
-### 19.5 PPTX-Export — *medium (v1)*
-- v1 **bild-basiert:** jede Folie als PNG rendern (Canvas/headless) → `pptxgenjs` legt je ein Vollbild-Bild pro Folie an. Editierbares OOXML (Text/Shapes) ist deutlich größer, später.
+### 19.5 PPTX-Export — ✅ UMGESETZT (v1, native Rekonstruktion)
+- ✅ **Native Rekonstruktion** mit `pptxgenjs` ([pptx.ts](../src/lib/pptx.ts)), Topbar „PPTX". **Bewusste Abweichung vom ursprünglich geplanten bild-basierten v1:** WKWebView „verseucht" (taint) das Canvas beim Rastern von HTML (`foreignObject`) → ein In-App-„Folie→PNG" ist auf macOS unzuverlässig (gleiche Klasse wie `window.print()`). Daher bauen wir **echte PPTX-Objekte**: Token-Hintergründe, Textboxen (Überschriften/Listen/Zitate + Bold/Italic/Code-Inline, Spalten-Layout) und Bilder; 16:9 (`LAYOUT_WIDE`). Zuverlässig auf jeder Plattform, voll offline, in PowerPoint **editierbar**. Schreiben: `pptx.write({outputType:'base64'})` → Rust `export_pptx` (base64→Bytes); Browser-Dev lädt per Blob herunter. pptxgenjs ist dynamisch importiert (eigener Chunk, nur beim Export geladen).
+- **Grenzen (v1, dokumentiert):** HTML-Zonen werden zu Text vereinfacht (Tags entfernt) + Hinweis; Komponenten/Charts (SVG in HTML-Zonen) und Custom-CSS werden NICHT originalgetreu übernommen; nur `#RGB`/`#RRGGBB`-Token-Farben werden erkannt. Bild-basierter Export (1:1) als optionaler Browser-Offload bleibt ein möglicher Folgeschritt.
 
-### 19.8 Medien & Assets — *klein–groß*
-- Bild-**Drag&Drop-Import** (in Editor/Vorschau). Bild-**Crop**. **Icon-/Stock**-Einfügen (Inline-SVG-Komponenten).
-- (groß) **Aufnahme/Narration** pro Folie + Video-Export (MediaRecorder).
+### 19.8 Medien & Assets — ✅ TEILWEISE UMGESETZT (v1)
+- ✅ **Drag&Drop-Medienimport:** Bild/Video/Audio direkt auf eine Folien-Card ziehen ([ZoneCard.tsx](../src/components/editor/ZoneCard.tsx), HTML5-File-DnD → `addMediaToZone`). In der Desktop-App via `"dragDropEnabled": false` ([tauri.conf.json](../src-tauri/tauri.conf.json)) aktiviert (sonst fängt Tauri den OS-Drop ab und die WebView-Events feuern nicht).
+- ✅ **Bild-Crop (non-destruktiv):** Crop-Modal ([CropModal.tsx](../src/components/modals/CropModal.tsx)) mit zieh-/skalierbarem Rechteck (Pointer-Events) → Canvas-Ausschnitt in voller Auflösung → **neues** Asset (Original bleibt). Button in der Bild-Toolbar. Canvas-Crop eines normalen Rasterbildes ist im WKWebView ok (kein foreignObject-Taint).
+- ✅ **Icon-Einfügen (Inline-SVG):** Komponente `icon` ([components.rs](../src-tauri/src/components.rs)) — token-gefärbtes Symbol (15 Namen) optional mit Beschriftung, via `insert_component`. Fügt sich ins bestehende Komponenten-System (Single-Source Rust, cargo-getestet).
+- **OFFEN (groß):** **Aufnahme/Narration** pro Folie + Video-Export (MediaRecorder, getUserMedia — GUI/Permissions, bewusst zurückgestellt). „Stock"-Bilder bleiben weg (kein externer Netz-Call; nur lokale Inline-SVG-Icons).
 
 ### 19.9 Produktivität — *klein–medium*
 - ✅ **Suchen & Ersetzen UMGESETZT:** deck-weites Modal ([FindReplaceModal.tsx](../src/components/modals/FindReplaceModal.tsx)), Live-Trefferzahl, Store `replaceAllInDeck` (Markdown + HTML aller Zonen). Öffnen per Cmd/Ctrl+F oder Topbar-Lupe.

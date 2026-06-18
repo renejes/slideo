@@ -48,7 +48,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 
 ### MCP-Server (KI-Anbindung)
 - **30 Tools** (Presentation, Zones, Content, Tokens, Styles, Presentation-Mode, `set_zone_css`, `list_assets` + `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`, `set_transition`, `list_components`/`insert_component`).
-- **9 token-bewusste Komponenten** (`insert_component`): stat_cards, bar_chart, **line_chart**, **donut_chart**, progress, quote, timeline, comparison, callout.
+- **10 token-bewusste Komponenten** (`insert_component`): stat_cards, bar_chart, **line_chart**, **donut_chart**, progress, quote, timeline, comparison, callout, **icon** (Inline-SVG, §19.8).
 - **KI-Steuerung:** `instructions` im `initialize` (Markdown-first, Presets/Komponenten/Charts, token-bewusstes HTML, Bild-Positionierung, Builds) + MCP-Prompt **`slideo_guide`** (aufrufbarer Leitfaden mit `thema`-Argument).
 - Auto-Registrierung in Claude Desktop.
 
@@ -68,6 +68,9 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - **Logo/Brand** (§19.4): `meta.logo = { asset, position }`, auf jeder Folie (auch Export/PDF); Design-Tab-Upload + Position.
 - **Starter-Templates** (§19.4): 4 Decks (Leer/Pitch/Vortrag/Editorial) mit Preset + Seed-Zonen; Auswahl im Neu-Dialog.
 - **Suchen & Ersetzen** (§19.9): deck-weites Modal + `replaceAllInDeck`; Editor-`spellcheck`.
+- **Presenter-Tools** (§19.3, teilweise): **Folien-Übersicht/Sprung-Grid** ([SlideOverview.tsx](../src/components/presentation/SlideOverview.tsx), Taste `g`, statische Single-Zone-Thumbnails, Tastatur-Sprung), **Laser-/Stift-Overlay** ([AnnotationLayer.tsx](../src/components/presentation/AnnotationLayer.tsx), Canvas + Pointer-Events, Farbe aus `--color-accent`, `l`/`p`/`c`) und **Auto-Advance/Kiosk-Loop** (`a`, Sekunden-Wahl + Loop, build-bewusst). Alle als lokaler Präsentationszeit-State in [PresentationMode.tsx](../src/components/presentation/PresentationMode.tsx); **kein** Datenmodell-/Rust-Eingriff. **Offen:** echtes Zweitfenster (Tauri Multi-Window).
+- **Medien** (§19.8, teilweise): **Drag&Drop-Medienimport** auf Folien-Cards ([ZoneCard.tsx](../src/components/editor/ZoneCard.tsx), HTML5-DnD via `dragDropEnabled:false`), **Bild-Crop** non-destruktiv ([CropModal.tsx](../src/components/modals/CropModal.tsx), Canvas-Ausschnitt → neues Asset; Toolbar-Button), **Icon-Inline-SVG-Komponente** (`icon`, 15 Symbole, token-gefärbt). **Offen:** Aufnahme/Narration + Video-Export.
+- **PPTX-Export** (§19.5, v1): **native Rekonstruktion** ([pptx.ts](../src/lib/pptx.ts), pptxgenjs — Textboxen + Bilder + Token-Hintergründe, 16:9, editierbar) → Rust `export_pptx` (base64→Bytes). Bewusst nativ statt bild-basiert (WKWebView-Canvas-Taint). Grenzen: HTML-Zonen/Charts/Custom-CSS nicht 1:1.
 
 ### Assets
 - `assets/`-Ordner im ZIP (Rust Reader/Writer + base64), AppState-Spiegelung, `sync_assets`.
@@ -95,7 +98,7 @@ src-tauri/src/
   state.rs          # AppState (presentation, file_path, assets)
   mcp_registration.rs # MCP-Ziel-Registrierung mit Startauswahl (Claude Desktop / Meta-MCP / Claude Code), genau eines aktiv
   file/             # reader.rs, writer.rs (ZIP + Assets), mod.rs (Asset-Typ, guess_mime inkl. Fonts, Tests)
-  commands.rs       # …, export_html, open_print_view (PDF im Browser)
+  commands.rs       # …, export_html, open_print_view (PDF im Browser), export_pptx (base64→Bytes)
 
 src/
   App.tsx           # Root: Editor | Präsentation, Shortcuts (inkl. Cmd+F), Modals, CloseGuard
@@ -117,7 +120,7 @@ src/
 ## 6. Verifikationsstatus
 
 **Automatisiert getestet (grün):**
-- `cargo test` — **14 Tests**: `.slideo`-Roundtrip inkl. Assets, voller Tool-Flow (create→zones→html→css→notes→transition→component→tokens→reorder→delete), `set_zone_style/css`, `apply_preset`, Komponenten-Generator (Token-Nutzung/Escaping/Skalierung, inkl. Charts), MCP-Handshake, `tools/list` (**30**), Prompts.
+- `cargo test` — **19 Tests**: `.slideo`-Roundtrip inkl. Assets, voller Tool-Flow (create→zones→html→css→notes→transition→component→tokens→reorder→delete), `set_zone_style/css`, `apply_preset`, Komponenten-Generator (Token-Nutzung/Escaping/Skalierung, inkl. Charts + `icon`-Sanitization, list()/render()-Konsistenz), MCP-Handshake, `tools/list` (**30**), Prompts.
 - **Standalone via `tsx` geprüft:** Bild-Positionierungs-Round-Trip (`![]()` vs. `<img>`), Markdown-Block-Splitter, editable-Block-/Resize-Rendering, Builds-Fragmente + parent-autoritative Nav, `@font-face`-Generierung, Logo-Rendering, Template-Aufbau.
 - **MCP-E2E** (Python-Harness gegen Fake-Socket): echtes `slideo mcp`-Binary macht initialize → tools/list → tools/call-Forwarding korrekt.
 - `npm run typecheck` + `npx vite build` — alles grün.
@@ -126,7 +129,7 @@ src/
 - Das echte Tauri-Fenster zur Laufzeit (Editor, Drag&Drop, Modals, Speaker-View-Optik).
 - Live-MCP-Eventfluss ins WebView; ob `slideoasset://` im sandboxed Iframe lädt; 3-Knopf-Schließen-Dialog; ob Claude Desktop `instructions`/`slideo_guide` einblendet.
 - **Roadmap §18:** Bild-Bubble-Toolbar, Transition-Animationen, HTML-Export, **PDF-Druck** (öffnet jetzt im Standardbrowser via `open_print_view`), Notizen, Theme-Picker, Komponenten via MCP.
-- **Roadmap §19:** interaktive Vorschau (Block-Drag + Bild-Resize via Pointer-Events), **Builds** (schrittweises Einblenden + die umgebaute parent-autoritative Navigation — auch normale Navigation gegentesten!), Charts via MCP, Alt-Text/Kontrast, **Custom-Fonts** (laden/Export), **Logo**, **Templates**, **Suchen & Ersetzen**.
+- **Roadmap §19:** interaktive Vorschau (Block-Drag + Bild-Resize via Pointer-Events), **Builds** (schrittweises Einblenden + die umgebaute parent-autoritative Navigation — auch normale Navigation gegentesten!), Charts via MCP, Alt-Text/Kontrast, **Custom-Fonts** (laden/Export), **Logo**, **Templates**, **Suchen & Ersetzen**, **Presenter-Tools** (§19.3: Übersicht/Sprung-Grid `g`, Laser/Stift `l`/`p`/`c`, Auto-Advance/Loop `a`), **Medien** (§19.8: Drag&Drop-Import, Bild-Crop, Icon-Komponente), **PPTX-Export** (§19.5: native Rekonstruktion). Checkliste in [next-steps.md](next-steps.md) A7.
 
 ## 7. Wichtige Konventionen & Stolpersteine
 

@@ -85,10 +85,13 @@ Themes/Presets (§18.6), Folien-Transitions (§18.3), Bild-Positionierung „Lig
 (§18.1: Bild-Toolbar + **Block-Drag in der interaktiven Vorschau** + automatische `+++`-Spalten),
 Komponenten-Bibliothek + erweiterter Agenten-Skill (§18.7).
 
-**Roadmap §19 (umgesetzt):** Daten-Diagramme (§19.2: `line_chart`/`donut_chart`, 9 Komponenten
-gesamt), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds** (§19.1:
+**Roadmap §19 (umgesetzt):** Daten-Diagramme (§19.2: `line_chart`/`donut_chart`, **10 Komponenten**
+gesamt inkl. `icon`), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds** (§19.1:
 `set_zone_reveal`, parent-autoritative Präsentations-Nav — Auto-Animate offen), Vorlagen & Marke
-(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck (§19.9).
+(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck (§19.9),
+**Presenter-Tools** (§19.3: **Folien-Übersicht/Sprung-Grid**, **Laser-/Stift-Overlay**, **Auto-Advance/Loop** —
+echtes Zweitfenster offen), **Medien** (§19.8: **Drag&Drop-Import**, **Bild-Crop**, **Icon-Inline-SVG** —
+Aufnahme/Narration offen), **PPTX-Export** (§19.5: native Rekonstruktion via pptxgenjs).
 **MCP-Tools: 30** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`,
 `set_transition`, `list_components`/`insert_component`.
 
@@ -108,16 +111,37 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   ([src/lib/tiptap-image.ts](src/lib/tiptap-image.ts)) — round-trip-sicher über markdown-it.
 - **Transitions:** `meta.transition` (additiv, optional); Renderer-Deck-Modus nur bei `present`
   und `kind!=='none'` — Scroll-Snap-Default bleibt unangetastet & abwärtskompatibel.
-- **WKWebView-Lücken → Pointer-Events / kein nativer Browser-Convenience-Call:** HTML5-DnD und
-  `window.print()` sind unzuverlässig. Block-Drag/Bild-Resize laufen über Pointer-Events;
-  PDF via `open_print_view` (Temp-Datei → Standardbrowser).
+- **WKWebView-Lücken → Pointer-Events / kein nativer Browser-Convenience-Call:** HTML5-DnD-Element-
+  verschieben und `window.print()` sind unzuverlässig. Block-Drag/Bild-Resize laufen über Pointer-Events;
+  PDF via `open_print_view` (Temp-Datei → Standardbrowser). **Canvas-Taint:** Rastern von HTML→Bild
+  (`foreignObject` → Canvas) verseucht im WKWebView das Canvas → `toDataURL` schlägt fehl. Deshalb ist
+  **PPTX bewusst nativ rekonstruiert** ([pptx.ts](src/lib/pptx.ts), pptxgenjs: Textboxen + Bilder +
+  Token-Hintergründe, in PowerPoint editierbar) statt bild-basiert. Bild-**Crop** ([CropModal.tsx](src/components/modals/CropModal.tsx))
+  ist erlaubt, weil das Crop eines *normalen Rasterbildes* (kein foreignObject) kein Canvas-Taint auslöst.
+- **Drag&Drop-Medienimport (§19.8):** In der Desktop-App `"dragDropEnabled": false` in
+  [tauri.conf.json](src-tauri/tauri.conf.json), sonst fängt Tauri den OS-Drop ab und die HTML5-DnD-Events
+  der WebView (`dataTransfer.files`) feuern nicht. ZoneCard nutzt einen Enter/Leave-Tiefenzähler.
+- **PPTX dynamisch importiert:** `import('pptxgenjs')` + `import('@/lib/pptx')` erst beim Export
+  (eigener Vite-Chunk) — hält den Initial-Bundle klein. Schreiben über Rust `export_pptx` (base64→Bytes).
 - **Builds parent-autoritativ:** PresentationMode hält Folie+Schritt, Audience-Iframe hat keine
   eigene Tastatur (nur Standalone-Export), reagiert nur auf `slideo:show {index, step}`.
+  `activeSlideIndex` lebt im Store und kann **extern** wandern (MCP `set_active_slide`,
+  `applyExternalPresentation`); damit der lokale `step` nicht veraltet, klemmt ihn ein Effekt
+  in [PresentationMode.tsx](src/components/presentation/PresentationMode.tsx) auf den gültigen
+  Bereich der aktiven Folie (`[activeSlideIndex, presentation]`).
+- **Presenter-Tools (§19.3) sind reine Präsentationszeit-UI:** Übersicht/Laser/Stift/Auto-Advance
+  leben als **lokaler State** in [PresentationMode.tsx](src/components/presentation/PresentationMode.tsx)
+  (nicht im Store, nicht persistiert) — sie verändern keine Präsentationsdaten, nur die Anzeige.
+  Bei offener Übersicht übernimmt [SlideOverview.tsx](src/components/presentation/SlideOverview.tsx)
+  die Tastatur (Capture-Listener); PresentationMode steigt dann früh aus. Annotationen werden über
+  einen `key`-Remount (Folienindex + Lösch-Nonce) geleert. Kein Datenmodell-/Rust-Eingriff.
 - **Additive Datenmodell-Felder** (optional, `version` bleibt "1.0"): `meta.transition`, `meta.logo`,
   `zone.reveal`, `presentation.fonts`, Bild-`width/align/float`.
 
-Offen (Post-MVP): GUI-Verifikation der §18/§19-Features; **§19.3 Presenter-Tools** (Übersicht/Sprung,
-Laser/Stift, echtes Zweitfenster, Auto-Advance), **Auto-Animate/Morph**, **§19.5 PPTX-Export**,
-**Outline-Modus + Versionshistorie**, **§19.8 Medien** (Drag&Drop-Import, Crop, Aufnahme),
-**Komponenten-Palette** (Polish), Asset-Positionierung „Large", Cross-Platform-Builds + Signing,
-Font-Subset. Siehe [README.md](README.md) und [docs/next-steps.md](docs/next-steps.md).
+Offen (Post-MVP): GUI-Verifikation der §18/§19-Features; **§19.3 echtes Zweitfenster** (Tauri
+Multi-Window, größter Brocken; Übersicht/Laser/Stift/Auto-Advance bereits umgesetzt),
+**Auto-Animate/Morph**, **§19.8 Aufnahme/Narration + Video-Export** (Drag&Drop-Import/Crop/Icons
+bereits umgesetzt), **bild-basierter PPTX-Export** (1:1 via Browser-Offload — native Rekonstruktion
+ist umgesetzt), **Outline-Modus + Versionshistorie**, **Komponenten-Palette** (Polish),
+Asset-Positionierung „Large", Cross-Platform-Builds + Signing, Font-Subset.
+Siehe [README.md](README.md) und [docs/next-steps.md](docs/next-steps.md).

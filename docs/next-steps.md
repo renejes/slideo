@@ -58,14 +58,26 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 
 ### B2. Programm §19 — „Richtung vollwertige Präsentationssoftware" (Spec §19)
 
-- ✅ **19.2 Daten-Diagramme** — `line_chart` + `donut_chart` (9 Komponenten gesamt).
+> **Plan für die nächste(n) Session(en): ALLE noch offenen Punkte abarbeiten.** Wir starten mit dem,
+> was am schnellsten geht, und arbeiten uns zu den großen Brocken vor — ob das eine Session schafft
+> oder mehrere, zeigt sich unterwegs. Grobe Reihenfolge nach Aufwand (klein → groß):
+> 1. **Komponenten-Palette** (Polish) — 10 Rust-Komponenten per UI-Klick einsetzen (Tauri-Command `render_component`, derselbe Generator wie MCP), idealerweise mit Parameter-Formularen.
+> 2. **Outline-Modus** (§19.9-Rest) — Folientexte als editierbare Gliederung.
+> 3. **Versionshistorie** (§19.9-Rest) — lokale `.slideo`-Snapshots.
+> 4. **Auto-Animate/Morph** (§19.1-Rest) — gleiche `data-id`-Elemente zwischen Folien per FLIP.
+> 5. **Echtes Zweitfenster** (§19.3-Rest) — Tauri Multi-Window + Event-Sync (größerer Umbau; Design-Fragen vorab klären).
+> 6. **§19.8 Aufnahme/Narration + Video-Export** (groß) — MediaRecorder/getUserMedia.
+>
+> Quer dazu offen: **GUI-Verifikation** aller §18/§19-Features (Abschnitt A1–A7) und **Distribution/Notarization** (Abschnitt C).
+
+- ✅ **19.2 Daten-Diagramme** — `line_chart` + `donut_chart` (10 Komponenten gesamt inkl. `icon`).
 - ✅ **19.7 Barrierefreiheit** — Alt-Text-Feld + WCAG-Kontrast-Check.
 - ✅ **19.1 In-Folien-Builds** — `set_zone_reveal`, parent-autoritative Nav. **OFFEN: Auto-Animate/Morph.**
 - ✅ **19.4 Vorlagen & Marke** — Custom-Fonts + Logo/Brand + Starter-Templates.
 - ✅ **19.9 Suchen & Ersetzen** + Spellcheck. **OFFEN: Outline-Modus + Versionshistorie.**
-- **OFFEN: 19.3 Presenter-Tools** (Folien-Übersicht/Sprung, Laser/Stift, echtes Zweitfenster, Auto-Advance/Loop).
-- **OFFEN: 19.8 Medien** (Drag&Drop-Bildimport, Crop, Icons, Aufnahme/Narration + Video-Export).
-- **OFFEN: 19.5 PPTX-Export** (v1 bild-basiert via pptxgenjs).
+- ✅ **19.3 Presenter-Tools (teilweise)** — Folien-Übersicht/Sprung-Grid, Laser-/Stift-Overlay, Auto-Advance/Loop. **OFFEN: echtes Zweitfenster** (Tauri Multi-Window, größter Brocken).
+- ✅ **19.8 Medien (teilweise)** — Drag&Drop-Medienimport, Bild-Crop (non-destruktiv), Icon-Inline-SVG-Komponente. **OFFEN: Aufnahme/Narration + Video-Export** (MediaRecorder, „groß").
+- ✅ **19.5 PPTX-Export (v1)** — **native Rekonstruktion** via pptxgenjs (Text/Bilder/Token-Hintergründe, in PowerPoint editierbar). Bild-basiert (1:1) entfällt in-app wegen WKWebView-Canvas-Taint; optional später via Browser-Offload.
 - **OFFEN: Komponenten-Palette** (manuelles Einfügen, Polish — mit Parameter-Formularen).
 
 ### A7. GUI-Tests der neuen §18/§19-Features (zuerst! headless nicht verifiziert)
@@ -85,6 +97,13 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Suchen & Ersetzen (§19.9):** Cmd/Ctrl+F oder Topbar-Lupe → Begriff eingeben (Trefferzahl live) → „Alle ersetzen" wirkt über alle Folien; Undo (Cmd+Z) macht es rückgängig.
 - [ ] **Logo (§19.4):** Design-Tab → „Logo" → Hochladen + Position → erscheint in der Ecke jeder Folie (auch Export/PDF); Entfernen funktioniert.
 - [ ] **Templates (§19.4):** „Neu" → Vorlage wählen (Pitch/Vortrag/Editorial/Leer) → Deck wird mit Preset-Theme + Seed-Folien (inkl. Builds) angelegt.
+- [ ] **Folien-Übersicht (§19.3):** Präsentieren → Taste `g` (oder Raster-Button) → Grid aller Folien; aktuelle Folie ist markiert; Pfeiltasten bewegen die Auswahl, Enter/Klick springt zur Folie und schließt; `g`/`Esc` schließt ohne Sprung. Bei offener Übersicht navigieren die Pfeile das Grid (nicht die Folien).
+- [ ] **Laser/Stift (§19.3):** `l` → Laserpointer (Leucht-Komet folgt der Maus, Schweif blendet aus); `p` → Stift (Striche bleiben stehen, Farbe = Akzent-Token); `c` löscht; Folienwechsel löscht Annotationen automatisch; `Esc` schaltet zuerst das Werkzeug aus, dann verlässt es. In der Speaker-View kein Overlay. Klicks/Navigation bleiben möglich, wenn kein Werkzeug aktiv ist.
+- [ ] **Auto-Advance/Loop (§19.3):** `a` (oder Play-Button) startet selbstlaufendes Blättern; Sekunden-Dropdown wirkt; build-bewusst (Schritte vor Folienwechsel); am Ende stoppt es bzw. springt mit aktivem Loop zurück auf Folie 1; manuelles Blättern setzt den Timer neu; offene Übersicht pausiert.
+- [ ] **Drag&Drop-Import (§19.8):** Bild/Video/Audio aus dem Finder auf eine Folien-Card ziehen → „Medium hier ablegen"-Overlay → Datei wird importiert/eingefügt (Bild in Markdown- & HTML-Zonen, Video/Audio nur in HTML-Zonen; sonst Hinweis-Toast). Mehrere Dateien gleichzeitig. **Wichtig:** braucht den frischen Build mit `dragDropEnabled:false` (sonst fängt Tauri den Drop ab).
+- [ ] **Bild-Crop (§19.8):** Bild in einer Markdown-Zone anklicken → Bild-Toolbar → „Zuschneiden" → Modal mit zieh-/skalierbarem Rahmen → „Zuschneiden" erzeugt ein neues, zugeschnittenes Bild (Original-Asset bleibt); im Editor/Export sichtbar; speichern/öffnen → erhalten.
+- [ ] **Icon-Komponente (§19.8, MCP):** „füge ein Häkchen-Icon mit Beschriftung ein" → `insert_component(type:'icon', {name:'check', label:'…'})` → token-gefärbtes Inline-SVG, über die Token-Sidebar umfärbbar.
+- [ ] **PPTX-Export (§19.5):** Topbar „PPTX" → Speichern-Dialog → `.pptx` öffnet in PowerPoint/Keynote/LibreOffice: Token-Hintergründe, Überschriften/Listen/Text (Bold/Italic), Bilder, Logo, 16:9. Erwartete v1-Grenzen: HTML-Zonen vereinfacht (Text + Hinweis), Charts/Custom-CSS nicht 1:1, nur #RGB/#RRGGBB-Farben.
 
 ### Polish / geparkt
 - **Komponenten-Palette (manuell einfügen):** UI, die die 9 Rust-Komponenten (inkl. Charts) per Klick in die aktive Zone einsetzt — über einen Tauri-Command `render_component`, der denselben Generator nutzt (keine Template-Duplikation). Bewusst als **Polish** geparkt; richtig wertvoll erst mit **Parameter-Formularen** (z.B. Daten-Tabelle fürs Chart). Aktuell sind Komponenten über die KI (MCP `insert_component`) einsetzbar.
