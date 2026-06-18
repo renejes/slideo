@@ -24,6 +24,7 @@ export function Topbar() {
   const save = usePresentationStore((s) => s.savePresentation)
   const exportHtml = usePresentationStore((s) => s.exportHtml)
   const exportPdf = usePresentationStore((s) => s.exportPdf)
+  const exportPptx = usePresentationStore((s) => s.exportPptx)
   const setMode = usePresentationStore((s) => s.setMode)
   const openModal = useUiStore((s) => s.openModal)
 
@@ -90,6 +91,15 @@ export function Topbar() {
         >
           <Icon name="picture_as_pdf" size={18} />
           PDF
+        </button>
+        <button
+          onClick={() => exportPptx()}
+          className={ghost}
+          disabled={!presentation}
+          title={'Als PowerPoint (.pptx) exportieren — native Rekonstruktion (Text + Bilder + Theme)'}
+        >
+          <Icon name="slideshow" size={18} />
+          PPTX
         </button>
 
         <span className="mx-1 h-5 w-px bg-chrome-border" />

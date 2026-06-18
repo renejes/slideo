@@ -84,6 +84,18 @@ pub fn open_print_view(html: String) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Schreibt eine base64-kodierte Binärdatei (z.B. PPTX) an `path`. Das Frontend
+/// baut die `.pptx` mit pptxgenjs (native Rekonstruktion — kein Canvas-Rastern,
+/// das im WKWebView unzuverlässig ist) und reicht sie als base64 durch.
+#[tauri::command]
+pub fn export_pptx(path: String, base64: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64.as_bytes())
+        .map_err(|e| format!("Ungültige PPTX-Daten: {e}"))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("Export fehlgeschlagen: {e}"))
+}
+
 /// Liefert das aktuelle MCP-Registrierungs-Ziel + Verfügbarkeit/Status je Ziel
 /// (für die Einstellungen). Macht u.a. eine Live-Probe gegen Meta-MCP.
 #[tauri::command]

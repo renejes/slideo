@@ -88,6 +88,22 @@ export function exportHtmlFile(path: string, html: string): Promise<void> {
   return invoke<void>('export_html', { path, html })
 }
 
+/** "Speichern unter"-Dialog für den PPTX-Export. */
+export async function pickExportPptxPath(defaultName: string): Promise<string | null> {
+  if (!isTauri()) return null
+  const { save } = await import('@tauri-apps/plugin-dialog')
+  const selected = await save({
+    defaultPath: defaultName,
+    filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
+  })
+  return selected ?? null
+}
+
+/** Schreibt eine base64-kodierte PPTX-Datei an den Pfad. */
+export function exportPptxFile(path: string, base64: string): Promise<void> {
+  return invoke<void>('export_pptx', { path, base64 })
+}
+
 /** Schreibt die print-optimierte Page in eine Temp-Datei und öffnet sie im Browser (PDF). */
 export function openPrintView(html: string): Promise<string> {
   return invoke<string>('open_print_view', { html })

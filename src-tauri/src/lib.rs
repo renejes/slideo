@@ -76,6 +76,7 @@ pub fn run() {
             commands::set_file_path,
             commands::export_html,
             commands::open_print_view,
+            commands::export_pptx,
             commands::mcp_status,
             commands::mcp_set_target,
         ])

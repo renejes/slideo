@@ -37,6 +37,8 @@ import {
   pickExportHtmlPath,
   exportHtmlFile,
   openPrintView,
+  pickExportPptxPath,
+  exportPptxFile,
   isTauri,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
@@ -68,6 +70,7 @@ interface PresentationState {
   savePresentationAsDialog: () => Promise<void>
   exportHtml: () => Promise<void>
   exportPdf: () => Promise<void>
+  exportPptx: () => Promise<void>
 
   // Zones
   createZone: (afterId?: string, markdown?: string) => string
@@ -331,6 +334,38 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         // Reiner Browser-Dev: direkter Iframe-Druck funktioniert.
         exportPdfViaPrint(presentation, assets)
         notify('Druckdialog geöffnet — „Als PDF sichern".', 'info')
+      }
+    },
+
+    exportPptx: async () => {
+      const { presentation, assets } = get()
+      if (!presentation) return
+      const safeName = presentation.meta.title.replace(/[^\w\-]+/g, '-').toLowerCase() || 'presentation'
+      try {
+        const { buildPptxBase64 } = await import('@/lib/pptx')
+        const base64 = await buildPptxBase64(presentation, assets)
+        if (isTauri()) {
+          const path = await pickExportPptxPath(`${safeName}.pptx`)
+          if (!path) return
+          await exportPptxFile(path, base64)
+          notify('Als PowerPoint (.pptx) exportiert.', 'success')
+        } else {
+          // Browser-Dev: Download über einen Blob aus dem base64-String.
+          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+          const blob = new Blob([bytes], {
+            type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `${safeName}.pptx`
+          a.click()
+          URL.revokeObjectURL(url)
+          notify('PPTX heruntergeladen.', 'success')
+        }
+      } catch (e) {
+        console.error('[slideo] export_pptx fehlgeschlagen:', e)
+        notify(`PPTX-Export fehlgeschlagen: ${errMsg(e)}`, 'error')
       }
     },
 
