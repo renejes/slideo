@@ -1,8 +1,11 @@
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Editor } from '@tiptap/react'
 import { Icon } from '@/components/ui/Icon'
 import { IMAGE_SIZES, type ImageAlign, type ImageFloat } from '@/lib/tiptap-image'
+import { usePresentationStore } from '@/store/presentation'
+import { CropModal } from '@/components/modals/CropModal'
+import { notify } from '@/store/toast'
 
 // Floating-Toolbar für selektierte Bilder (Spec §18.1 „Light"): Größe (S/M/L/Voll),
 // Ausrichtung im Fluss und Float mit Textumfluss. Bewusst KEINE @tiptap/react-
@@ -12,6 +15,10 @@ import { IMAGE_SIZES, type ImageAlign, type ImageFloat } from '@/lib/tiptap-imag
 export function ImageToolbar({ editor }: { editor: Editor | null }) {
   // Bei jeder Editor-Transaktion neu rendern (Position + aktive Zustände).
   const [, force] = useReducer((x) => x + 1, 0)
+  // Crop-Anforderung (Bildquelle + Modellposition) — überlebt unabhängig von der
+  // Sichtbarkeit der Floating-Toolbar (das Modal soll offen bleiben).
+  const [crop, setCrop] = useState<{ src: string; pos: number } | null>(null)
+  const addAssetToLibrary = usePresentationStore((s) => s.addAssetToLibrary)
 
   useEffect(() => {
     if (!editor) return
@@ -23,54 +30,88 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
     }
   }, [editor])
 
-  if (!editor || editor.isDestroyed || !editor.isActive('image')) return null
-
-  const { state, view } = editor
-  const from = state.selection.from
-  const dom = view.nodeDOM(from) as HTMLElement | null
-  const rect = dom?.getBoundingClientRect?.()
-  if (!rect) return null
-
-  const attrs = editor.getAttributes('image') as {
-    width?: string | null
-    align?: ImageAlign | null
-    float?: ImageFloat | null
-    alt?: string | null
-  }
-  const apply = (update: Record<string, unknown>) =>
-    editor.chain().focus().updateAttributes('image', update).run()
-  // Alt-Text ohne .focus(), damit das Eingabefeld den Fokus behält.
-  const setAlt = (alt: string) => editor.commands.updateAttributes('image', { alt })
-
-  const alignIcon: Record<ImageAlign, string> = {
-    left: 'format_align_left',
-    center: 'format_align_center',
-    right: 'format_align_right',
-  }
-
-  // Über dem Bild zentrieren; bei zu wenig Platz oben → darunter.
-  const above = rect.top - 10
-  const placeBelow = above < 64
-  const left = Math.max(170, Math.min(rect.left + rect.width / 2, window.innerWidth - 170))
-  const style: React.CSSProperties = {
-    position: 'fixed',
-    top: placeBelow ? rect.bottom + 10 : above,
-    left,
-    transform: placeBelow ? 'translateX(-50%)' : 'translate(-50%, -100%)',
-    zIndex: 60,
+  // Zugeschnittenes Bild als neues Asset ablegen und die src des Bild-Knotens
+  // an der gemerkten Position setzen (non-destruktiv; übrige Attribute bleiben).
+  function onCropApply(dataUri: string) {
+    const c = crop
+    setCrop(null)
+    if (!editor || !c) return
+    // Asset erst anlegen, wenn der Bild-Knoten noch existiert (sonst Orphan-Asset
+    // + falscher Erfolgs-Toast, falls c.pos durch eine Doc-Mutation veraltet ist).
+    // addAssetToLibrary läuft synchron im command-Callback → hier zulässig.
+    const ok = editor
+      .chain()
+      .focus()
+      .command(({ tr }) => {
+        const node = tr.doc.nodeAt(c.pos)
+        if (!node || node.type.name !== 'image') return false
+        const filename = addAssetToLibrary(dataUri)
+        tr.setNodeMarkup(c.pos, undefined, { ...node.attrs, src: `assets/${filename}` })
+        return true
+      })
+      .run()
+    notify(
+      ok ? 'Bild zugeschnitten.' : 'Zuschneiden fehlgeschlagen (Bildauswahl verloren).',
+      ok ? 'success' : 'error',
+    )
   }
 
-  return createPortal(
-    // onMouseDown verhindern, damit die Bild-Selektion beim Klick erhalten bleibt —
-    // außer auf dem Alt-Text-Eingabefeld, das fokussierbar bleiben muss.
-    <div
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).tagName !== 'INPUT') e.preventDefault()
-      }}
-      style={style}
-    >
-      <div className="flex flex-col gap-1.5 rounded-xl border border-chrome-border bg-chrome-surface p-2 shadow-pop">
-        <Row label="Größe">
+  const cropModal = crop ? (
+    <CropModal src={crop.src} onApply={onCropApply} onCancel={() => setCrop(null)} />
+  ) : null
+
+  let toolbar: React.ReactNode = null
+  if (editor && !editor.isDestroyed && editor.isActive('image')) {
+    const { state, view } = editor
+    const from = state.selection.from
+    const dom = view.nodeDOM(from) as HTMLElement | null
+    const rect = dom?.getBoundingClientRect?.()
+    if (rect) {
+      const attrs = editor.getAttributes('image') as {
+        width?: string | null
+        align?: ImageAlign | null
+        float?: ImageFloat | null
+        alt?: string | null
+      }
+      const apply = (update: Record<string, unknown>) =>
+        editor.chain().focus().updateAttributes('image', update).run()
+      // Alt-Text ohne .focus(), damit das Eingabefeld den Fokus behält.
+      const setAlt = (alt: string) => editor.commands.updateAttributes('image', { alt })
+      const openCrop = () => {
+        const el = dom as HTMLImageElement | null
+        const s = el?.currentSrc || el?.src
+        if (s) setCrop({ src: s, pos: from })
+      }
+
+      const alignIcon: Record<ImageAlign, string> = {
+        left: 'format_align_left',
+        center: 'format_align_center',
+        right: 'format_align_right',
+      }
+
+      // Über dem Bild zentrieren; bei zu wenig Platz oben → darunter.
+      const above = rect.top - 10
+      const placeBelow = above < 64
+      const left = Math.max(170, Math.min(rect.left + rect.width / 2, window.innerWidth - 170))
+      const style: React.CSSProperties = {
+        position: 'fixed',
+        top: placeBelow ? rect.bottom + 10 : above,
+        left,
+        transform: placeBelow ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+        zIndex: 60,
+      }
+
+      toolbar = createPortal(
+        // onMouseDown verhindern, damit die Bild-Selektion beim Klick erhalten bleibt —
+        // außer auf dem Alt-Text-Eingabefeld, das fokussierbar bleiben muss.
+        <div
+          onMouseDown={(e) => {
+            if ((e.target as HTMLElement).tagName !== 'INPUT') e.preventDefault()
+          }}
+          style={style}
+        >
+          <div className="flex flex-col gap-1.5 rounded-xl border border-chrome-border bg-chrome-surface p-2 shadow-pop">
+            <Row label="Größe">
           {IMAGE_SIZES.map((s) => (
             <TextButton key={s.width} active={attrs.width === s.width} onClick={() => apply({ width: s.width })}>
               {s.label}
@@ -99,18 +140,37 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
             Rechts
           </TextButton>
         </Row>
-        <Row label="Alt-Text">
-          <input
-            type="text"
-            value={attrs.alt ?? ''}
-            onChange={(e) => setAlt(e.target.value)}
-            placeholder="Bildbeschreibung (Barrierefreiheit)"
-            className="h-6 w-[13rem] rounded-md border border-chrome-border bg-white px-2 text-[12px] text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-1 focus:ring-chrome-accent/30"
-          />
-        </Row>
-      </div>
-    </div>,
-    document.body,
+            <Row label="Alt-Text">
+              <input
+                type="text"
+                value={attrs.alt ?? ''}
+                onChange={(e) => setAlt(e.target.value)}
+                placeholder="Bildbeschreibung (Barrierefreiheit)"
+                className="h-6 w-[13rem] rounded-md border border-chrome-border bg-white px-2 text-[12px] text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-1 focus:ring-chrome-accent/30"
+              />
+            </Row>
+            <Row label="Bild">
+              <button
+                onClick={openCrop}
+                className={btnBase + ' w-full gap-1 text-chrome-secondary hover:bg-chrome-surface-2'}
+                title="Bild zuschneiden"
+              >
+                <Icon name="crop" size={14} weight={400} />
+                Zuschneiden
+              </button>
+            </Row>
+          </div>
+        </div>,
+        document.body,
+      )
+    }
+  }
+
+  return (
+    <>
+      {toolbar}
+      {cropModal}
+    </>
   )
 }
 

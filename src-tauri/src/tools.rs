@@ -599,7 +599,7 @@ class=\"align-right\"> (Klassen: align-left|center|right, float-left|right).\n\
 5) Reiche Inhalte ohne HTML-Handarbeit: insert_component(zone_id, type, params) setzt fertige, \
 token-bewusste Komponenten ein — list_components zeigt Typen + Parameter: stat_cards (KPIs), \
 bar_chart, line_chart (Trend), donut_chart (Anteile), progress, quote, timeline, comparison \
-(zwei Spalten), callout. Bevorzuge diese für Daten/Diagramme/Vergleiche.\n\
+(zwei Spalten), callout, icon (Symbol). Bevorzuge diese für Daten/Diagramme/Vergleiche.\n\
 6) Feinschliff: set_zone_notes(id, notes) für Sprechernotizen (nur Speaker-View); \
 set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom); \
 set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
@@ -794,7 +794,7 @@ pub fn tool_schemas() -> Value {
         },
         {
             "name": "list_components",
-            "description": "Listet fertige, token-bewusste HTML-Komponenten (Kennzahlen-Karten, Balkendiagramm, Fortschritt, Zitat, Zeitstrahl, Vergleich, Hinweis-Box) mit Typ, Label, Beschreibung und Parametern. Mit insert_component in eine Zone einsetzen. Schneller Weg zu hochwertigen, themebaren Inhalten ohne eigenes HTML.",
+            "description": "Listet fertige, token-bewusste HTML-Komponenten (Kennzahlen-Karten, Diagramme: Balken/Linie/Donut, Fortschritt, Zitat, Zeitstrahl, Vergleich, Hinweis-Box, Icons) mit Typ, Label, Beschreibung und Parametern. Mit insert_component in eine Zone einsetzen. Schneller Weg zu hochwertigen, themebaren Inhalten ohne eigenes HTML.",
             "inputSchema": obj()
         },
         {

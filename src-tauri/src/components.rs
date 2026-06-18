@@ -319,6 +319,72 @@ fn donut_chart(params: &Value) -> String {
     )
 }
 
+/// Sanitisiert eine CSS-Farbe/Token-Variable für ein style-Attribut (verhindert
+/// Attribut-Ausbruch). Erlaubt nur unverfängliche Zeichen; sonst Akzent-Default.
+fn safe_color(c: &str) -> String {
+    let ok = c.len() <= 64
+        && c.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || matches!(ch, ' ' | '(' | ')' | ',' | '.' | '#' | '%' | '-')
+        });
+    if ok && !c.is_empty() {
+        c.to_string()
+    } else {
+        "var(--color-accent)".to_string()
+    }
+}
+
+/// Inline-SVG-Body (24×24-viewBox) für einen Icon-Namen. Linien-Icons nutzen den
+/// SVG-Default (stroke=currentColor, fill=none); Flächen-Icons überschreiben das
+/// pro Pfad. `currentColor` koppelt an die per `style="color:…"` gesetzte Token-Farbe.
+fn icon_path(name: &str) -> Option<&'static str> {
+    let body = match name {
+        "check" => "<path d=\"M5 13l4 4 10-10\"/>",
+        "close" | "x" => "<path d=\"M6 6l12 12M18 6L6 18\"/>",
+        "arrow_right" => "<path d=\"M5 12h13M13 6l6 6-6 6\"/>",
+        "arrow_up" => "<path d=\"M12 19V6M6 12l6-6 6 6\"/>",
+        "plus" => "<path d=\"M12 5v14M5 12h14\"/>",
+        "minus" => "<path d=\"M5 12h14\"/>",
+        "star" => "<path fill=\"currentColor\" stroke=\"none\" d=\"M12 2.5l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5L2.6 9.3l6.5-.9z\"/>",
+        "heart" => "<path fill=\"currentColor\" stroke=\"none\" d=\"M12 20.3l-1.3-1.2C6 14.8 3 12 3 8.6 3 6.1 5 4 7.6 4c1.5 0 2.9.7 3.8 1.8L12 7l.6-1.2C13.5 4.7 14.9 4 16.4 4 19 4 21 6.1 21 8.6c0 3.4-3 6.2-7.7 10.5z\"/>",
+        "bolt" => "<path fill=\"currentColor\" stroke=\"none\" d=\"M13 2L4.5 13.5H10l-1 8.5 9.5-12H12z\"/>",
+        "circle" => "<circle cx=\"12\" cy=\"12\" r=\"8.5\" fill=\"currentColor\" stroke=\"none\"/>",
+        "check_circle" => "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.5l2.5 2.5 5-5.5\"/>",
+        "shield" => "<path d=\"M12 3l7 2.5v5.5c0 4.3-3 7.4-7 8.5-4-1.1-7-4.2-7-8.5V5.5z\"/>",
+        "info" => "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5\"/><circle cx=\"12\" cy=\"8\" r=\"0.7\" fill=\"currentColor\" stroke=\"none\"/>",
+        "warning" => "<path d=\"M12 4l9 16H3z\"/><path d=\"M12 10v4\"/><circle cx=\"12\" cy=\"17.5\" r=\"0.7\" fill=\"currentColor\" stroke=\"none\"/>",
+        "lightbulb" => "<path d=\"M9.5 18h5M10.5 21h3M12 3a6 6 0 00-3.5 10.9c.4.3.5.8.5 1.3V16h6v-.8c0-.5.1-1 .5-1.3A6 6 0 0012 3z\"/>",
+        _ => return None,
+    };
+    Some(body)
+}
+
+const ICON_NAMES: &str =
+    "check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb";
+
+/// Inline-SVG-Icon (Spec §19.8): token-gefärbtes Symbol, optional mit Beschriftung.
+/// params: name: string, color?: string (Token/CSS-Farbe), size?: number (rem), label?: string.
+/// Unbekannte Namen sind ein Fehler (kein stilles Ersetzen), damit Tippfehler auffallen.
+fn icon(params: &Value) -> Result<String, String> {
+    let name = str_field(params, "name", "check");
+    let color = safe_color(&str_field(params, "color", "var(--color-accent)"));
+    let size = num_field(params, "size", 6.0).max(1.0).min(24.0);
+    let label = str_field(params, "label", "");
+    let body = icon_path(&name)
+        .ok_or_else(|| format!("Unbekanntes Icon: '{name}' (verfügbar: {ICON_NAMES})"))?;
+    let label_html = if label.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div style=\"color:var(--color-secondary);font-size:1.05rem\">{}</div>",
+            esc(&label)
+        )
+    };
+    Ok(format!(
+        "<div style=\"display:flex;flex-direction:column;align-items:center;gap:.7rem;font-family:var(--font-body)\">\
+<svg viewBox=\"0 0 24 24\" width=\"{size}rem\" height=\"{size}rem\" style=\"color:{color}\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">{body}</svg>{label_html}</div>"
+    ))
+}
+
 // ---------- öffentliche API ----------
 
 /// Metadaten aller Komponenten (für `list_components` und die spätere UI-Palette).
@@ -350,7 +416,10 @@ pub fn list() -> Value {
           "params": "left: { title: string, items: string[] }, right: { title: string, items: string[] }" },
         { "type": "callout", "label": "Hinweis-Box",
           "description": "Hervorgehobener Kasten mit Titel und Text.",
-          "params": "title: string, text: string" }
+          "params": "title: string, text: string" },
+        { "type": "icon", "label": "Icon (Inline-SVG)",
+          "description": "Token-gefärbtes Symbol (optional mit Beschriftung). Namen: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.",
+          "params": "name: string, color?: string (z.B. var(--color-accent)), size?: number (rem), label?: string" }
     ])
 }
 
@@ -366,6 +435,7 @@ pub fn render(kind: &str, params: &Value) -> Result<String, String> {
         "timeline" => timeline(params),
         "comparison" => comparison(params),
         "callout" => callout(params),
+        "icon" => icon(params)?,
         other => return Err(format!("Unbekannte Komponente: '{other}' (siehe list_components)")),
     };
     Ok(html)
@@ -377,7 +447,37 @@ mod tests {
 
     #[test]
     fn list_has_components() {
-        assert_eq!(list().as_array().unwrap().len(), 9);
+        assert_eq!(list().as_array().unwrap().len(), 10);
+    }
+
+    #[test]
+    fn every_listed_component_renders() {
+        // list() und render() müssen konsistent bleiben (kein „advertised aber nicht
+        // renderbar"): jeder beworbene Typ muss mit leeren Params Ok liefern.
+        for c in list().as_array().unwrap() {
+            let t = c["type"].as_str().unwrap();
+            assert!(render(t, &json!({})).is_ok(), "{t} ist nicht renderbar");
+        }
+    }
+
+    #[test]
+    fn icon_renders_token_colored_svg_and_sanitizes_color() {
+        let html = render("icon", &json!({ "name": "check", "label": "Fertig" })).unwrap();
+        assert!(html.contains("<svg"));
+        assert!(html.contains("color:var(--color-accent)")); // Default-Token
+        assert!(html.contains("Fertig"));
+
+        // Unsichere Farbe (Attribut-Ausbruch) → Akzent-Default.
+        let bad = render("icon", &json!({ "name": "star", "color": "red\"></svg><script>x" })).unwrap();
+        assert!(!bad.contains("<script>"));
+        assert!(bad.contains("color:var(--color-accent)"));
+
+        // Gültige Token-Farbe wird übernommen.
+        let ok = render("icon", &json!({ "name": "bolt", "color": "var(--color-primary)" })).unwrap();
+        assert!(ok.contains("color:var(--color-primary)"));
+
+        // Unbekannter Icon-Name ist ein Fehler (kein stilles Ersetzen durch einen Kreis).
+        assert!(render("icon", &json!({ "name": "does_not_exist" })).is_err());
     }
 
     #[test]

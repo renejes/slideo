@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Zone } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
+import { notify } from '@/store/toast'
 import { ZoneToolbar } from './ZoneToolbar'
 import { TiptapEditor } from './TiptapEditor'
 import { HtmlEditor } from './HtmlEditor'
@@ -23,9 +24,59 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
   const setActiveZone = usePresentationStore((s) => s.setActiveZone)
   const updateZoneMarkdown = usePresentationStore((s) => s.updateZoneMarkdown)
   const updateZoneHtml = usePresentationStore((s) => s.updateZoneHtml)
+  const addMediaToZone = usePresentationStore((s) => s.addMediaToZone)
 
   const isHtml = zone.content_type === 'html'
   const isActive = activeZoneId === zone.id
+
+  // Drag&Drop-Medienimport (Spec §19.8): Bild/Video/Audio direkt auf die Folie
+  // ziehen. Nutzt HTML5-File-DnD (in der Desktop-App via dragDropEnabled:false
+  // aktiviert). dragDepth zählt Enter/Leave robust über Kind-Elemente hinweg.
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepth = useRef(0)
+
+  function hasFiles(e: React.DragEvent) {
+    return Array.from(e.dataTransfer.types).includes('Files')
+  }
+  function onDragEnter(e: React.DragEvent) {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    dragDepth.current += 1
+    setDragOver(true)
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  function onDragLeave(e: React.DragEvent) {
+    if (!hasFiles(e)) return
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragOver(false)
+  }
+  async function onDrop(e: React.DragEvent) {
+    if (!hasFiles(e)) return
+    e.preventDefault()
+    dragDepth.current = 0
+    setDragOver(false)
+    setActiveZone(zone.id)
+    const all = Array.from(e.dataTransfer.files)
+    const files = all.filter((f) => /^(image|video|audio)\//.test(f.type))
+    if (files.length === 0) {
+      if (all.length > 0) notify('Nur Bilder, Video und Audio werden unterstützt.', 'info')
+      return
+    }
+    let failed = 0
+    for (const f of files) {
+      try {
+        const uri = await fileToDataUri(f)
+        addMediaToZone(zone.id, uri)
+      } catch {
+        failed++
+      }
+    }
+    if (failed > 0) notify(`${failed} Datei(en) konnten nicht gelesen werden.`, 'error')
+  }
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -39,8 +90,12 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
       style={style}
       id={`card-${zone.id}`}
       onMouseDown={() => setActiveZone(zone.id)}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       className={
-        'overflow-hidden rounded-xl border bg-chrome-surface shadow-card transition-colors ' +
+        'relative overflow-hidden rounded-xl border bg-chrome-surface shadow-card transition-colors ' +
         (isHtml
           ? 'border-chrome-warn/30 '
           : isActive
@@ -48,6 +103,14 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
             : 'border-chrome-border hover:border-chrome-border-strong ')
       }
     >
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-chrome-accent bg-chrome-accent-soft/85">
+          <span className="flex items-center gap-1.5 text-[13px] font-semibold text-chrome-accent-600">
+            <Icon name="image" size={18} weight={400} />
+            Medium hier ablegen
+          </span>
+        </div>
+      )}
       {/* Header / Handle */}
       <div className="flex items-center gap-1.5 border-b border-chrome-border px-2.5 py-1.5">
         <button
@@ -100,6 +163,17 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
       <NotesPanel zone={zone} />
     </div>
   )
+}
+
+/** Liest eine Datei als Data-URI (für den Drag&Drop-Import). */
+function fileToDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () =>
+      typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('read failed'))
+    reader.onerror = () => reject(reader.error ?? new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function CssPanel({ zone }: { zone: Zone }) {
