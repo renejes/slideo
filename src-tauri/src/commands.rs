@@ -1,4 +1,5 @@
 use crate::file::{self, Asset};
+use crate::history;
 use crate::mcp_registration::{self, Target};
 use crate::state::AppState;
 use serde::Serialize;
@@ -59,6 +60,19 @@ pub fn sync_assets(assets: Vec<Asset>, state: State<'_, AppState>) {
     *state.assets.lock().unwrap() = assets;
 }
 
+/// Liefert den aktuellen Presentation-State (für das Presenter-Zweitfenster, Spec §19.3).
+/// Das Projector-Fenster rendert daraus die Folien; gespiegelt wird er vom Hauptfenster.
+#[tauri::command]
+pub fn get_presentation(state: State<'_, AppState>) -> Option<Value> {
+    state.presentation.lock().unwrap().clone()
+}
+
+/// Liefert die aktuellen Assets (für das Presenter-Zweitfenster).
+#[tauri::command]
+pub fn get_assets(state: State<'_, AppState>) -> Vec<Asset> {
+    state.assets.lock().unwrap().clone()
+}
+
 /// Setzt den bekannten Dateipfad (z.B. nach "Neu"/Reset im Frontend).
 #[tauri::command]
 pub fn set_file_path(path: Option<String>, state: State<'_, AppState>) {
@@ -94,6 +108,72 @@ pub fn export_pptx(path: String, base64: String) -> Result<(), String> {
         .decode(base64.as_bytes())
         .map_err(|e| format!("Ungültige PPTX-Daten: {e}"))?;
     std::fs::write(&path, bytes).map_err(|e| format!("Export fehlgeschlagen: {e}"))
+}
+
+/// Listet die verfügbaren token-bewussten Komponenten (Metadaten: type, label,
+/// description, params) für die Editor-Palette (Spec §18.7). Nutzt dieselbe Quelle
+/// wie der MCP-Server (`crate::components`) — so braucht die UI keine TS-Duplikation
+/// des Generators; eine künftige neue Komponente erscheint automatisch in der Palette.
+#[tauri::command]
+pub fn list_components() -> Value {
+    crate::components::list()
+}
+
+/// Rendert eine Komponente zu token-bewusstem HTML (für die Editor-Palette).
+/// Nutzt **denselben** Generator wie das MCP-Tool `insert_component`
+/// (`crate::components::render`) — eine Quelle der Wahrheit, keine Template-
+/// Duplikation. Fehler (unbekannter Typ, ungültige Params) werden durchgereicht.
+#[tauri::command]
+pub fn render_component(
+    kind: String,
+    params: Value,
+    data_id: Option<String>,
+) -> Result<String, String> {
+    let html = crate::components::render(&kind, &params)?;
+    Ok(match data_id.as_deref() {
+        Some(d) if !d.is_empty() => crate::components::with_data_id(&html, d),
+        _ => html,
+    })
+}
+
+// ----- Versionshistorie (Spec §19.9) -----
+
+/// Listet die lokalen Snapshots eines Decks (neueste zuerst).
+#[tauri::command]
+pub fn list_snapshots(file_path: String) -> Vec<history::SnapshotMeta> {
+    history::list(&file_path)
+}
+
+/// Schreibt einen Snapshot (volle `.slideo`-Kopie). Dedupe: ist der Inhalt
+/// identisch zum jüngsten Snapshot, wird `null` zurückgegeben (nichts geschrieben).
+/// `id`/`created` kommen vom Frontend (UUID + ISO-Zeit).
+#[tauri::command]
+pub fn create_snapshot(
+    file_path: String,
+    presentation: Value,
+    assets: Vec<Asset>,
+    label: String,
+    auto: bool,
+    created: String,
+    id: String,
+) -> Result<Option<history::SnapshotMeta>, String> {
+    history::create(&file_path, &presentation, &assets, &label, auto, &created, &id)
+        .map_err(|e| format!("{e:#}"))
+}
+
+/// Liest einen Snapshot zur Wiederherstellung (Presentation + Assets).
+/// Das Frontend lädt das Ergebnis in den Store (Dateipfad bleibt unverändert).
+#[tauri::command]
+pub fn restore_snapshot(file_path: String, id: String) -> Result<LoadResult, String> {
+    history::restore(&file_path, &id)
+        .map(|(presentation, assets)| LoadResult { presentation, assets })
+        .map_err(|e| format!("{e:#}"))
+}
+
+/// Entfernt einen Snapshot (Datei + Index-Eintrag).
+#[tauri::command]
+pub fn delete_snapshot(file_path: String, id: String) -> Result<(), String> {
+    history::delete(&file_path, &id).map_err(|e| format!("{e:#}"))
 }
 
 /// Liefert das aktuelle MCP-Registrierungs-Ziel + Verfügbarkeit/Status je Ziel

@@ -1,13 +1,19 @@
 # Slideo — Nächste Schritte
 
-> To-do-Dokument. Reihenfolge: **erst testen** (A), **dann Features** (B), **dann Distribution/Notarization** (C).
+> To-do-Dokument. **Die Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen.** Reihenfolge jetzt:
+> **(1) vollständiger GUI-Test** (A) → **(2) Polish auswählen & umsetzen** (Abschnitt „Polish-Kandidaten") →
+> **(3) Distribution/Notarization** (C).
 > Stand-Kontext: [project-status.md](project-status.md). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
-## A. Testen (zuerst — das wurde headless NICHT verifiziert)
+## A. Testen — **PLAN DER NÄCHSTEN SESSION: vollständiger Durchlauf A1–A7**
 
-Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderung zusätzlich **Claude Desktop neu starten** (sonst altes MCP-Binary!).
+Bisher ist alles nur automatisch grün (`cargo test` 27, `typecheck`, `vite build` + Multi-Agent-Reviews je
+Feature), aber **noch nichts in der echten App durchgeklickt**. Nächste Session: **A1–A7 Punkt für Punkt** — der
+**Mensch testet**, die **KI fixt bestätigte Findings**.
+
+Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderung zusätzlich **Claude Desktop neu starten** (sonst altes MCP-Binary! — jetzt **35 MCP-Tools**).
 
 ### A1. Editor-Grundfunktionen
 - [ ] Neue Präsentation: „Neu" → Modal (Name + Speicherort) → speichert direkt als `.slideo`.
@@ -44,16 +50,16 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 
 ---
 
-## B. Features ausbauen — **geplant in [slideo-spec.md](slideo-spec.md) §18**
+## B. Feature-Roadmap §18/§19 — **umgesetzt** (Historie/Referenz; keine neuen großen Features mehr)
 
-> Der detaillierte, umsetzungsreife Plan steht in **Spec §18 (Roadmap)**. Empfohlene Reihenfolge laut §18.8 — **Status dieser Session:**
+> Vollständige Roadmap aus **Spec §18/§19**. **Alle Punkte umgesetzt** (außer §19.8 Aufnahme = bewusst weggelassen). Hier als Referenz/Statusliste; nächste Schritte sind GUI-Test (A) → Polish-Kandidaten → Distribution (C).
 
 1. ✅ **Speaker-Notes-Editor** + `set_zone_notes` — §18.2.
 2. ✅ **Export self-contained HTML** + **Teilen** — §18.4 / §18.5.
 3. ✅ **Themes / Presets** — §18.6.
 4. ✅ **Folien-Transitions** — §18.3.
 5. **Asset-Positionierung** — §18.1: ✅ **Light** (Bild-Toolbar) + ✅ **Medium** (Block-Drag **in der interaktiven Vorschau** — `editable`-Render + `reorderZoneBlocks`; Spalten-Slots über automatische `+++`-Verwaltung im Layout-Dropdown). **OFFEN (Richtung Large):** Drag *zwischen* Spalten, Block-Drag auch für split/HTML-Zonen, Free-Canvas.
-6. **Interaktivität** — §18.7: ✅ Agenten-Skill erweitert + ✅ Komponenten-Bibliothek (MCP `list_components`/`insert_component`, Rust-Generator). **OFFEN: UI-Komponenten-Palette** im Editor (denselben Rust-Generator via Tauri-Command nutzen — keine Template-Duplikation). Komponenten-Set iterativ erweitern.
+6. **Interaktivität** — §18.7: ✅ Agenten-Skill erweitert + ✅ Komponenten-Bibliothek (MCP `list_components`/`insert_component`, Rust-Generator) + ✅ **UI-Komponenten-Palette** im Editor ([ComponentPaletteModal.tsx](../src/components/modals/ComponentPaletteModal.tsx)): nutzt denselben Rust-Generator via Tauri-Commands `list_components`/`render_component` (keine Template-Duplikation), Parameter-Formulare + Live-Vorschau. **OFFEN:** Set iterativ erweitern. Komponenten-Set iterativ erweitern.
 7. ✅ **PDF-Export** — §18.4.
 
 ### B2. Programm §19 — „Richtung vollwertige Präsentationssoftware" (Spec §19)
@@ -61,24 +67,28 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 > **Plan für die nächste(n) Session(en): ALLE noch offenen Punkte abarbeiten.** Wir starten mit dem,
 > was am schnellsten geht, und arbeiten uns zu den großen Brocken vor — ob das eine Session schafft
 > oder mehrere, zeigt sich unterwegs. Grobe Reihenfolge nach Aufwand (klein → groß):
-> 1. **Komponenten-Palette** (Polish) — 10 Rust-Komponenten per UI-Klick einsetzen (Tauri-Command `render_component`, derselbe Generator wie MCP), idealerweise mit Parameter-Formularen.
-> 2. **Outline-Modus** (§19.9-Rest) — Folientexte als editierbare Gliederung.
-> 3. **Versionshistorie** (§19.9-Rest) — lokale `.slideo`-Snapshots.
-> 4. **Auto-Animate/Morph** (§19.1-Rest) — gleiche `data-id`-Elemente zwischen Folien per FLIP.
-> 5. **Echtes Zweitfenster** (§19.3-Rest) — Tauri Multi-Window + Event-Sync (größerer Umbau; Design-Fragen vorab klären).
-> 6. **§19.8 Aufnahme/Narration + Video-Export** (groß) — MediaRecorder/getUserMedia.
+> 1. ✅ **Komponenten-Palette** (umgesetzt) — 10 Rust-Komponenten per UI-Klick einsetzen (Tauri-Commands `list_components`/`render_component`, derselbe Generator wie MCP), mit Parameter-Formularen + Live-Vorschau.
+> 2. ✅ **Outline-Modus** (umgesetzt) — Folientexte als editierbare Gliederung ([OutlineView.tsx](../src/components/editor/OutlineView.tsx), verlustfrei über [outline.ts](../src/lib/outline.ts)).
+> 3. ✅ **Versionshistorie** (umgesetzt) — lokale `.slideo`-Snapshots (Auto + manuell, Wiederherstellen) — [history.rs](../src-tauri/src/history.rs) / [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx).
+> 4. ✅ **Auto-Animate/Morph** (umgesetzt) — Übergang `auto`: gleiche `data-id`-Elemente zwischen Folien per FLIP ([renderer.ts](../src/lib/renderer.ts), `data-id` via HTML-Zone / `insert_component`).
+> 5. ✅ **Echtes Zweitfenster** (umgesetzt) — `projector`-Fenster (randlos bildschirmfüllend) + Monitor-Dropdown + Event-Sync; Ein-Fenster-Modus bleibt.
+> 6. ❌ **§19.8 Aufnahme/Narration + Video-Export** — **bewusst weggelassen (out of scope):** off-thesis für eine MCP/KI-Authoring-App; Medien-Bedarf ist via Einbettung gedeckt; schlimmste WKWebView-Hürden. Wird nicht gebaut.
+>
+> Quer dazu **erledigt**: MCP-Paritäts-Audit → 5 neue Tools (`set_logo`/`clear_logo`/`register_font`/`set_presentation_title`/`set_zone_label`), **35 MCP-Tools**.
+>
+> **Damit ist die Feature-Roadmap §18/§19 im Wesentlichen durch.** Nächste Session: **(1) vollständiger GUI-Test A1–A7**, **(2) Polish auswählen** (siehe „Polish-Kandidaten" unten), später **(3) Distribution/Notarization** (C). Keine neuen großen Features geplant.
 >
 > Quer dazu offen: **GUI-Verifikation** aller §18/§19-Features (Abschnitt A1–A7) und **Distribution/Notarization** (Abschnitt C).
 
 - ✅ **19.2 Daten-Diagramme** — `line_chart` + `donut_chart` (10 Komponenten gesamt inkl. `icon`).
 - ✅ **19.7 Barrierefreiheit** — Alt-Text-Feld + WCAG-Kontrast-Check.
-- ✅ **19.1 In-Folien-Builds** — `set_zone_reveal`, parent-autoritative Nav. **OFFEN: Auto-Animate/Morph.**
+- ✅ **19.1 In-Folien-Builds + Auto-Animate** — `set_zone_reveal`, parent-autoritative Nav; **Übergang `auto`** = FLIP-Morph gleicher `data-id`-Elemente zwischen benachbarten Folien (In-App + Export). **§19.1 komplett.**
 - ✅ **19.4 Vorlagen & Marke** — Custom-Fonts + Logo/Brand + Starter-Templates.
-- ✅ **19.9 Suchen & Ersetzen** + Spellcheck. **OFFEN: Outline-Modus + Versionshistorie.**
-- ✅ **19.3 Presenter-Tools (teilweise)** — Folien-Übersicht/Sprung-Grid, Laser-/Stift-Overlay, Auto-Advance/Loop. **OFFEN: echtes Zweitfenster** (Tauri Multi-Window, größter Brocken).
-- ✅ **19.8 Medien (teilweise)** — Drag&Drop-Medienimport, Bild-Crop (non-destruktiv), Icon-Inline-SVG-Komponente. **OFFEN: Aufnahme/Narration + Video-Export** (MediaRecorder, „groß").
+- ✅ **19.9 Suchen & Ersetzen** + Spellcheck + **Outline-Modus** (Ansichtswechsel „Folien ⇄ Gliederung", verlustfreie Titel/Rumpf-Bearbeitung über [outline.ts](../src/lib/outline.ts)) + **Versionshistorie** (lokale `.slideo`-Snapshots, Auto beim Speichern + manuell, Wiederherstellen — [history.rs](../src-tauri/src/history.rs) / [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx)). **§19.9 komplett.**
+- ✅ **19.3 Presenter-Tools** — Folien-Übersicht/Sprung-Grid, Laser-/Stift-Overlay, Auto-Advance/Loop + **echtes Zweitfenster** (randlos bildschirmfüllendes `projector`-Fenster auf gewähltem Monitor, Event-Sync; [present.rs](../src-tauri/src/present.rs)/[ProjectorView.tsx](../src/components/presentation/ProjectorView.tsx)). **§19.3 komplett** (Multi-Display-GUI-Test steht aus).
+- ✅ **19.8 Medien** — Drag&Drop-Medienimport, Bild-Crop (non-destruktiv), Icon-Inline-SVG-Komponente. **Aufnahme/Narration + Video-Export: bewusst weggelassen** (out of scope — off-thesis; Einbettung deckt den Bedarf). → §19.8 abgeschlossen.
 - ✅ **19.5 PPTX-Export (v1)** — **native Rekonstruktion** via pptxgenjs (Text/Bilder/Token-Hintergründe, in PowerPoint editierbar). Bild-basiert (1:1) entfällt in-app wegen WKWebView-Canvas-Taint; optional später via Browser-Offload.
-- **OFFEN: Komponenten-Palette** (manuelles Einfügen, Polish — mit Parameter-Formularen).
+- ✅ **Komponenten-Palette** (manuelles Einfügen) — UI mit Parameter-Formularen + Live-Vorschau, derselbe Rust-Generator wie MCP.
 
 ### A7. GUI-Tests der neuen §18/§19-Features (zuerst! headless nicht verifiziert)
 - [ ] **Bild-Positionierung:** Bild in eine Markdown-Zone, anklicken → Bubble-Toolbar erscheint → Größe (S/M/L/Voll), Ausrichtung, Umfluss wirken in Vorschau; speichern/öffnen → Attribute bleiben (im Markdown stehen `<img style/class>`).
@@ -88,7 +98,8 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Notizen:** Notizen-Panel pro Zone → Text erscheint in der Speaker-View.
 - [ ] **Themes:** Theme-Picker im Design-Tab → Preset wendet Farben/Fonts live an.
 - [ ] **Komponenten (MCP):** „füge ein Balkendiagramm/eine Timeline ein" → `insert_component` erzeugt token-bewusste HTML-Zone, live sichtbar, über Token-Sidebar umfärbbar.
-- [ ] **MCP-Tools 30:** Claude Desktop neu starten → `set_zone_notes`, `set_zone_reveal`, `apply_preset`, `set_transition`, `list_components`/`insert_component` (inkl. `line_chart`/`donut_chart`) vorhanden.
+- [ ] **MCP-Tools 35:** Claude Desktop neu starten → `set_zone_notes`, `set_zone_reveal`, `apply_preset`, `set_transition`, `list_components`/`insert_component` (inkl. `line_chart`/`donut_chart`) sowie die Paritäts-Tools `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` vorhanden.
+- [ ] **MCP-Parität (neu):** „Setz das Logo auf <vorhandenes Asset>", „Benenn die Präsentation in X um", „Nenn Folie 2 ‚Intro'", „Registrier die Schrift Y aus Asset Z" → Logo erscheint auf jeder Folie / Titel + Folien-Label ändern sich / Font in den Token-Auswahllisten nutzbar. (Asset-Referenzen via `list_assets`; die KI lädt keine Dateien hoch.)
 - [ ] **Block-Drag (Medium, in der VORSCHAU):** in der rechten Vorschau über einen Block fahren → Drag-Handle (⠿) links erscheint → Block per Drag umsortieren; die Reihenfolge wird ins Markdown übernommen, nach Speichern/Öffnen erhalten. (Nur Markdown-Zonen ohne `split`; HTML/Spalten-Zonen ohne Handle.) **Pointer-Events** — nicht natives DnD.
 - [ ] **Bild-Resize (in der VORSCHAU):** über ein Bild fahren → blauer Anfasser an der rechten Kante → ziehen skaliert die Breite stufenlos (5–100 %); beim Loslassen als `<img style="width:NN%">` gespeichert, im Editor/Export erhalten.
 - [ ] **Spalten-UI (Medium):** Layout „Zwei Spalten" wählen → `+++`-Trenner wird automatisch eingefügt, Vorschau zeigt zwei Spalten; zurück auf „Zentriert" → Trenner weg, Inhalte zusammengeführt.
@@ -104,9 +115,28 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Bild-Crop (§19.8):** Bild in einer Markdown-Zone anklicken → Bild-Toolbar → „Zuschneiden" → Modal mit zieh-/skalierbarem Rahmen → „Zuschneiden" erzeugt ein neues, zugeschnittenes Bild (Original-Asset bleibt); im Editor/Export sichtbar; speichern/öffnen → erhalten.
 - [ ] **Icon-Komponente (§19.8, MCP):** „füge ein Häkchen-Icon mit Beschriftung ein" → `insert_component(type:'icon', {name:'check', label:'…'})` → token-gefärbtes Inline-SVG, über die Token-Sidebar umfärbbar.
 - [ ] **PPTX-Export (§19.5):** Topbar „PPTX" → Speichern-Dialog → `.pptx` öffnet in PowerPoint/Keynote/LibreOffice: Token-Hintergründe, Überschriften/Listen/Text (Bold/Italic), Bilder, Logo, 16:9. Erwartete v1-Grenzen: HTML-Zonen vereinfacht (Text + Hinweis), Charts/Custom-CSS nicht 1:1, nur #RGB/#RRGGBB-Farben.
+- [ ] **Komponenten-Palette (§18.7):** ZoneToolbar-Icon „widgets" (oder Topbar „Komponente") → Modal → links Komponente wählen (z.B. Balkendiagramm), rechts Felder/Daten-Tabelle ausfüllen → **Live-Vorschau** rendert token-gefärbt mit. Platzierung wählen (leere Folie → „einsetzen", HTML-Folie → „anhängen", sonst „neue Folie") → „Einfügen" → erscheint live in der Vorschau, über Token-Sidebar umfärbbar. Eine nicht-leere Markdown-Folie wird nie überschrieben (kommt als neue Folie). Undo (Cmd+Z) nimmt das Einfügen zurück. (Nur Desktop-App — im Browser-Dev zeigt das Modal einen Hinweis.)
+- [ ] **Outline-Modus (§19.9):** Topbar-Umschalter „Gliederung" → alle Folien als Liste; Titel (erste Überschrift) + Inhalt (Markdown) editierbar → Änderungen wirken in den Folien (zurück auf „Folien" prüfen); Cursor springt beim Tippen nicht. ↑/↓ sortieren, „+" fügt Folie ein, Papierkorb löscht, Stift öffnet die Folie im Editor. Nach Reorder/Einfügen/Löschen macht **Cmd/Z** die Aktion rückgängig (auch wenn vorher ein Textfeld fokussiert war). HTML-Folien sind read-only (Öffnen-Link). Eine Überschrift, die oben ins Inhalt-Feld getippt wird, wandert beim Wechsel ins Titel-Feld (gleiche Ausgabe).
+- [ ] **Auto-Animate (§19.1):** Zwei benachbarte HTML-Zonen mit einem Element gleichen `data-id` (z.B. `<div data-id="box" style="...">` an verschiedenen Positionen/Größen) — oder Komponente via Palette mit gesetztem `data-id`. Design-Tab → Übergang **„Auto-Animate"** → Präsentieren → Vor/Zurück blättern: das `data-id`-Element **gleitet/skaliert** weich von der einen zur anderen Lage; nicht gematchte Inhalte schalten um. Übersicht-Sprung/erstes Anzeigen morpht NICHT. Mit OS-„Bewegung reduzieren" gibt es harte Umschaltung statt Morph. Im HTML-Export (Teilen) ebenfalls morphend. (data-id geht nur in HTML-Zonen/Komponenten, nicht in Markdown.)
+- [ ] **Echtes Zweitfenster (§19.3, Multi-Display):** Mit zweitem Bildschirm → Präsentieren → Steuerleiste „Auf zweitem Bildschirm präsentieren" (present_to_all) → Monitor wählen → **Folien randlos bildschirmfüllend auf dem gewählten Display**, Hauptfenster zeigt die **SpeakerView**. Pfeil/Leertaste am Laptop blättert **beide** synchron (inkl. Builds/Auto-Animate). MCP-Edit während offen → Folien-Fenster aktualisiert. „Zweites Fenster schließen"/Esc/Verlassen schließt es; Fenster manuell schließen → Steuerfenster merkt es. Monitor-Menü: Klick daneben/Esc schließt nur das Menü. (Laser/Stift im Zwei-Bildschirm-Modus ausgeblendet — v1.)
+- [ ] **Versionshistorie (§19.9):** Deck speichern (Cmd/Strg+S) → Topbar-Uhr-Icon → „Versionsverlauf": ein **Auto**-Snapshot ist da. Etwas ändern + speichern → neuer Auto-Snapshot; ohne Änderung speichern → **kein** neuer (Dedupe). „Schnappschuss" mit Beschriftung → **Manuell**-Eintrag. „Wiederherstellen" (mit Bestätigung) → alter Stand erscheint im Editor, Datei-Dirty-Punkt an, **Cmd/Z** macht das Wiederherstellen rückgängig; danach speichern übernimmt. „Löschen" entfernt einen Snapshot. (Snapshots liegen unter `<config>/slideo/history/`; max. 50, manuelle bleiben länger.) Nur Desktop-App; ohne gespeicherte Datei zeigt das Modal einen Hinweis.
 
-### Polish / geparkt
-- **Komponenten-Palette (manuell einfügen):** UI, die die 9 Rust-Komponenten (inkl. Charts) per Klick in die aktive Zone einsetzt — über einen Tauri-Command `render_component`, der denselben Generator nutzt (keine Template-Duplikation). Bewusst als **Polish** geparkt; richtig wertvoll erst mit **Parameter-Formularen** (z.B. Daten-Tabelle fürs Chart). Aktuell sind Komponenten über die KI (MCP `insert_component`) einsetzbar.
+## Polish-Kandidaten (Schritt 2 — nach dem GUI-Test gemeinsam auswählen)
+
+> Keine neuen großen Features mehr; das hier ist die Auswahl-Liste für „was lohnt sich noch zu verbessern".
+> Priorisieren wir nach dem GUI-Test (Findings dort können die Reihenfolge ändern).
+
+- [ ] **Laser/Stift aufs Zweitfenster spiegeln** (§19.3): aktuell im Zwei-Bildschirm-Modus deaktiviert — Annotationen per Tauri-Event (normalisierte Koordinaten) an das `projector`-Fenster mit display-only `AnnotationLayer`.
+- [ ] **Flackerfreies Projector-Update** (§19.3): Live-Deck-Edit lädt das Folien-Iframe aktuell kurz neu (kurzes Re-Render) — Double-Buffer (zweites Iframe, Swap nach Load) oder In-Place-Update statt `srcDoc`-Reload.
+- [ ] **Bild-basierter PPTX-/Video-Export via Browser-Offload** (§19.5/§19.8): 1:1-Pixeltreue umgeht die WKWebView-Canvas-Taint-Wand, indem das Rastern im Standardbrowser passiert (Offload), nicht in-app.
+- [ ] **Komponenten-Set erweitern** (§18.7): Countdown/Timer, Accordion, Carousel, QR-Code, Icon-Grid … (Rust-Generator, automatisch in Palette + MCP).
+- [ ] **Asset-Library-Politur** (§19.4/§15): Font-/Logo-Assets erscheinen als „kaputtes" Thumbnail; eigene Kachel; Assets umbenennen / ungenutzte aufräumen.
+- [ ] **Asset-Positionierung „Large"** (§18.1): Drag zwischen Spalten, Block-Drag auch für split/HTML-Zonen, Richtung Free-Canvas.
+- [ ] **Bundle-Größe** — Material-Symbols-Variable-Font (~3,6 MB) auf genutzte Icons subsetten.
+- [ ] **`slideoasset://`-CSP/Range-Requests** (falls A5 das nahelegt): gezielte CSP + Range-Requests im Protocol-Handler für flüssiges Video-Spulen.
+
+### Polish / erledigt
+- ✅ **Komponenten-Palette (manuell einfügen):** UI ([ComponentPaletteModal.tsx](../src/components/modals/ComponentPaletteModal.tsx)), die die 10 Rust-Komponenten (inkl. Charts) per Klick einsetzt — über die Tauri-Commands `list_components`/`render_component` (derselbe Generator wie MCP, keine Template-Duplikation), **mit Parameter-Formularen** (inkl. Daten-Tabelle fürs Chart) **+ Live-Vorschau**. Katalog kommt aus Rust (neue Komponenten erscheinen automatisch); TS hält nur das Formular-Schema ([component-forms.ts](../src/lib/component-forms.ts)). **Noch offen (optional):** Komponenten-**Set iterativ erweitern** (Countdown/Timer, Accordion, Carousel, QR-Code …).
 
 ### Kleinere technische To-dos (unabhängig, bei Gelegenheit)
 - **`slideoasset://` im Iframe absichern** (falls A5 fehlschlägt): Iframe-`sandbox` um benötigte Tokens erweitern oder gezielte CSP setzen (`media-src slideoasset: data:` etc.). Bilder bleiben Data-URI → kein Risiko.
@@ -116,7 +146,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - **Bundle-Größe:** Material-Symbols-Variable-Font (~3,6 MB) auf genutzte Icons subsetten.
 
 ### Größer / später (Spec §12)
-- PPTX-Export, Custom-Fonts-Upload, Versionsverlauf/Git-UI, Kollaboration, echtes Speaker-Zweitfenster auf separatem Display.
+- PPTX-Export ✅, Custom-Fonts-Upload ✅, Versionshistorie (lokale Snapshots) ✅ — **offen: Git-UI/echte Versionsverwaltung**, Kollaboration, echtes Speaker-Zweitfenster auf separatem Display.
 
 ---
 

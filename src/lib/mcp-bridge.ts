@@ -17,9 +17,14 @@ export async function startMcpBridge(): Promise<() => void> {
   if (!isTauri() || started) return () => {}
   started = true
 
-  const { listen } = await import('@tauri-apps/api/event')
+  const { listen, emit } = await import('@tauri-apps/api/event')
   const { invoke } = await import('@tauri-apps/api/core')
   const store = usePresentationStore
+
+  // Signalisiert dem Presenter-Zweitfenster (Spec §19.3), dass das Deck im AppState
+  // frisch ist → es lädt neu. Bewusst NACH dem Sync (sonst läse der Projector noch
+  // den alten Stand). Ohne offenes Zweitfenster hört niemand zu (harmlos).
+  const notifyDeckChanged = () => void emit('slideo:deck-changed', {})
 
   // 1) Eingehende MCP-Events anwenden.
   const unlistenPres = await listen<Presentation>('mcp:presentation', (event) => {
@@ -40,7 +45,7 @@ export async function startMcpBridge(): Promise<() => void> {
       lastPresentation = s.presentation
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
-        void invoke('sync_presentation', { presentation: s.presentation })
+        void invoke('sync_presentation', { presentation: s.presentation }).then(notifyDeckChanged)
       }, 120)
     }
     if (s.filePath !== lastFilePath) {
@@ -49,7 +54,7 @@ export async function startMcpBridge(): Promise<() => void> {
     }
     if (s.assets !== lastAssets) {
       lastAssets = s.assets
-      void invoke('sync_assets', { assets: mapToAssets(s.assets) })
+      void invoke('sync_assets', { assets: mapToAssets(s.assets) }).then(notifyDeckChanged)
     }
   })
 

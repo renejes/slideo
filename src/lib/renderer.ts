@@ -273,17 +273,83 @@ body {
  * - `deck` (Transition aktiv): Aktiv-Folie-Modell statt Scroll-Snap (is-active/is-prev).
  * `slideo:show` blendet zudem `.slideo-fragment`-Elemente bis `step` ein (Spec §19.1).
  */
-function navScript(standalone: boolean, deck: boolean, durationMs: number): string {
+function navScript(
+  standalone: boolean,
+  deck: boolean,
+  durationMs: number,
+  kind: TransitionKind,
+): string {
   return `
 (function () {
   var DECK = ${deck ? 'true' : 'false'};
+  var AUTO = ${kind === 'auto' ? 'true' : 'false'};
   var DURATION = ${Math.max(0, Math.round(durationMs))};
   var root = document.documentElement;
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slideo-zone'));
   var current = 0;
   var leaveTimer = null;
+  var pendingMorph = null;
   function clamp(i) { return Math.max(0, Math.min(i, slides.length - 1)); }
   function clearPrev() { for (var k = 0; k < slides.length; k++) slides[k].classList.remove('is-prev'); }
+
+  // ---- Auto-Animate (Spec §19.1): gleiche data-id-Elemente per FLIP morphen ----
+  // data-id → erstes Element je Folie (Map statt Selektor → kein Escaping nötig).
+  function mapIds(slide) {
+    var m = {}, els = slide.querySelectorAll('[data-id]');
+    for (var i = 0; i < els.length; i++) {
+      var id = els[i].getAttribute('data-id');
+      if (id && !(id in m)) m[id] = els[i];
+    }
+    return m;
+  }
+  function inHiddenFragment(el) {
+    return !!(el.closest && el.closest('.slideo-fragment:not(.is-shown)'));
+  }
+  function reduceMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  // Vor dem Klassenwechsel messen (alte Folie aktiv, neue noch verborgen aber gelayoutet).
+  function collectMorph(outSlide, inSlide) {
+    var outMap = mapIds(outSlide), inMap = mapIds(inSlide), pairs = [];
+    for (var id in outMap) {
+      if (!Object.prototype.hasOwnProperty.call(inMap, id)) continue;
+      var outEl = outMap[id], inEl = inMap[id];
+      if (inHiddenFragment(inEl)) continue; // noch nicht eingeblendeter Build → kein Morph
+      var o = outEl.getBoundingClientRect(), n = inEl.getBoundingClientRect();
+      if (!n.width || !n.height) continue;
+      pairs.push({ outEl: outEl, inEl: inEl, o: o, n: n });
+    }
+    return pairs;
+  }
+  function playMorph(pairs) {
+    for (var i = 0; i < pairs.length; i++) {
+      var p = pairs[i];
+      var dx = p.o.left - p.n.left, dy = p.o.top - p.n.top;
+      var sx = p.n.width ? p.o.width / p.n.width : 1, sy = p.n.height ? p.o.height / p.n.height : 1;
+      p.inEl.style.willChange = 'transform'; // nur während des Morphs (Cleanup räumt auf)
+      p.inEl.style.transformOrigin = 'top left';
+      p.inEl.style.transition = 'none';
+      p.inEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + sx + ',' + sy + ')';
+      p.outEl.style.visibility = 'hidden'; // kein Doppelbild
+    }
+    void document.documentElement.offsetWidth; // Reflow erzwingen
+    requestAnimationFrame(function () {
+      if (pairs !== pendingMorph) return; // abgelöst (schnelle Navigation) → nicht erneut anfassen
+      for (var i = 0; i < pairs.length; i++) {
+        pairs[i].inEl.style.transition = 'transform ' + DURATION + 'ms ease';
+        pairs[i].inEl.style.transform = '';
+      }
+    });
+  }
+  function cleanupMorph(pairs) {
+    if (!pairs) return;
+    for (var i = 0; i < pairs.length; i++) {
+      var p = pairs[i];
+      p.inEl.style.transition = ''; p.inEl.style.transform = '';
+      p.inEl.style.transformOrigin = ''; p.inEl.style.willChange = '';
+      p.outEl.style.visibility = '';
+    }
+  }
   // Builds: in der aktiven Folie Fragmente bis 'step' zeigen, sonst alle.
   function applyFragments(activeIdx, step) {
     for (var zi = 0; zi < slides.length; zi++) {
@@ -299,13 +365,30 @@ function navScript(standalone: boolean, deck: boolean, durationMs: number): stri
     var prev = current;
     current = clamp(i);
     if (DECK) {
+      // Auto-Animate nur bei animierter, benachbarter Navigation (smooth). Initiales
+      // Laden / View-Wechsel (smooth=false), nicht-benachbarte Sprünge und reduzierte
+      // Bewegung schalten hart um. Hängende Inline-Styles eines vorherigen Morphs lösen.
+      cleanupMorph(pendingMorph);
+      pendingMorph = null;
+      var morph =
+        AUTO && smooth && !reduceMotion() && prev !== current && Math.abs(current - prev) === 1
+          ? collectMorph(slides[prev], slides[current])
+          : null;
       root.setAttribute('data-dir', current >= prev ? 'fwd' : 'back');
       for (var k = 0; k < slides.length; k++) {
         slides[k].classList.toggle('is-active', k === current);
         slides[k].classList.toggle('is-prev', k === prev && prev !== current);
       }
+      if (morph && morph.length) {
+        playMorph(morph);
+        pendingMorph = morph;
+      }
       if (leaveTimer) clearTimeout(leaveTimer);
-      leaveTimer = setTimeout(clearPrev, DURATION + 60);
+      leaveTimer = setTimeout(function () {
+        clearPrev();
+        cleanupMorph(pendingMorph);
+        pendingMorph = null;
+      }, DURATION + 60);
     } else {
       var el = slides[current];
       if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
@@ -340,7 +423,9 @@ function navScript(standalone: boolean, deck: boolean, durationMs: number): stri
   window.addEventListener('message', function (e) {
     var d = e.data || {};
     if (d.type === 'slideo:goto') go(d.index, d.smooth !== false);
-    else if (d.type === 'slideo:show') { go(d.index, d.smooth !== false); applyFragments(d.index, d.step | 0); }
+    // Fragment-Sichtbarkeit der Zielfolie VOR go() setzen, damit der Auto-Morph
+    // Elemente in noch nicht eingeblendeten Builds überspringt (kein Aufblitzen).
+    else if (d.type === 'slideo:show') { applyFragments(d.index, d.step | 0); go(d.index, d.smooth !== false); }
   });
   if (DECK) go(0, false); // Folie 0 initial aktivieren
   parent.postMessage({ type: 'slideo:ready', count: slides.length }, '*');
@@ -486,6 +571,19 @@ function editScript(): string {
 /** CSS für den Aktiv-Folie-Modus (Transitions). Ersetzt im Deck-Modus die Snap-Regeln. */
 function transitionCss(kind: TransitionKind, durationMs: number): string {
   const d = `${Math.max(0, Math.round(durationMs))}ms`
+  // Auto-Animate (Spec §19.1): die aktive Folie wird sofort sichtbar (kein Folien-
+  // Fade), Elemente mit gleichem data-id morphen per JS (FLIP, siehe navScript).
+  // Funktioniert am besten bei gleichem Folien-Hintergrund (Magic-Move-Stil).
+  if (kind === 'auto') {
+    // is-active erscheint sofort (kein Folien-Fade) und deckt bei opakem Hintergrund
+    // die alte Folie ab; is-prev fadet als Sicherheitsnetz aus → bei transparentem
+    // Folien-Hintergrund degradiert es zum Cross-Fade statt zum harten Aufblitzen.
+    return `
+html, body { height: 100%; overflow: hidden; }
+.slideo-zone { position: absolute; inset: 0; height: 100vh; opacity: 0; }
+.slideo-zone.is-active { opacity: 1; z-index: 2; }
+.slideo-zone.is-prev { opacity: 0; z-index: 1; transition: opacity ${d} ease; }`
+  }
   const base = `
 html, body { height: 100%; overflow: hidden; }
 .slideo-zone {
@@ -649,7 +747,7 @@ html, body { height: 100%; overflow-x: hidden; }`
   // Script immer einbinden (goto/show); eigene Tastatur nur im Standalone-Export.
   // Im Editier-Modus zusätzlich das Drag-Reorder-Script.
   const script =
-    `<script>${navScript(standalone, deck, duration)}</script>` +
+    `<script>${navScript(standalone, deck, duration, kind)}</script>` +
     (editable ? `<script>${editScript()}</script>` : '')
 
   return `<!doctype html>

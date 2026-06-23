@@ -50,7 +50,7 @@ export const LOGO_POSITIONS: { value: LogoPosition; label: string }[] = [
   { value: 'bottom-right', label: 'Unten rechts' },
 ]
 
-export type TransitionKind = 'none' | 'fade' | 'slide' | 'zoom'
+export type TransitionKind = 'none' | 'fade' | 'slide' | 'zoom' | 'auto'
 
 /** Präsentations-weiter Folienübergang (Spec §18.3). */
 export interface Transition {
@@ -65,6 +65,7 @@ export const TRANSITIONS: { value: TransitionKind; label: string }[] = [
   { value: 'fade', label: 'Überblenden' },
   { value: 'slide', label: 'Schieben' },
   { value: 'zoom', label: 'Zoom' },
+  { value: 'auto', label: 'Auto-Animate' },
 ]
 
 export interface DesignTokens {

@@ -147,8 +147,8 @@ mod tests {
         let tools = resp["result"]["tools"].as_array().unwrap();
         assert_eq!(
             tools.len(),
-            30,
-            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components erwartet"
+            35,
+            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components + Marke/Meta/Fonts (set_logo/clear_logo/register_font/set_presentation_title/set_zone_label) erwartet"
         );
         assert!(tools.iter().any(|t| t["name"] == "set_zone_reveal"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_content"));
@@ -160,6 +160,12 @@ mod tests {
         assert!(tools.iter().any(|t| t["name"] == "set_transition"));
         assert!(tools.iter().any(|t| t["name"] == "list_components"));
         assert!(tools.iter().any(|t| t["name"] == "insert_component"));
+        // MCP-Parität (Marke/Meta/Schriften):
+        assert!(tools.iter().any(|t| t["name"] == "set_logo"));
+        assert!(tools.iter().any(|t| t["name"] == "clear_logo"));
+        assert!(tools.iter().any(|t| t["name"] == "register_font"));
+        assert!(tools.iter().any(|t| t["name"] == "set_presentation_title"));
+        assert!(tools.iter().any(|t| t["name"] == "set_zone_label"));
     }
 
     #[test]

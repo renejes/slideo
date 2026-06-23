@@ -1,9 +1,15 @@
+// Die Tool-Schema-Liste (tools.rs) ist ein großes `json!([...])` — die Default-
+// Makro-Rekursionsgrenze (128) reicht dafür nicht mehr.
+#![recursion_limit = "512"]
+
 mod commands;
 mod components;
 mod file;
+mod history;
 mod ipc;
 mod mcp;
 mod mcp_registration;
+mod present;
 mod presets;
 mod state;
 mod tools;
@@ -77,6 +83,17 @@ pub fn run() {
             commands::export_html,
             commands::open_print_view,
             commands::export_pptx,
+            commands::list_components,
+            commands::render_component,
+            commands::get_presentation,
+            commands::get_assets,
+            present::list_monitors,
+            present::open_presentation_window,
+            present::close_presentation_window,
+            commands::list_snapshots,
+            commands::create_snapshot,
+            commands::restore_snapshot,
+            commands::delete_snapshot,
             commands::mcp_status,
             commands::mcp_set_target,
         ])

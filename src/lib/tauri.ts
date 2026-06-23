@@ -108,3 +108,116 @@ export function exportPptxFile(path: string, base64: string): Promise<void> {
 export function openPrintView(html: string): Promise<string> {
   return invoke<string>('open_print_view', { html })
 }
+
+/** Metadaten einer token-bewussten Komponente (Quelle: Rust `components::list`). */
+export interface ComponentMeta {
+  type: string
+  label: string
+  description: string
+  params: string
+}
+
+/**
+ * Listet die verfügbaren Komponenten für die Editor-Palette (Spec §18.7).
+ * Rust ist die einzige Quelle der Wahrheit — die Palette dupliziert den Generator
+ * nicht in TS. Nur in der Desktop-App verfügbar (im Browser-Dev nicht).
+ */
+export function listComponents(): Promise<ComponentMeta[]> {
+  return invoke<ComponentMeta[]>('list_components')
+}
+
+/**
+ * Rendert eine Komponente zu token-bewusstem HTML — derselbe Rust-Generator wie
+ * das MCP-Tool `insert_component`. Wirft bei unbekanntem Typ/ungültigen Params.
+ */
+export function renderComponent(
+  kind: string,
+  params: unknown,
+  dataId?: string,
+): Promise<string> {
+  return invoke<string>('render_component', { kind, params, dataId: dataId || null })
+}
+
+/** Metadaten eines lokalen `.slideo`-Snapshots (Versionshistorie, Spec §19.9). */
+export interface SnapshotMeta {
+  id: string
+  created: string // ISO 8601
+  label: string
+  auto: boolean
+  title: string
+  slide_count: number
+  size: number // Bytes
+}
+
+/** Listet die lokalen Snapshots eines Decks (neueste zuerst). */
+export function listSnapshots(filePath: string): Promise<SnapshotMeta[]> {
+  return invoke<SnapshotMeta[]>('list_snapshots', { filePath })
+}
+
+/**
+ * Schreibt einen Snapshot. Gibt `null` zurück, wenn der Inhalt identisch zum
+ * jüngsten Snapshot ist (dedupe, nichts geschrieben).
+ */
+export function createSnapshot(
+  filePath: string,
+  presentation: Presentation,
+  assets: Asset[],
+  label: string,
+  auto: boolean,
+  created: string,
+  id: string,
+): Promise<SnapshotMeta | null> {
+  return invoke<SnapshotMeta | null>('create_snapshot', {
+    filePath,
+    presentation,
+    assets,
+    label,
+    auto,
+    created,
+    id,
+  })
+}
+
+/** Liest einen Snapshot (Presentation + Assets) zur Wiederherstellung. */
+export function restoreSnapshot(filePath: string, id: string): Promise<LoadResult> {
+  return invoke<LoadResult>('restore_snapshot', { filePath, id })
+}
+
+/** Entfernt einen Snapshot. */
+export function deleteSnapshot(filePath: string, id: string): Promise<void> {
+  return invoke<void>('delete_snapshot', { filePath, id })
+}
+
+/** Ein erkannter Monitor (für das Presenter-Routing, Spec §19.3). */
+export interface MonitorInfo {
+  index: number
+  name: string
+  width: number
+  height: number
+  primary: boolean
+}
+
+/** Listet die verfügbaren Monitore (für die Auswahl des Präsentations-Displays). */
+export function listMonitors(): Promise<MonitorInfo[]> {
+  return invoke<MonitorInfo[]>('list_monitors')
+}
+
+/** Öffnet das Folien-Fenster im Vollbild auf dem gewählten Monitor. */
+export function openPresentationWindow(monitorIndex: number): Promise<void> {
+  return invoke<void>('open_presentation_window', { monitorIndex })
+}
+
+/** Schließt das Folien-Fenster (falls offen). */
+export function closePresentationWindow(): Promise<void> {
+  return invoke<void>('close_presentation_window')
+}
+
+/** Liefert den aktuellen Presentation-State aus dem Backend (für das Projector-Fenster). */
+export function getPresentationState(): Promise<Presentation | null> {
+  return invoke<Presentation | null>('get_presentation')
+}
+
+/** Liefert die aktuellen Assets aus dem Backend (für das Projector-Fenster). */
+export function getAssetsState(): Promise<Asset[]> {
+  return invoke<Asset[]>('get_assets')
+}

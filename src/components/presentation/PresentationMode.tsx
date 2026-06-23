@@ -2,11 +2,29 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { renderFullPage } from '@/lib/renderer'
 import { splitMarkdownBlocks } from '@/lib/markdown-tiptap'
-import { isTauri, assetUrlBase } from '@/lib/tauri'
+import {
+  isTauri,
+  assetUrlBase,
+  listMonitors,
+  openPresentationWindow,
+  closePresentationWindow,
+  type MonitorInfo,
+} from '@/lib/tauri'
+import { notify } from '@/store/toast'
+import { mapToAssets } from '@/lib/assets'
 import { Icon } from '@/components/ui/Icon'
 import { SpeakerView } from './SpeakerView'
 import { SlideOverview } from './SlideOverview'
 import { AnnotationLayer, type AnnotationTool } from './AnnotationLayer'
+
+const TAURI = isTauri()
+
+/** Tauri-Event fensterübergreifend feuern (No-op außerhalb von Tauri). */
+async function emitEvent(name: string, payload: unknown): Promise<void> {
+  if (!TAURI) return
+  const { emit } = await import('@tauri-apps/api/event')
+  await emit(name, payload)
+}
 
 const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
 
@@ -40,6 +58,14 @@ export function PresentationMode() {
   const [auto, setAuto] = useState(false)
   const [autoSeconds, setAutoSeconds] = useState(5)
   const [loop, setLoop] = useState(false)
+
+  // Zweitfenster / Presenter-Modus (Spec §19.3)
+  const [projectorOpen, setProjectorOpen] = useState(false)
+  const [monitors, setMonitors] = useState<MonitorInfo[]>([])
+  const [showMonitorMenu, setShowMonitorMenu] = useState(false)
+  // Letzter Navigationsstand — für die Antwort auf die Projector-Bereitschaft.
+  const navStateRef = useRef({ index: activeSlideIndex, step })
+  navStateRef.current = { index: activeSlideIndex, step }
 
   const html = useMemo(
     () =>
@@ -114,6 +140,14 @@ export function PresentationMode() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (overview) return
+      // Offenes Monitor-Menü fängt die Tastatur ab (Esc schließt nur das Menü).
+      if (showMonitorMenu) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setShowMonitorMenu(false)
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         if (tool !== 'none') setTool('none')
@@ -124,13 +158,13 @@ export function PresentationMode() {
       } else if (e.key === 'g' || e.key === 'G') {
         e.preventDefault()
         setOverview(true)
-      } else if (e.key === 'l' || e.key === 'L') {
+      } else if ((e.key === 'l' || e.key === 'L') && !projectorOpen) {
         e.preventDefault()
         toggleTool('laser')
-      } else if (e.key === 'p' || e.key === 'P') {
+      } else if ((e.key === 'p' || e.key === 'P') && !projectorOpen) {
         e.preventDefault()
         toggleTool('pen')
-      } else if (e.key === 'c' || e.key === 'C') {
+      } else if ((e.key === 'c' || e.key === 'C') && !projectorOpen) {
         e.preventDefault()
         setClearNonce((n) => n + 1)
       } else if (e.key === 'a' || e.key === 'A') {
@@ -181,6 +215,96 @@ export function PresentationMode() {
     )
   }, [activeSlideIndex, step, view])
 
+  // Zweitfenster-Sync (Spec §19.3), einmalige Listener: Bereitschaft des Folien-
+  // Fensters mit dem aktuellen Stand beantworten; vom Nutzer geschlossenes Fenster
+  // erkennen. (Tastatur/Steuerung bleiben hier im Hauptfenster.)
+  useEffect(() => {
+    if (!TAURI) return
+    let alive = true
+    const unsubs: Array<() => void> = []
+    void (async () => {
+      const { listen } = await import('@tauri-apps/api/event')
+      unsubs.push(
+        await listen('slideo:projector-ready', () => {
+          void emitEvent('slideo:nav', navStateRef.current)
+        }),
+      )
+      unsubs.push(
+        await listen('slideo:projector-closed', () => {
+          if (alive) setProjectorOpen(false)
+        }),
+      )
+    })()
+    return () => {
+      alive = false
+      unsubs.forEach((u) => u())
+    }
+  }, [])
+
+  // Navigationsstand ans Folien-Fenster spiegeln.
+  useEffect(() => {
+    if (projectorOpen) void emitEvent('slideo:nav', { index: activeSlideIndex, step })
+  }, [projectorOpen, activeSlideIndex, step])
+
+  // Hinweis: `slideo:deck-changed` (Re-Load des Folien-Fensters bei Live-Edits)
+  // feuert die mcp-bridge NACH dem (debounced) AppState-Sync — sonst läse der
+  // Projector noch den alten Stand. Hier daher kein eigener Emit nötig.
+
+  // Verlassen des Präsentationsmodus / Unmount → Folien-Fenster schließen.
+  useEffect(() => {
+    return () => {
+      if (TAURI) void closePresentationWindow().catch(() => {})
+    }
+  }, [])
+
+  // Monitor-Menü: Klick außerhalb schließt es.
+  useEffect(() => {
+    if (!showMonitorMenu) return
+    function onDown(e: PointerEvent) {
+      const t = e.target as HTMLElement | null
+      if (!t?.closest('[data-monitor-menu]')) setShowMonitorMenu(false)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [showMonitorMenu])
+
+  async function openMonitorMenu() {
+    if (showMonitorMenu) {
+      setShowMonitorMenu(false)
+      return
+    }
+    try {
+      setMonitors(await listMonitors())
+    } catch (e) {
+      console.error('[slideo] list_monitors fehlgeschlagen:', e)
+    }
+    setShowMonitorMenu(true)
+  }
+  async function presentOnMonitor(index: number) {
+    setShowMonitorMenu(false)
+    try {
+      // AppState frisch machen, bevor das Folien-Fenster ihn liest (Store→AppState
+      // ist sonst debounced → frisch geöffnet könnte es einen veralteten Stand sehen).
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('sync_presentation', { presentation })
+      await invoke('sync_assets', { assets: mapToAssets(assets) })
+      await openPresentationWindow(index)
+      setProjectorOpen(true)
+      setView('speaker')
+      setTool('none') // Laser/Stift sind im Zwei-Bildschirm-Modus (v1) deaktiviert
+    } catch (e) {
+      notify(`Zweites Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
+    }
+  }
+  async function stopProjector() {
+    try {
+      await closePresentationWindow()
+    } catch {
+      /* ignorieren */
+    }
+    setProjectorOpen(false)
+  }
+
   function handleLoad() {
     iframeRef.current?.contentWindow?.postMessage(
       { type: 'slideo:show', index: activeSlideIndex, step, smooth: false },
@@ -230,24 +354,30 @@ export function PresentationMode() {
 
           <Divider />
           <ControlButton onClick={() => setOverview(true)} title="Übersicht (g)" icon="grid_view" />
-          <ControlButton
-            onClick={() => toggleTool('laser')}
-            title="Laserpointer (l)"
-            icon="gps_fixed"
-            active={tool === 'laser'}
-          />
-          <ControlButton
-            onClick={() => toggleTool('pen')}
-            title="Stift (p)"
-            icon="draw"
-            active={tool === 'pen'}
-          />
-          {tool === 'pen' && (
-            <ControlButton
-              onClick={() => setClearNonce((n) => n + 1)}
-              title="Annotationen löschen (c)"
-              icon="ink_eraser"
-            />
+          {/* Laser/Stift im Zwei-Bildschirm-Modus (v1) ausgeblendet: das Overlay läge nur
+              über der Speaker-Ansicht des Laptops, nicht über der Beamer-Folie. */}
+          {!projectorOpen && (
+            <>
+              <ControlButton
+                onClick={() => toggleTool('laser')}
+                title="Laserpointer (l)"
+                icon="gps_fixed"
+                active={tool === 'laser'}
+              />
+              <ControlButton
+                onClick={() => toggleTool('pen')}
+                title="Stift (p)"
+                icon="draw"
+                active={tool === 'pen'}
+              />
+              {tool === 'pen' && (
+                <ControlButton
+                  onClick={() => setClearNonce((n) => n + 1)}
+                  title="Annotationen löschen (c)"
+                  icon="ink_eraser"
+                />
+              )}
+            </>
           )}
 
           <Divider />
@@ -261,6 +391,7 @@ export function PresentationMode() {
             value={autoSeconds}
             onChange={(e) => setAutoSeconds(Number(e.target.value))}
             title="Sekunden pro Schritt"
+            aria-label="Sekunden pro Schritt (Auto-Advance)"
             className="h-7 rounded-md border border-white/10 bg-white/5 px-1 text-[12px] text-white/80 outline-none hover:bg-white/10"
           >
             {AUTO_INTERVALS.map((s) => (
@@ -275,6 +406,63 @@ export function PresentationMode() {
             icon="repeat"
             active={loop}
           />
+
+          {TAURI && (
+            <>
+              <Divider />
+              <div className="relative" data-monitor-menu>
+                {projectorOpen ? (
+                  <ControlButton
+                    onClick={stopProjector}
+                    title="Zweites Fenster schließen"
+                    icon="cancel_presentation"
+                    active
+                  />
+                ) : (
+                  <ControlButton
+                    onClick={openMonitorMenu}
+                    title="Auf zweitem Bildschirm präsentieren"
+                    icon="present_to_all"
+                    active={showMonitorMenu}
+                    hasPopup
+                    expanded={showMonitorMenu}
+                  />
+                )}
+                {showMonitorMenu && !projectorOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Präsentations-Bildschirm wählen"
+                    className="absolute bottom-full left-1/2 mb-2 w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-black/85 p-1 shadow-pop backdrop-blur"
+                  >
+                    <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-white/40">
+                      Auf welchem Bildschirm?
+                    </div>
+                    {monitors.length === 0 ? (
+                      <div className="px-2 py-1.5 text-[12px] text-white/50">Keine Monitore gefunden.</div>
+                    ) : (
+                      monitors.map((m) => (
+                        <button
+                          key={m.index}
+                          role="menuitem"
+                          onClick={() => presentOnMonitor(m.index)}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-white/85 transition-colors hover:bg-white/10"
+                        >
+                          <Icon name="desktop_windows" size={16} weight={400} />
+                          <span className="min-w-0 flex-1 truncate">
+                            {m.name}
+                            {m.primary ? ' · primär' : ''}
+                          </span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-white/40">
+                            {m.width}×{m.height}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           <Divider />
           <button
@@ -322,11 +510,16 @@ function ControlButton({
   title,
   icon,
   active = false,
+  hasPopup = false,
+  expanded,
 }: {
   onClick: () => void
   title: string
   icon: string
   active?: boolean
+  /** Öffnet ein Menü (setzt aria-haspopup/aria-expanded statt aria-pressed). */
+  hasPopup?: boolean
+  expanded?: boolean
 }) {
   return (
     <button
@@ -335,7 +528,10 @@ function ControlButton({
         active ? 'bg-white/20 text-white' : 'hover:bg-white/10'
       }`}
       title={title}
-      aria-pressed={active}
+      aria-label={title}
+      aria-pressed={hasPopup ? undefined : active}
+      aria-haspopup={hasPopup ? 'menu' : undefined}
+      aria-expanded={hasPopup ? expanded : undefined}
     >
       <Icon name={icon} size={20} weight={400} />
     </button>

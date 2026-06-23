@@ -83,17 +83,21 @@ integrierte Speaker-View, MCP-Server, Undo/Shortcuts/Toasts/Close-Guard.
 **Roadmap §18 (umgesetzt):** Speaker-Notes (§18.2), HTML- & PDF-Export + Teilen (§18.4/18.5),
 Themes/Presets (§18.6), Folien-Transitions (§18.3), Bild-Positionierung „Light" **und „Medium"**
 (§18.1: Bild-Toolbar + **Block-Drag in der interaktiven Vorschau** + automatische `+++`-Spalten),
-Komponenten-Bibliothek + erweiterter Agenten-Skill (§18.7).
+Komponenten-Bibliothek + erweiterter Agenten-Skill (§18.7) + **Komponenten-Palette im Editor**
+(§18.7-Rest: UI-Klick-Einfügen mit Parameter-Formularen & Live-Vorschau).
 
 **Roadmap §19 (umgesetzt):** Daten-Diagramme (§19.2: `line_chart`/`donut_chart`, **10 Komponenten**
-gesamt inkl. `icon`), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds** (§19.1:
-`set_zone_reveal`, parent-autoritative Präsentations-Nav — Auto-Animate offen), Vorlagen & Marke
-(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck (§19.9),
-**Presenter-Tools** (§19.3: **Folien-Übersicht/Sprung-Grid**, **Laser-/Stift-Overlay**, **Auto-Advance/Loop** —
-echtes Zweitfenster offen), **Medien** (§19.8: **Drag&Drop-Import**, **Bild-Crop**, **Icon-Inline-SVG** —
-Aufnahme/Narration offen), **PPTX-Export** (§19.5: native Rekonstruktion via pptxgenjs).
-**MCP-Tools: 30** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`,
-`set_transition`, `list_components`/`insert_component`.
+gesamt inkl. `icon`), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds + Auto-Animate**
+(§19.1: `set_zone_reveal`, parent-autoritative Präsentations-Nav, **Übergang `auto`** = FLIP-Morph gleicher
+`data-id`-Elemente), Vorlagen & Marke
+(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck + **Outline-Modus** + **Versionshistorie** (§19.9),
+**Presenter-Tools** (§19.3: **Folien-Übersicht/Sprung-Grid**, **Laser-/Stift-Overlay**, **Auto-Advance/Loop**,
+**echtes Zweitfenster** = randlos bildschirmfüllendes „projector"-Fenster auf gewähltem Monitor), **Medien**
+(§19.8: **Drag&Drop-Import**, **Bild-Crop**, **Icon-Inline-SVG** — Aufnahme/Narration **bewusst weggelassen**, s.u.), **PPTX-Export**
+(§19.5: native Rekonstruktion via pptxgenjs).
+**MCP-Tools: 35** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`,
+`set_transition`, `list_components`/`insert_component`, sowie (MCP-Parität) `set_logo`/`clear_logo`,
+`register_font`, `set_presentation_title`, `set_zone_label`.
 
 **Wichtig (Architektur):** Visuelles Umsortieren passiert in der **Vorschau** (`renderFullPage({editable:true})`
 umhüllt Blöcke, Drag-Script → `slideo:reorder-blocks` → Store `reorderZoneBlocks`), NICHT im
@@ -102,8 +106,19 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
 **Konventionen aus dieser Roadmap-Session:**
 - **Single Source of Truth über die FFI-Grenze:** Presets in [src/lib/presets.ts](src/lib/presets.ts)
   **und** [src-tauri/src/presets.rs](src-tauri/src/presets.rs) gespiegelt halten (wie `DEFAULT_TOKENS`).
-  Komponenten leben **nur** in Rust ([src-tauri/src/components.rs](src-tauri/src/components.rs)) — eine
-  künftige UI-Palette soll denselben Generator via Tauri-Command nutzen (keine TS-Duplikation).
+  Komponenten-**Generator** lebt **nur** in Rust ([src-tauri/src/components.rs](src-tauri/src/components.rs)).
+- **Komponenten-Palette (§18.7-Rest, umgesetzt):** Editor-UI ([ComponentPaletteModal.tsx](src/components/modals/ComponentPaletteModal.tsx)),
+  geöffnet aus ZoneToolbar/Topbar (`openModal('components')`). Nutzt **denselben** Rust-Generator über die
+  Tauri-Commands `list_components`/`render_component` ([commands.rs](src-tauri/src/commands.rs)) — **keine
+  TS-Duplikation der HTML-Templates**. Der **Katalog** kommt zur Laufzeit aus `list_components` (Rust =
+  Single Source; eine künftige Rust-Komponente erscheint automatisch). In TS lebt nur das **Eingabe-Formular-
+  Schema** ([component-forms.ts](src/lib/component-forms.ts)) — welche Felder die Palette pro Typ zeigt + wie
+  daraus `params` gebaut wird (reine UI-Belange ohne Rust-Äquivalent; fehlt ein Typ → „mit Standardwerten
+  einfügen"). **Live-Vorschau:** sandboxed `<iframe sandbox="" srcDoc>` mit Token-`:root`-Variablen, gedrosselt
+  über `render_component`. **Einfügen** via Store-Action `insertComponent({targetZoneId, placement, html})`:
+  `new` (neue HTML-Folie, Default & sicher), `append` (an HTML-Zone), `replace` (leere Zielzone) — eine
+  nicht-leere **Markdown**-Folie wird nie überschrieben (dann nur „neue Folie"). Nur in der Desktop-App
+  (Browser-Dev: Commands werfen → Palette degradiert mit Hinweis).
 - **Token-Pflicht für Komponenten/HTML:** ausschließlich `var(--color-*)`/`var(--font-*)`/
   `var(--border-radius)` — nie hartkodierte Farben/Fonts, sonst nicht themebar.
 - **Bild-Positionierung:** Default-Bilder bleiben Markdown `![]()`; mit Größe/Ausrichtung/Float
@@ -135,13 +150,73 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   Bei offener Übersicht übernimmt [SlideOverview.tsx](src/components/presentation/SlideOverview.tsx)
   die Tastatur (Capture-Listener); PresentationMode steigt dann früh aus. Annotationen werden über
   einen `key`-Remount (Folienindex + Lösch-Nonce) geleert. Kein Datenmodell-/Rust-Eingriff.
-- **Additive Datenmodell-Felder** (optional, `version` bleibt "1.0"): `meta.transition`, `meta.logo`,
-  `zone.reveal`, `presentation.fonts`, Bild-`width/align/float`.
+- **Outline-Modus (§19.9-Rest, umgesetzt):** Ansichtswechsel „Folien ⇄ Gliederung" über `editorView`
+  (`'slides'|'outline'`) im [ui-Store](src/store/ui.ts), Segmented-Control in der [Topbar](src/components/ui/Topbar.tsx);
+  [App.tsx](src/App.tsx) rendert bei `outline` die [OutlineView](src/components/editor/OutlineView.tsx)
+  vollbreit (ohne Sidebar/Vorschau). Bearbeitet **ausschließlich** das bestehende Markdown — **kein
+  Datenmodell-Eingriff**: [outline.ts](src/lib/outline.ts) `parseOutline`/`recombineOutline` zerlegt eine
+  Zone in Titel (= erste ATX-Überschrift) + Rumpf und setzt verlustfrei zusammen (CRLF→LF normalisiert).
+  Jede `OutlineRow` hält **lokalen** Editierzustand und schreibt per `updateZoneMarkdown` (kein History-
+  Snapshot, wie Texteingaben) zurück; ein Re-Sync-Effekt übernimmt externe Änderungen (Undo/MCP) nur bei
+  echtem Unterschied (`recombineOutline(local) !== zone.markdown`) — gegen Cursor-Sprünge (wie TiptapEditor).
+  **Modell:** „Titel = erste Überschrift" — eine Überschrift, die im Rumpf-Feld oben getippt wird, wandert
+  bei Re-Sync/Remount kanonisch ins Titel-Feld (ausgabe-identisch). Strukturelle Aktionen (Reorder/Einfügen/
+  Löschen) rufen vorher `blur()` (`runStructural`), damit der globale Cmd/Z-Undo-Guard nicht im fokussierten
+  Textfeld hängenbleibt (WKWebView fokussiert Buttons nicht). HTML-Folien sind read-only (Öffnen-Link).
+- **Versionshistorie (§19.9-Rest, umgesetzt):** lokale `.slideo`-Snapshots in
+  `<config>/slideo/history/<deck-key>/` ([history.rs](src-tauri/src/history.rs)) — je Snapshot eine **volle
+  `.slideo`-Kopie** (Reuse von `file::write_presentation`/`read_presentation`) + `index.json` (neueste zuerst).
+  `<deck-key>` = sanitisierter Dateistamm + `DefaultHasher`(Pfad) → Historie hängt am **Speicherort** (nicht
+  portabel; Git-UI ist Spec §12). **Auto-Snapshot beim Speichern** ([savePresentation](src/store/presentation.ts),
+  still + fire-and-forget, **dedupliziert**: kein Snapshot wenn `presentation.json` unverändert) **+ manuelle
+  Schnappschüsse** mit Beschriftung. **Kappung 50**: bevorzugt älteste **Auto**-Snapshots, manuelle bleiben —
+  der gerade erzeugte (Index 0) wird **nie** gekürzt. **Wiederherstellen** ist undoable (`pushHistory`) und
+  lässt den Dateipfad unverändert (zum Übernehmen speichern). Tauri-Commands `list_snapshots`/`create_snapshot`/
+  `restore_snapshot`/`delete_snapshot`; Snapshot-IDs path-traversal-validiert (`valid_id`), Index-Read-Modify-Write
+  über prozessweiten `index_lock()` serialisiert. UI: [HistoryModal.tsx](src/components/modals/HistoryModal.tsx),
+  Topbar-Uhr-Icon (`openModal('history')`).
+- **Auto-Animate/Morph (§19.1-Rest, umgesetzt):** deck-weiter Übergangstyp **`auto`** (`meta.transition.kind`,
+  additiv). Im Deck-Modus liegen alle Folien gestapelt im DOM → beim benachbarten Wechsel vermisst das Iframe-
+  **Nav-Script** ([renderer.ts](src/lib/renderer.ts)) Quell-/Ziel-Rects gleicher **`data-id`**-Elemente und
+  morpht sie per **FLIP** (Transform; im WKWebView zuverlässig). Aktive Folie erscheint sofort (Magic-Move,
+  opaker Hintergrund deckt ab; `is-prev` fadet als Sicherheitsnetz für transparente Hintergründe). Morph nur
+  bei **animierter** Navigation (`smooth`) — initiales Laden/View-Wechsel (`smooth:false`), nicht-benachbarte
+  Sprünge und **`prefers-reduced-motion`** schalten hart um. Fragment-Sichtbarkeit der Zielfolie wird **vor**
+  dem Morph gesetzt (kein Aufblitzen verdeckter Builds). Läuft in In-App-Präsentation **+ Standalone-Export**.
+  `data-id` via HTML-Zone oder `insert_component(data_id)`/Palette → Rust [`components::with_data_id`](src-tauri/src/components.rs)
+  **injiziert** das Attribut ins erste Tag (kein Wrapper-`<div>` → FLIP misst die echte Box), sanitisiert
+  (`[A-Za-z0-9-_:]`, ≤64). Markdown-Zonen können kein `data-id` tragen (cross-faden nur). Kein Datenmodell-Bruch.
+- **Echtes Zweitfenster / Presenter-Modus (§19.3-Rest, umgesetzt):** separates Tauri-Fenster `projector`
+  ([present.rs](src-tauri/src/present.rs)) zeigt die Folien **randlos bildschirmfüllend** auf dem im Dropdown
+  gewählten Monitor (`list_monitors`/`open_presentation_window`/`close_presentation_window`). Bewusst
+  **kein natives Vollbild** (macOS landet sonst auf dem falschen Display) — stattdessen `set_position`+`set_size`
+  auf den Monitor. Das Fenster lädt `index.html?role=projector` → [main.tsx](src/main.tsx) rendert
+  [ProjectorView.tsx](src/components/presentation/ProjectorView.tsx) (nur Folien-Iframe, **kein** App/MCP-Bridge),
+  holt das Deck aus dem `AppState` (`get_presentation`/`get_assets` — vom Hauptfenster gespiegelt). **Sync über
+  Tauri-Events** (fensterübergreifend): Steuerfenster emittiert `slideo:nav {index,step}`; Projector meldet
+  `slideo:projector-ready` (Controller antwortet mit aktuellem Stand) und folgt; vom Nutzer geschlossenes Fenster
+  → `slideo:projector-closed`. **Deck-Frische:** `slideo:deck-changed` feuert die mcp-bridge **nach** dem
+  (debounced) AppState-Sync → Projector lädt mit frischen Daten neu; `presentOnMonitor` erzwingt vorab einen Sync.
+  Eigene minimale [Capability](src-tauri/capabilities/projector.json) (`core:default`+`core:event`). Ein-Fenster-
+  Modus (`s`) bleibt. **v1-Grenzen:** Laser/Stift im Zwei-Bildschirm-Modus deaktiviert; Live-Edits laden das
+  Folien-Fenster kurz neu; Multi-Display-Platzierung braucht GUI-Verifikation.
+- **MCP-Parität (Prinzip Spec §13):** Audit ergab — alles Dokument-Authoring ist über MCP erreichbar; ergänzt
+  wurden `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` (referenzieren
+  vorhandene Assets — die KI lädt keine Binärdateien hoch). Bewusst **nur Mensch:** Asset-Binär-Upload/Crop,
+  lokale Datei-Exporte, Undo/Snapshots, Laufzeit-/Display-Steuerung. Bei neuen menschlichen Dokument-Aktionen
+  immer prüfen, ob ein MCP-Tool dafür existiert.
+- **Additive Datenmodell-Felder** (optional, `version` bleibt "1.0"): `meta.transition` (kind inkl. `auto`),
+  `meta.logo`, `zone.reveal`, `presentation.fonts`, Bild-`width/align/float`. (Snapshots sind separate
+  `.slideo`-Dateien, kein Schema-Eingriff.)
 
-Offen (Post-MVP): GUI-Verifikation der §18/§19-Features; **§19.3 echtes Zweitfenster** (Tauri
-Multi-Window, größter Brocken; Übersicht/Laser/Stift/Auto-Advance bereits umgesetzt),
-**Auto-Animate/Morph**, **§19.8 Aufnahme/Narration + Video-Export** (Drag&Drop-Import/Crop/Icons
-bereits umgesetzt), **bild-basierter PPTX-Export** (1:1 via Browser-Offload — native Rekonstruktion
-ist umgesetzt), **Outline-Modus + Versionshistorie**, **Komponenten-Palette** (Polish),
-Asset-Positionierung „Large", Cross-Platform-Builds + Signing, Font-Subset.
+**Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest, Outline-Modus +
+Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
+app-weit geprüft → 35 Tools). **§19.8 Aufnahme/Narration + Video-Export ist bewusst weggelassen** (out of scope —
+off-thesis; Medien-Bedarf via Einbettung gedeckt; siehe [[scope-mcp-authoring-thesis]]).
+
+Offen (kein neues Feature, sondern „verifizieren & ausliefern"): **GUI-Verifikation** aller §18/§19-Features
+durch den Menschen (Checklisten next-steps.md A1–A7, inkl. Zweitfenster auf echter Multi-Display-Hardware) und
+**Distribution & Notarization** (next-steps.md Abschnitt C: Signing, notarisierte/Cross-Platform-Builds).
+Optionaler Polish (geparkt): bild-basierter PPTX-Export (Browser-Offload), Komponenten-Set erweitern,
+Asset-Positionierung „Large", Font-Subset, Laser/Stift aufs Zweitfenster spiegeln, flackerfreies Projector-Update.
 Siehe [README.md](README.md) und [docs/next-steps.md](docs/next-steps.md).

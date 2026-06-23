@@ -39,6 +39,8 @@ import {
   openPrintView,
   pickExportPptxPath,
   exportPptxFile,
+  createSnapshot as createSnapshotCmd,
+  restoreSnapshot as restoreSnapshotCmd,
   isTauri,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
@@ -94,6 +96,18 @@ interface PresentationState {
   resizeZoneImage: (id: string, blockIndex: number, imgIndex: number, width: string) => void
   reorderZones: (orderedIds: string[]) => void
 
+  /**
+   * Setzt eine fertig gerenderte Komponenten-HTML in eine Zone (Spec §18.7,
+   * Komponenten-Palette). Das HTML kommt vom Rust-Generator (`render_component`).
+   * placement: 'new' = neue HTML-Folie nach targetZoneId; 'append' = an die
+   * (HTML-)Zielzone anhängen; 'replace' = Zielzone-Inhalt durch HTML ersetzen.
+   */
+  insertComponent: (opts: {
+    targetZoneId: string | null
+    placement: 'new' | 'append' | 'replace'
+    html: string
+  }) => void
+
   // Assets
   addMediaToZone: (zoneId: string, dataUri: string) => void
   addAssetToLibrary: (dataUri: string) => string
@@ -110,6 +124,12 @@ interface PresentationState {
   setTokensBulk: (tokens: Record<string, string>) => void
   resetTokens: () => void
   applyPreset: (name: string) => void
+
+  // Versionshistorie (Spec §19.9): lokale `.slideo`-Snapshots
+  /** Erstellt manuell einen Snapshot (mit optionaler Beschriftung). Gibt true zurück, wenn geschrieben. */
+  createSnapshot: (label?: string) => Promise<boolean>
+  /** Stellt einen Snapshot wieder her (undoable; Dateipfad bleibt — zum Übernehmen speichern). */
+  restoreSnapshot: (id: string) => Promise<void>
 
   // Präsentation (deck-weit)
   setTransition: (kind: TransitionKind, durationMs?: number) => void
@@ -284,9 +304,17 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         return
       }
       try {
-        await savePresentationFile(target, presentation, mapToAssets(get().assets))
+        const assetList = mapToAssets(get().assets)
+        await savePresentationFile(target, presentation, assetList)
         set({ filePath: target, isDirty: false })
         notify('Gespeichert.', 'success')
+        // Auto-Snapshot (Versionshistorie §19.9): still + im Backend dedupliziert;
+        // Fehler dürfen das Speichern nicht stören (fire-and-forget).
+        if (isTauri()) {
+          void createSnapshotCmd(target, presentation, assetList, '', true, now(), newId()).catch(
+            (e) => console.warn('[slideo] auto-snapshot fehlgeschlagen:', e),
+          )
+        }
       } catch (e) {
         console.error('[slideo] save_presentation fehlgeschlagen:', e)
         notify(`Speichern fehlgeschlagen: ${errMsg(e)}`, 'error')
@@ -571,6 +599,43 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       })
     },
 
+    insertComponent: ({ targetZoneId, placement, html }) => {
+      let focusId = ''
+      mutate((p) => {
+        const zones = [...p.zones]
+        const target = targetZoneId ? zones.find((z) => z.id === targetZoneId) : undefined
+        // Invariante (auch ohne UI-Schutz): eine nicht-leere Markdown-Folie wird NIE
+        // überschrieben — die Komponente bekommt dann eine eigene neue HTML-Folie.
+        const wouldClobberMarkdown =
+          !!target && target.content_type === 'markdown' && !!target.markdown.trim()
+        // Neue Folie (auch Fallback, wenn keine/keine gültige Zielzone existiert).
+        if (placement === 'new' || !target || wouldClobberMarkdown) {
+          const idx = target ? zones.findIndex((z) => z.id === target.id) : zones.length - 1
+          const insertAt = idx >= 0 ? idx + 1 : zones.length
+          const zone = makeZone(insertAt)
+          zone.label = `Slide ${insertAt + 1}`
+          zone.content_type = 'html'
+          zone.html = html
+          focusId = zone.id
+          zones.splice(insertAt, 0, zone)
+          return { ...p, zones: renumber(zones) }
+        }
+        // In bestehende Zone: anhängen (nur sinnvoll/genutzt bei HTML-Zonen) oder ersetzen.
+        focusId = target.id
+        return {
+          ...p,
+          zones: zones.map((z) => {
+            if (z.id !== target.id) return z
+            const existing = z.content_type === 'html' ? (z.html ?? '') : ''
+            const next =
+              placement === 'append' && existing.trim() ? `${existing}\n${html}` : html
+            return { ...z, content_type: 'html', html: next }
+          }),
+        }
+      })
+      if (focusId) set({ activeZoneId: focusId })
+    },
+
     addAssetToLibrary: (dataUri) => {
       const { mime } = parseDataUri(dataUri)
       const filename = `img-${shortId()}.${mimeToExt(mime)}`
@@ -690,6 +755,59 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           },
         },
       }))
+    },
+
+    createSnapshot: async (label = '') => {
+      const { presentation, assets, filePath } = get()
+      if (!isTauri()) {
+        notify('Versionshistorie ist nur in der Desktop-App verfügbar.', 'info')
+        return false
+      }
+      if (!presentation || !filePath) {
+        notify('Bitte die Präsentation zuerst speichern (Cmd/Strg+S).', 'info')
+        return false
+      }
+      try {
+        const meta = await createSnapshotCmd(
+          filePath,
+          presentation,
+          mapToAssets(assets),
+          label.trim(),
+          false,
+          now(),
+          newId(),
+        )
+        notify(
+          meta ? 'Schnappschuss erstellt.' : 'Keine Änderungen seit dem letzten Schnappschuss.',
+          meta ? 'success' : 'info',
+        )
+        return !!meta
+      } catch (e) {
+        console.error('[slideo] create_snapshot fehlgeschlagen:', e)
+        notify(`Schnappschuss fehlgeschlagen: ${errMsg(e)}`, 'error')
+        return false
+      }
+    },
+
+    restoreSnapshot: async (id) => {
+      const { filePath } = get()
+      if (!isTauri() || !filePath) return
+      try {
+        const { presentation, assets } = await restoreSnapshotCmd(filePath, id)
+        presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+        const current = get().presentation
+        if (current) pushHistory(current) // Wiederherstellen ist per Undo umkehrbar
+        set({
+          presentation,
+          assets: assetsToMap(assets),
+          isDirty: true,
+          activeZoneId: presentation.zones[0]?.id ?? null,
+        })
+        notify('Snapshot wiederhergestellt — zum Übernehmen speichern (Cmd/Strg+S).', 'success')
+      } catch (e) {
+        console.error('[slideo] restore_snapshot fehlgeschlagen:', e)
+        notify(`Wiederherstellen fehlgeschlagen: ${errMsg(e)}`, 'error')
+      }
     },
 
     setActiveZone: (id) => set({ activeZoneId: id }),

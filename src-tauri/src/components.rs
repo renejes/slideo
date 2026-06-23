@@ -423,6 +423,40 @@ pub fn list() -> Value {
     ])
 }
 
+/// Umhüllt gerendertes HTML mit einem `data-id`-Wrapper (Auto-Animate, Spec §19.1):
+/// Elemente mit gleichem `data-id` morphen zwischen Folien. Der Wert wird streng
+/// sanitisiert (nur unverfängliche Zeichen) → kein Attribut-/Tag-Ausbruch. Leerer/
+/// ungültiger Wert ⇒ unverändert (kein Wrapper).
+pub fn with_data_id(html: &str, data_id: &str) -> String {
+    let safe: String = data_id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':'))
+        .take(64)
+        .collect();
+    if safe.is_empty() {
+        return html.to_string();
+    }
+    let attr = format!(" data-id=\"{safe}\"");
+    // data-id ins ERSTE Element-Tag injizieren (kein zusätzlicher Wrapper-<div>):
+    // sonst würde das FLIP-Morphing die volle Wrapper-Box statt der sichtbaren
+    // (oft zentrierten/max-width) Komponente vermessen.
+    let bytes = html.as_bytes();
+    if let Some(lt) = html.find('<') {
+        let after = lt + 1;
+        if bytes.get(after).is_some_and(|b| b.is_ascii_alphabetic()) {
+            let mut j = after;
+            while j < bytes.len()
+                && !matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r' | b'/' | b'>')
+            {
+                j += 1;
+            }
+            return format!("{}{attr}{}", &html[..j], &html[j..]);
+        }
+    }
+    // Fallback (kein Element-Tag gefunden): Wrapper.
+    format!("<div{attr}>{html}</div>")
+}
+
 /// Rendert eine Komponente zu HTML (mit Token-Variablen). Fehler bei unbekanntem Typ.
 pub fn render(kind: &str, params: &Value) -> Result<String, String> {
     let html = match kind {
@@ -515,6 +549,25 @@ mod tests {
     #[test]
     fn unknown_component_errors() {
         assert!(render("does_not_exist", &json!({})).is_err());
+    }
+
+    #[test]
+    fn with_data_id_injects_and_sanitizes() {
+        // data-id wird ins erste Tag injiziert (kein Wrapper) — Attribute bleiben erhalten.
+        assert_eq!(with_data_id("<p>x</p>", "hero-1"), "<p data-id=\"hero-1\">x</p>");
+        assert_eq!(
+            with_data_id("<div style=\"color:red\">x</div>", "k"),
+            "<div data-id=\"k\" style=\"color:red\">x</div>"
+        );
+        // Attribut-Ausbruch wird gefiltert (Anführungszeichen/Klammern raus).
+        let bad = with_data_id("<p>x</p>", "a\"><script>");
+        assert_eq!(bad, "<p data-id=\"ascript\">x</p>");
+        assert!(!bad.contains("<script>"));
+        // Leerer/komplett ungültiger Wert ⇒ unverändert.
+        assert_eq!(with_data_id("<p>x</p>", ""), "<p>x</p>");
+        assert_eq!(with_data_id("<p>x</p>", "<>\"'"), "<p>x</p>");
+        // Kein Element-Tag (Fallback): Wrapper.
+        assert_eq!(with_data_id("nur text", "k"), "<div data-id=\"k\">nur text</div>");
     }
 
     #[test]

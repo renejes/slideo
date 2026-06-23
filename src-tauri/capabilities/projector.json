@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "projector",
+  "description": "Capabilities für das Presenter-Zweitfenster (zeigt die Folien). Minimal: Command-Aufrufe (Deck aus dem AppState lesen) + Events (Navigations-Sync). Fenstergröße/-position setzt das Backend.",
+  "windows": ["projector"],
+  "permissions": ["core:default", "core:event:default"]
+}

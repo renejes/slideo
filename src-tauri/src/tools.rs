@@ -456,7 +456,11 @@ pub fn handle(
             let kind = req_str(params, "type")?;
             let comp_params = p_param(params, "params").cloned().unwrap_or(json!({}));
             let mode = opt_str(params, "mode").unwrap_or_else(|| "replace".to_string());
-            let html = crate::components::render(&kind, &comp_params)?;
+            let mut html = crate::components::render(&kind, &comp_params)?;
+            // Optionales data-id für Auto-Animate (Spec §19.1): Komponente morphbar machen.
+            if let Some(did) = opt_str(params, "data_id") {
+                html = crate::components::with_data_id(&html, &did);
+            }
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
             let idx = zone_index(zones, &zone_id)?;
@@ -494,8 +498,8 @@ pub fn handle(
         }
         "set_transition" => {
             let kind = req_str(params, "kind")?;
-            if !["none", "fade", "slide", "zoom"].contains(&kind.as_str()) {
-                return Err("kind muss 'none', 'fade', 'slide' oder 'zoom' sein".into());
+            if !["none", "fade", "slide", "zoom", "auto"].contains(&kind.as_str()) {
+                return Err("kind muss 'none', 'fade', 'slide', 'zoom' oder 'auto' sein".into());
             }
             let duration = p_param(params, "duration_ms")
                 .and_then(|v| v.as_i64())
@@ -510,6 +514,77 @@ pub fn handle(
                 "transition".to_string(),
                 json!({ "kind": kind, "duration_ms": duration }),
             );
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+
+        // ----- Marke / Meta / Schriften (Spec §19.4, MCP-Parität) -----
+        "set_presentation_title" => {
+            let title = req_str(params, "title")?;
+            let p = pres_mut(pres)?;
+            let meta = p
+                .get_mut("meta")
+                .and_then(|m| m.as_object_mut())
+                .ok_or("Kein 'meta'-Objekt")?;
+            meta.insert("title".to_string(), json!(title));
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+        "set_logo" => {
+            let asset = req_str(params, "asset")?;
+            // Die KI lädt keine Binärdateien hoch — sie referenziert vorhandene Assets.
+            if !assets.iter().any(|a| a.name == asset) {
+                return Err(format!("Asset '{asset}' nicht gefunden (siehe list_assets)"));
+            }
+            let position = opt_str(params, "position").unwrap_or_else(|| "bottom-right".to_string());
+            if !["top-left", "top-right", "bottom-left", "bottom-right"].contains(&position.as_str()) {
+                return Err("position muss top-left, top-right, bottom-left oder bottom-right sein".into());
+            }
+            let p = pres_mut(pres)?;
+            let meta = p
+                .get_mut("meta")
+                .and_then(|m| m.as_object_mut())
+                .ok_or("Kein 'meta'-Objekt")?;
+            meta.insert("logo".to_string(), json!({ "asset": asset, "position": position }));
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+        "clear_logo" => {
+            let p = pres_mut(pres)?;
+            if let Some(meta) = p.get_mut("meta").and_then(|m| m.as_object_mut()) {
+                meta.remove("logo");
+            }
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+        "register_font" => {
+            let family = req_str(params, "family")?;
+            let asset = req_str(params, "asset")?;
+            if !assets.iter().any(|a| a.name == asset) {
+                return Err(format!("Asset '{asset}' nicht gefunden (siehe list_assets)"));
+            }
+            let p = pres_mut(pres)?;
+            let obj = p.as_object_mut().ok_or("Ungültige Presentation")?;
+            let fonts = obj.entry("fonts").or_insert_with(|| json!([]));
+            let arr = fonts.as_array_mut().ok_or("'fonts' ist kein Array")?;
+            // Dedup nach Familienname (bestehende ersetzen, sonst anhängen).
+            match arr
+                .iter_mut()
+                .find(|f| f.get("family").and_then(|v| v.as_str()) == Some(family.as_str()))
+            {
+                Some(existing) => existing["asset"] = json!(asset),
+                None => arr.push(json!({ "family": family, "asset": asset })),
+            }
+            touch_modified(p);
+            ok(json!({ "ok": true }), Effect::Presentation)
+        }
+        "set_zone_label" => {
+            let id = req_str(params, "id")?;
+            let label = req_str(params, "label")?;
+            let p = pres_mut(pres)?;
+            let zones = zones_mut(p)?;
+            let idx = zone_index(zones, &id)?;
+            zones[idx]["label"] = json!(label);
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
         }
@@ -557,8 +632,12 @@ HTML-Zonen).\n\
 var(--font-heading), var(--font-body), var(--border-radius) …). KEINE hartkodierten Farben/Fonts. \
 Halte HTML-Folien fokussiert und klein.\n\
 9. Optional: set_zone_notes(id, notes) für Sprechernotizen (nur in der Speaker-View sichtbar); \
-set_transition(kind, duration_ms) für den deck-weiten Folienübergang (none|fade|slide|zoom); \
-set_zone_reveal(id, 'steps') für Builds (Blöcke der Folie erscheinen schrittweise)."
+set_transition(kind, duration_ms) für den deck-weiten Folienübergang (none|fade|slide|zoom|auto — \
+auto morpht Elemente mit gleichem data-id zwischen Folien, data-id via HTML-Zone oder insert_component(data_id)); \
+set_zone_reveal(id, 'steps') für Builds (Blöcke der Folie erscheinen schrittweise).\n\
+10. Marke/Meta: set_presentation_title(title); set_zone_label(id, label) (Folien-Anzeigename); \
+set_logo(asset, position?)/clear_logo (asset = vorhandenes Bild aus list_assets); register_font(family, asset) \
+registriert ein vorhandenes Font-Asset → dann via set_token('font-heading'|'font-body', family) aktivieren."
 }
 
 /// MCP-Prompt-Definitionen (`prompts/list`). Der "slideo_guide"-Prompt ist die
@@ -601,7 +680,8 @@ token-bewusste Komponenten ein — list_components zeigt Typen + Parameter: stat
 bar_chart, line_chart (Trend), donut_chart (Anteile), progress, quote, timeline, comparison \
 (zwei Spalten), callout, icon (Symbol). Bevorzuge diese für Daten/Diagramme/Vergleiche.\n\
 6) Feinschliff: set_zone_notes(id, notes) für Sprechernotizen (nur Speaker-View); \
-set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom); \
+set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom|auto — auto = Magic-Move \
+gleicher data-id-Elemente); \
 set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
 Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden).\n\n";
 
@@ -804,7 +884,8 @@ pub fn tool_schemas() -> Value {
                 "zone_id": s("UUID der Ziel-Zone"),
                 "type": s("Komponententyp, z.B. 'bar_chart', 'stat_cards', 'timeline', 'comparison' (siehe list_components)"),
                 "params": { "type": "object", "description": "Parameter der Komponente (Struktur je Typ, siehe list_components), z.B. { \"items\": [{ \"label\": \"Q1\", \"value\": 40 }] }" },
-                "mode": { "type": "string", "enum": ["replace", "append"], "description": "replace (Default): Zoneninhalt ersetzen; append: an bestehendes HTML der Zone anhängen" }
+                "mode": { "type": "string", "enum": ["replace", "append"], "description": "replace (Default): Zoneninhalt ersetzen; append: an bestehendes HTML der Zone anhängen" },
+                "data_id": s("Optional: data-id für Auto-Animate (Übergang 'auto'). Komponenten mit gleichem data-id auf benachbarten Folien morphen ineinander (FLIP).")
             }, "required": ["zone_id", "type"] }
         },
         {
@@ -821,9 +902,43 @@ pub fn tool_schemas() -> Value {
             "name": "set_transition",
             "description": "Setzt den präsentationsweiten Folienübergang (Animation beim Folienwechsel im Präsentationsmodus und im HTML-Export). 'none' = reines Scrollen (Default).",
             "inputSchema": { "type": "object", "properties": {
-                "kind": { "type": "string", "enum": ["none", "fade", "slide", "zoom"], "description": "none (kein Übergang), fade (Überblenden), slide (horizontal Schieben), zoom (Ein-/Auszoomen)" },
+                "kind": { "type": "string", "enum": ["none", "fade", "slide", "zoom", "auto"], "description": "none (kein Übergang), fade (Überblenden), slide (horizontal Schieben), zoom (Ein-/Auszoomen), auto (Auto-Animate: Elemente mit gleichem data-id zwischen benachbarten Folien morphen per FLIP; restliche Inhalte schalten hart um — am besten bei gleichem Hintergrund). data-id setzt du in HTML-Zonen oder via insert_component(data_id)." },
                 "duration_ms": { "type": "number", "description": "Dauer des Übergangs in Millisekunden (Default 500)" }
             }, "required": ["kind"] }
+        },
+        {
+            "name": "set_presentation_title",
+            "description": "Benennt die Präsentation um (meta.title).",
+            "inputSchema": { "type": "object", "properties": { "title": s("Neuer Titel der Präsentation") }, "required": ["title"] }
+        },
+        {
+            "name": "set_logo",
+            "description": "Setzt das Marken-Logo (erscheint in einer Ecke jeder Folie, auch im Export). 'asset' muss ein bereits vorhandenes Bild-Asset sein (siehe list_assets — die KI lädt keine Dateien hoch).",
+            "inputSchema": { "type": "object", "properties": {
+                "asset": s("Dateiname eines vorhandenen Bild-Assets, z.B. 'img-ab12.png'"),
+                "position": { "type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right"], "description": "Ecke (Default bottom-right)" }
+            }, "required": ["asset"] }
+        },
+        {
+            "name": "clear_logo",
+            "description": "Entfernt das Marken-Logo (meta.logo).",
+            "inputSchema": obj()
+        },
+        {
+            "name": "register_font",
+            "description": "Registriert eine bereits als Asset vorhandene Schriftdatei (woff2/woff/ttf/otf) als Schriftfamilie (presentation.fonts) — danach in den Font-Tokens nutzbar (set_token font-heading|font-body). 'asset' siehe list_assets.",
+            "inputSchema": { "type": "object", "properties": {
+                "family": s("Familienname, z.B. 'Cal Sans'"),
+                "asset": s("Dateiname eines vorhandenen Font-Assets, z.B. 'font-ab12.woff2'")
+            }, "required": ["family", "asset"] }
+        },
+        {
+            "name": "set_zone_label",
+            "description": "Benennt eine Zone/Folie um (Editor-Anzeigename in der Folienliste — NICHT die Überschrift auf der Folie; die setzt du via Markdown-Inhalt).",
+            "inputSchema": { "type": "object", "properties": {
+                "id": s("UUID der Zone"),
+                "label": s("Neuer Anzeigename")
+            }, "required": ["id", "label"] }
         }
     ])
 }
@@ -941,6 +1056,44 @@ mod tests {
         // list_presets enthält alle fünf.
         let presets = call("list_presets", json!({}), &mut pres, &mut fp);
         assert_eq!(presets["presets"].as_array().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn marke_meta_and_font_tools() {
+        // MCP-Parität (Spec §19.4): Logo, Schriften, Titel, Folien-Label.
+        let assets = vec![
+            Asset { name: "logo.png".into(), mime: "image/png".into(), data: String::new() },
+            Asset { name: "f.woff2".into(), mime: "font/woff2".into(), data: String::new() },
+        ];
+        let (mut pres, mut fp) = (Some(new_presentation("Alt")), None);
+
+        // Titel umbenennen.
+        handle("set_presentation_title", &json!({ "title": "Neu" }), &mut pres, &mut fp, &assets).unwrap();
+        assert_eq!(pres.as_ref().unwrap()["meta"]["title"], "Neu");
+
+        // Logo: fehlendes Asset → Fehler; vorhandenes → meta.logo; ungültige Position → Fehler.
+        assert!(handle("set_logo", &json!({ "asset": "missing.png" }), &mut pres, &mut fp, &assets).is_err());
+        handle("set_logo", &json!({ "asset": "logo.png", "position": "top-left" }), &mut pres, &mut fp, &assets).unwrap();
+        assert_eq!(pres.as_ref().unwrap()["meta"]["logo"]["asset"], "logo.png");
+        assert_eq!(pres.as_ref().unwrap()["meta"]["logo"]["position"], "top-left");
+        assert!(handle("set_logo", &json!({ "asset": "logo.png", "position": "middle" }), &mut pres, &mut fp, &assets).is_err());
+
+        // Logo entfernen.
+        handle("clear_logo", &json!({}), &mut pres, &mut fp, &assets).unwrap();
+        assert!(pres.as_ref().unwrap()["meta"].get("logo").is_none());
+
+        // Font registrieren: fehlendes Asset → Fehler; Dedup nach Familie.
+        assert!(handle("register_font", &json!({ "family": "Cal Sans", "asset": "nope.woff2" }), &mut pres, &mut fp, &assets).is_err());
+        handle("register_font", &json!({ "family": "Cal Sans", "asset": "f.woff2" }), &mut pres, &mut fp, &assets).unwrap();
+        handle("register_font", &json!({ "family": "Cal Sans", "asset": "f.woff2" }), &mut pres, &mut fp, &assets).unwrap();
+        let fonts = pres.as_ref().unwrap()["fonts"].as_array().unwrap();
+        assert_eq!(fonts.len(), 1, "register_font dedupliziert nach Familienname");
+        assert_eq!(fonts[0]["family"], "Cal Sans");
+
+        // Folien-Label.
+        let zid = pres.as_ref().unwrap()["zones"][0]["id"].as_str().unwrap().to_string();
+        handle("set_zone_label", &json!({ "id": zid, "label": "Intro" }), &mut pres, &mut fp, &assets).unwrap();
+        assert_eq!(pres.as_ref().unwrap()["zones"][0]["label"], "Intro");
     }
 }
 

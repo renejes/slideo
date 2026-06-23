@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import type { Zone, ZoneLayout, TextAlign } from '@/types'
 import { ZONE_LAYOUTS, TEXT_ALIGNS } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
+import { useUiStore } from '@/store/ui'
 import { confirmDialog } from '@/lib/dialog'
 import { Icon } from '@/components/ui/Icon'
 
@@ -23,6 +24,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
   const setZoneContentType = usePresentationStore((s) => s.setZoneContentType)
   const deleteZone = usePresentationStore((s) => s.deleteZone)
   const addMediaToZone = usePresentationStore((s) => s.addMediaToZone)
+  const setActiveZone = usePresentationStore((s) => s.setActiveZone)
+  const openModal = useUiStore((s) => s.openModal)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const isHtml = zone.content_type === 'html'
@@ -119,6 +122,18 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
           aria-label="Medium einfügen"
         >
           <Icon name="image" size={17} weight={400} />
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveZone(zone.id)
+            openModal('components')
+          }}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+          title="Komponente einfügen (Diagramme, Kennzahlen, Zeitstrahl, Zitat …)"
+          aria-label="Komponente einfügen"
+        >
+          <Icon name="widgets" size={17} weight={400} />
         </button>
 
         <button
