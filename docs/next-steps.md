@@ -1,16 +1,38 @@
 # Slideo — Nächste Schritte
 
 > To-do-Dokument. **Die Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen.** Reihenfolge jetzt:
-> **(1) vollständiger GUI-Test** (A) → **(2) Polish auswählen & umsetzen** (Abschnitt „Polish-Kandidaten") →
+> **(0) Direktmanipulation in der Vorschau bauen** (DER nächste Fokus — Plan: [direct-manipulation-plan.md](direct-manipulation-plan.md)) →
+> **(1) vollständiger GUI-Test** (A, parallel/sekundär) → **(2) Polish** („Polish-Kandidaten") →
 > **(3) Distribution/Notarization** (C).
 > Stand-Kontext: [project-status.md](project-status.md). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
-## A. Testen — **PLAN DER NÄCHSTEN SESSION: vollständiger Durchlauf A1–A7**
+## 0. Direktmanipulation in der Vorschau — **DER PLAN DER NÄCHSTEN SESSION**
+
+> **Vollständiger, im Code verankerter Implementationsplan: [direct-manipulation-plan.md](direct-manipulation-plan.md)** — vor dem Loslegen lesen.
+
+**Ziel:** Elemente **direkt in der rechten Vorschau anfassen, verschieben, duplizieren, im Text bearbeiten und
+löschen** — schneller als KI-erzeugtes HTML per Hand zu korrigieren. **Korrektur-Layer über KI-Output**, kein
+PowerPoint-Canvas; neue Elemente entstehen per **Duplizieren + Bearbeiten**. Flussbasiertes Modell (Folien,
+Reihenfolge, Notizen, Übergänge) bleibt unangetastet; betrifft nur das Innenleben von **HTML-Zonen**.
+
+Phasen (Details + Dateien im Plan): **Phase 0** Klick → Quelle (HTML-Editor-Stelle markieren) · **Phase 1**
+Auswählen + Löschen + Duplizieren · **Phase 2** Inline-Text-Edit · **Phase 3** Verschieben (abs. `%`-Position).
+Adressierung über **Kind-Index-Pfad ab `.slideo-content`** (kein Schema-Eingriff), Ops über `DOMParser` auf dem
+**rohen** `zone.html`, **per Pointer-Events** (WKWebView), undoable. Beim Bau in **Spec §20** verankern.
+
+- [ ] **Phase 0** — Klick → Quelle (`dom-edit.ts` neu, `ui.ts`, `HtmlEditor.tsx`, `PreviewPane.tsx`).
+- [ ] **Phase 1** — Auswahl-Layer/Toolbar im `editScript()`, Modus-Toggle, `applyZoneElementOp` (delete/duplicate), Re-Select.
+- [ ] **Phase 2** — Inline-Text-Edit (contenteditable-Round-Trip).
+- [ ] **Phase 3** — Verschieben (Drag → `%`-Position).
+
+---
+
+## A. Testen (sekundär/parallel — vollständiger Durchlauf A1–A7)
 
 Bisher ist alles nur automatisch grün (`cargo test` 27, `typecheck`, `vite build` + Multi-Agent-Reviews je
-Feature), aber **noch nichts in der echten App durchgeklickt**. Nächste Session: **A1–A7 Punkt für Punkt** — der
+Feature), aber **noch nichts in der echten App durchgeklickt**. **A1–A7 Punkt für Punkt** — der
 **Mensch testet**, die **KI fixt bestätigte Findings**.
 
 Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderung zusätzlich **Claude Desktop neu starten** (sonst altes MCP-Binary! — jetzt **35 MCP-Tools**).
