@@ -14,6 +14,7 @@ import {
   FILE_FORMAT_VERSION,
 } from '@/types'
 import { markdownToHtml, splitMarkdownBlocks, setBlockImageWidth } from '@/lib/markdown-tiptap'
+import { applyElementOp, applyFreezeLayout, type ElementOp, type OpPayload, type FreezeItem } from '@/lib/dom-edit'
 import { renderStandalonePage, renderPrintPage } from '@/lib/renderer'
 import { exportPdfViaPrint } from '@/lib/print'
 import { findPreset } from '@/lib/presets'
@@ -94,6 +95,24 @@ interface PresentationState {
   reorderZoneBlocks: (id: string, order: number[]) => void
   /** Setzt die Breite eines Bildes (Resize-Anfasser in der Vorschau), z.B. "63%". */
   resizeZoneImage: (id: string, blockIndex: number, imgIndex: number, width: string) => void
+  /**
+   * Direktmanipulation in der Vorschau (Spec §20): wendet eine Element-Operation
+   * (löschen/duplizieren/Text/verschieben) auf das `zone.html` einer HTML-Zone an,
+   * adressiert über den Kind-Index-Pfad ab `.slideo-content`. recordHistory=true
+   * (diskrete Edits → Cmd/Z). No-op bei Nicht-HTML-Zonen oder ungültigem Pfad.
+   */
+  applyZoneElementOp: (
+    zoneId: string,
+    path: number[],
+    op: ElementOp,
+    payload?: OpPayload,
+  ) => void
+  /**
+   * „Folie einfrieren" (Spec §20): pinnt mehrere Elemente einer HTML-Zone absolut
+   * an ihre aktuelle Position+Größe (beim ersten Verschieben → freies Anordnen ohne
+   * Reflow). recordHistory=true → ein Cmd/Z macht das gesamte Einfrieren rückgängig.
+   */
+  freezeZoneLayout: (zoneId: string, items: FreezeItem[]) => void
   reorderZones: (orderedIds: string[]) => void
 
   /**
@@ -585,6 +604,34 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const markdown = next.join('\n\n')
       mutate((p) => ({ ...p, zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)) }))
       set({ activeZoneId: id })
+    },
+
+    applyZoneElementOp: (zoneId, path, op, payload) => {
+      const zone = get().presentation?.zones.find((z) => z.id === zoneId)
+      if (!zone || zone.content_type !== 'html') return
+      const current = zone.html ?? ''
+      const next = applyElementOp(current, path, op, payload)
+      if (next === current) return // ungültiger Pfad oder keine Änderung
+      // recordHistory=true: diskrete Direktmanipulation ist per Cmd/Z umkehrbar
+      // (anders als das laufende Tippen via updateZoneHtml).
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => (z.id === zoneId ? { ...z, html: next } : z)),
+      }))
+      set({ activeZoneId: zoneId })
+    },
+
+    freezeZoneLayout: (zoneId, items) => {
+      const zone = get().presentation?.zones.find((z) => z.id === zoneId)
+      if (!zone || zone.content_type !== 'html' || !Array.isArray(items) || items.length === 0) return
+      const current = zone.html ?? ''
+      const next = applyFreezeLayout(current, items)
+      if (next === current) return
+      mutate((p) => ({
+        ...p,
+        zones: p.zones.map((z) => (z.id === zoneId ? { ...z, html: next } : z)),
+      }))
+      set({ activeZoneId: zoneId })
     },
 
     reorderZones: (orderedIds) => {

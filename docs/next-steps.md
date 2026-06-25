@@ -1,31 +1,62 @@
 # Slideo — Nächste Schritte
 
-> To-do-Dokument. **Die Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen.** Reihenfolge jetzt:
-> **(0) Direktmanipulation in der Vorschau bauen** (DER nächste Fokus — Plan: [direct-manipulation-plan.md](direct-manipulation-plan.md)) →
-> **(1) vollständiger GUI-Test** (A, parallel/sekundär) → **(2) Polish** („Polish-Kandidaten") →
-> **(3) Distribution/Notarization** (C).
+> To-do-Dokument. **Feature-Roadmap §18/§19 + §20 Direktmanipulation + §21 feste 16:9-Bühne sind abgeschlossen
+> (GUI-bestätigt).** Reihenfolge jetzt: **(1) Performance- & Security-Audit der GESAMTEN App** → **(2) Optimierung/
+> Überarbeitung** (Workflow/Architektur nochmal durchdenken) → **(3) Layout-Validierung** (harte 1280×720-Garantie,
+> optional) → parallel: **vollständiger GUI-Test (A)** + **Distribution/Notarization (C)**. Vor dem Start ggf.
+> §20/§21 + Test-Deck **committen** (working tree dirty auf `main`).
 > Stand-Kontext: [project-status.md](project-status.md). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
-## 0. Direktmanipulation in der Vorschau — **DER PLAN DER NÄCHSTEN SESSION**
+## 1. Performance- & Security-Audit + Optimierung — **DER NÄCHSTE FOKUS**
 
-> **Vollständiger, im Code verankerter Implementationsplan: [direct-manipulation-plan.md](direct-manipulation-plan.md)** — vor dem Loslegen lesen.
+> Schwerpunkt-Wechsel: nicht mehr „Features bauen", sondern **Qualität & Reife der Gesamt-App**. Erst messen/
+> auditieren, dann gezielt optimieren. (Aus Session-Feedback: „einmal Performance- und Security-Check der ganzen
+> App, dann optimieren — Workflow überarbeiten etc.")
 
-**Ziel:** Elemente **direkt in der rechten Vorschau anfassen, verschieben, duplizieren, im Text bearbeiten und
-löschen** — schneller als KI-erzeugtes HTML per Hand zu korrigieren. **Korrektur-Layer über KI-Output**, kein
-PowerPoint-Canvas; neue Elemente entstehen per **Duplizieren + Bearbeiten**. Flussbasiertes Modell (Folien,
-Reihenfolge, Notizen, Übergänge) bleibt unangetastet; betrifft nur das Innenleben von **HTML-Zonen**.
+### 1a. Security-Check (Bestandsaufnahme + Härtung)
+- [ ] **Iframe-Isolation:** HTML-Zonen führen beliebiges JS aus (gewollt), aber `sandbox="allow-scripts"`, KEINE
+      Tauri-APIs im Iframe — Grenzen bestätigen.
+- [ ] **CSP bewusst setzen** (`tauri.conf.json` aktuell `null`): Data-URI, `slideoasset:`, Inline-Styles/Scripts der
+      Slides erlauben, Sonstiges einschränken (vgl. C0).
+- [ ] **Schreibpfade prüfen:** MCP-Ziel-Registrierung (`mcp_registration.rs` editiert Claude-/Meta-/Code-Config),
+      Versionshistorie (`history.rs`, `valid_id` gegen Path-Traversal — gegenprüfen), Snapshot-/Export-Dateipfade.
+- [ ] **Untrusted Input:** `.slideo`-Import (fremdes ZIP/JSON), Asset-Bytes (`slideoasset://`), MCP-Tool-Parameter.
+- [ ] **Ergebnis:** kurze Bedrohungsmodell-Notiz + priorisierte Härtungsliste vor Release.
 
-Phasen (Details + Dateien im Plan): **Phase 0** Klick → Quelle (HTML-Editor-Stelle markieren) · **Phase 1**
-Auswählen + Löschen + Duplizieren · **Phase 2** Inline-Text-Edit · **Phase 3** Verschieben (abs. `%`-Position).
-Adressierung über **Kind-Index-Pfad ab `.slideo-content`** (kein Schema-Eingriff), Ops über `DOMParser` auf dem
-**rohen** `zone.html`, **per Pointer-Events** (WKWebView), undoable. Beim Bau in **Spec §20** verankern.
+### 1b. Performance-Check (messen → optimieren)
+- [ ] **Bundle:** Material-Symbols-Variable-Font (~3,6 MB) auf genutzte Icons **subsetten**; `index`-Chunk (~1,3 MB)
+      Code-Splitting prüfen.
+- [ ] **Vorschau-Re-Render:** debouncter `srcDoc`-Reload (220 ms) — Double-Buffer/In-Place statt Voll-Reload?
+- [ ] **Skalierung/Reposition** (§20/§21): rAF-Pfade, Messungen pro Frame/Drag.
+- [ ] **Große Decks/Assets:** Data-URI-Inlining vs. Streaming; MCP-Sync-Last bei vielen Folien.
 
-- [ ] **Phase 0** — Klick → Quelle (`dom-edit.ts` neu, `ui.ts`, `HtmlEditor.tsx`, `PreviewPane.tsx`).
-- [ ] **Phase 1** — Auswahl-Layer/Toolbar im `editScript()`, Modus-Toggle, `applyZoneElementOp` (delete/duplicate), Re-Select.
-- [ ] **Phase 2** — Inline-Text-Edit (contenteditable-Round-Trip).
-- [ ] **Phase 3** — Verschieben (Drag → `%`-Position).
+### 1c. Optimierungs-/Überarbeitungs-Runde
+- [ ] Workflow/UX end-to-end (Onboarding, Editor-Fluss, MCP-Erststart-Modal), Architektur-Schulden, Renderer/State
+      vereinfachen, Konsistenz Vorschau ↔ Präsentation ↔ Export. Bewusst Refactor + Politur statt neuer Features.
+
+### 1d. Layout-Validierung (harte 1280×720-Garantie) — optional
+- [ ] §21 + MCP-`instructions` steuern AI-Decks Richtung „passt", aber der MCP-Server misst **kein** Layout. Vorschlag:
+      **Headless-Browser-Validierung** (Chrome/`puppeteer-core`, Element-Grenzen vs. 1280×720 — Methode in dieser
+      Session erprobt) als Dev-/CI-Check ODER Tool, das überlaufende Folien meldet/zurückweist. Siehe Spec §21
+      „KI-Anbindung".
+
+---
+
+## 0. ✅ Direktmanipulation (§20) + feste 16:9-Bühne (§21) — UMGESETZT & GUI-BESTÄTIGT
+
+> Referenz/Historie. Plan: [direct-manipulation-plan.md](direct-manipulation-plan.md); Details: Spec §20/§21.
+
+- [x] **§20 Direktmanipulation in der Vorschau** — Klick → Quelle, Auswählen (▲/Esc), Inline-Text (Doppelklick/✎),
+      Verschieben (Drag → abs. %, „Folie einfrieren" beim 1. Move), Duplizieren/Löschen, Undo (Cmd/Z). Kind-Index-Pfad
+      ab `.slideo-content`, Ops via `DOMParser` auf rohem `zone.html` ([dom-edit.ts](../src/lib/dom-edit.ts)),
+      Pointer-Events im `editScript` ([renderer.ts](../src/lib/renderer.ts)). Nur HTML-Zonen; Flussmodell unangetastet.
+- [x] **§21 feste 16:9-Bühne + Scale-to-fit** — Folien logisch 1280×720 (clip), `.slideo-frame` + `transform:scale`
+      (Vorschau fit-width, Präsentation fit-both). Behebt Out-of-bounds beim Resize; vereinheitlicht Vorschau/
+      Präsentation/Export/Print. MCP-`instructions`/`slideo_guide` lehren das 1280×720-Format + Safe-Area.
+- 11 adversariale Multi-Agent-Reviews über alle Iterationen; alle bestätigten Findings gefixt. Headless grün
+      (cargo 27, typecheck, vite build, tsx-Unit für `dom-edit`, Chrome-Messung der Folien-Fits).
 
 ---
 

@@ -599,6 +599,11 @@ pub fn handle(
 pub fn server_instructions() -> &'static str {
     "Slideo baut Präsentationen aus 'Zones' (Slides). Wichtigste Regeln, damit die \
 Präsentation für den Menschen editierbar bleibt:\n\n\
+0. FORMAT (zwingend): Jede Folie ist eine FESTE Bühne von genau 1280×720 px (16:9). Sie wächst \
+NICHT mit dem Inhalt — was über 1280×720 hinausragt, wird ABGESCHNITTEN (kein Scrollen, keine \
+zweite Seite). Gestalte JEDE Folie so, dass alles vollständig hineinpasst: lieber Inhalt auf \
+mehrere Folien aufteilen als eine Folie überfüllen (eine Kernaussage pro Folie). Bei HTML-Folien \
+strikt im 1280×720-Koordinatensystem denken — siehe Punkt 8.\n\
 1. BEVORZUGE Markdown-Zonen (content_type 'markdown') für Text-, Titel-, Bullet- und \
 Bild-Folien. Markdown bleibt im WYSIWYG-Editor bearbeitbar.\n\
 2. Gestalte das Look & Feel über DESIGN-TOKENS (set_tokens_bulk: color-primary, color-bg, \
@@ -627,10 +632,15 @@ abdecken: eigene Charts (SVG/JS), CSS/JS-Animationen (@keyframes), interaktive S
 eingebettete Player, Demos — ODER Video/Audio: <video controls src=\"assets/x.mp4\"> bzw. \
 <audio controls src=\"assets/x.mp3\"> (Asset zuvor mit list_assets finden; Video/Audio nur in \
 HTML-Zonen).\n\
-8. WENN du HTML nutzt: style AUSSCHLIESSLICH über die CSS-Variablen der Design-Tokens \
-(var(--color-primary), var(--color-bg), var(--color-text), var(--color-accent), \
-var(--font-heading), var(--font-body), var(--border-radius) …). KEINE hartkodierten Farben/Fonts. \
-Halte HTML-Folien fokussiert und klein.\n\
+8. WENN du HTML nutzt: (a) GRÖSSE — die Folie ist 1280×720 px. Positioniere und dimensioniere \
+ALLES so, dass es hineinpasst; halte lesbaren Inhalt (Text, Zahlen, wichtige Elemente) in einer \
+Safe-Area von ca. x 64–1216 / y 64–656 (720 px sind KURZ — achte besonders auf die Höhe und auf \
+Schriftgrößen: eine zu große Headline läuft seitlich aus dem 1280-px-Rahmen). Rein dekorative \
+Formen (Blobs/Kreise/Streifen ohne Text) dürfen bewusst über den Rand hinausragen (bleed), aber NIEMALS Text \
+oder Inhalt außerhalb der Folie platzieren — er würde abgeschnitten. (b) STYLE ausschließlich über \
+die CSS-Variablen der Design-Tokens (var(--color-primary), var(--color-bg), var(--color-text), \
+var(--color-accent), var(--font-heading), var(--font-body), var(--border-radius) …). KEINE \
+hartkodierten Farben/Fonts. Halte HTML-Folien fokussiert und klein.\n\
 9. Optional: set_zone_notes(id, notes) für Sprechernotizen (nur in der Speaker-View sichtbar); \
 set_transition(kind, duration_ms) für den deck-weiten Folienübergang (none|fade|slide|zoom|auto — \
 auto morpht Elemente mit gleichem data-id zwischen Folien, data-id via HTML-Zone oder insert_component(data_id)); \
@@ -685,7 +695,13 @@ gleicher data-id-Elemente); \
 set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
 Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden).\n\n";
 
-    let principles = "WICHTIGE PRINZIPIEN (Editierbarkeit):\n\
+    let principles = "FORMAT (zwingend): Jede Folie ist eine FESTE 1280×720-px-Bühne (16:9) — sie \
+wächst NICHT mit dem Inhalt, alles Überstehende wird ABGESCHNITTEN. Plane jede Folie so, dass alles \
+vollständig hineinpasst (eine Kernaussage pro Folie; lieber mehr Folien als eine überfüllte). Bei \
+HTML-Folien strikt im 1280×720-Raster denken: lesbaren Inhalt in der Safe-Area x 64–1216 / y 64–656 \
+halten (720 px sind kurz!), Schriftgrößen prüfen (zu große Headlines laufen aus dem Rahmen); nur \
+rein dekorative Formen dürfen über den Rand hinausragen (bleed), niemals Text/Inhalt.\n\n\
+WICHTIGE PRINZIPIEN (Editierbarkeit):\n\
 - BEVORZUGE Markdown + Tokens + Layouts + fertige Komponenten. Markdown-Folien bleiben im \
 WYSIWYG-Editor bearbeitbar, Komponenten bleiben themebar.\n\
 - Eigenes content_type 'html' NUR für Interaktives/Animiertes, das die Komponenten nicht abdecken \

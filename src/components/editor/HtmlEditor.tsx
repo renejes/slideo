@@ -1,8 +1,16 @@
 import { useEffect, useRef } from 'react'
-import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import {
+  EditorView,
+  keymap,
+  lineNumbers,
+  highlightActiveLine,
+  Decoration,
+  type DecorationSet,
+} from '@codemirror/view'
+import { EditorState, StateField, StateEffect } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { html } from '@codemirror/lang-html'
+import { useUiStore } from '@/store/ui'
 
 // Dezentes Light-Theme, passend zum App-Chrome (Penwright-nah).
 const lightTheme = EditorView.theme(
@@ -16,11 +24,37 @@ const lightTheme = EditorView.theme(
       backgroundColor: '#dbe5fd',
     },
     '.cm-cursor': { borderLeftColor: '#2f63e6' },
+    // „Klick → Quelle"-Markierung (Spec §20): sichtbar AUCH ohne Editor-Fokus
+    // (die native Selektion zeigt CodeMirror nur fokussiert) → eigene Dekoration.
+    '.cm-reveal-highlight': { backgroundColor: 'rgba(79,125,249,0.22)', borderRadius: '2px' },
   },
   { dark: false },
 )
 
+// Persistente Highlight-Dekoration für die zuletzt per „Klick → Quelle" gezeigte
+// Quell-Range (fokus-unabhängig sichtbar, anders als die native Selektion).
+const setRevealMark = StateEffect.define<{ from: number; to: number } | null>()
+const revealMarkDeco = Decoration.mark({ class: 'cm-reveal-highlight' })
+const revealField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes)
+    for (const e of tr.effects) {
+      if (e.is(setRevealMark)) {
+        deco =
+          e.value && e.value.to > e.value.from
+            ? Decoration.set([revealMarkDeco.range(e.value.from, e.value.to)])
+            : Decoration.none
+      }
+    }
+    return deco
+  },
+  provide: (f) => EditorView.decorations.from(f),
+})
+
 interface HtmlEditorProps {
+  /** Zone-ID dieser HTML-Zone (für „Klick → Quelle", Spec §20). */
+  zoneId: string
   /** Initialer HTML-Inhalt (wird nur beim Mount gesetzt). */
   initialHtml: string
   onChange: (html: string) => void
@@ -29,7 +63,9 @@ interface HtmlEditorProps {
 
 // CodeMirror-6-Editor für HTML-Zonen (Spec §14). HTML-Sprachsupport bringt
 // eingebettetes CSS- und JS-Highlighting mit.
-export function HtmlEditor({ initialHtml, onChange, onFocus }: HtmlEditorProps) {
+export function HtmlEditor({ zoneId, initialHtml, onChange, onFocus }: HtmlEditorProps) {
+  // Nur den Reveal DIESER Zone abonnieren → kein Re-Render bei Auswahl anderer Zonen.
+  const reveal = useUiStore((s) => (s.htmlReveal?.zoneId === zoneId ? s.htmlReveal : null))
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   const onChangeRef = useRef(onChange)
@@ -50,6 +86,7 @@ export function HtmlEditor({ initialHtml, onChange, onFocus }: HtmlEditorProps) 
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           html(),
+          revealField,
           lightTheme,
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
@@ -83,6 +120,25 @@ export function HtmlEditor({ initialHtml, onChange, onFocus }: HtmlEditorProps) 
       view.dispatch({ changes: { from: 0, to: current.length, insert: initialHtml } })
     }
   }, [initialHtml])
+
+  // „Klick → Quelle" (Spec §20): bei Reveal für diese Zone die Quell-Range
+  // sichtbar markieren (Dekoration, fokus-unabhängig) + Selektion setzen +
+  // dorthin scrollen. `nonce` triggert auch bei gleicher Range erneut.
+  // `view.focus()` nur, wenn `focusEditor` gesetzt ist — im Direktbearbeiten-Modus
+  // bleibt der Fokus im Vorschau-Iframe (sonst sterben dessen Tastatur-Ops).
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !reveal) return
+    const len = view.state.doc.length
+    const from = Math.max(0, Math.min(reveal.from, len))
+    const to = Math.max(from, Math.min(reveal.to, len))
+    view.dispatch({
+      selection: { anchor: from, head: to },
+      scrollIntoView: true,
+      effects: setRevealMark.of({ from, to }),
+    })
+    if (reveal.focusEditor) view.focus()
+  }, [reveal])
 
   return <div ref={hostRef} className="overflow-hidden rounded-lg" />
 }

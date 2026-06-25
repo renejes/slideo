@@ -8,10 +8,14 @@
 > Charts, A11y, Builds **+ Auto-Animate**, Vorlagen/Marke, Suchen&Ersetzen **+ Outline-Modus + Versionshistorie**,
 > Presenter-Tools **inkl. echtem Zweitfenster**, Medien (Drag&Drop/Crop/Icon), PPTX (nativ), **Komponenten-Palette**.
 > **MCP-Parität app-weit geprüft → 35 Tools.** **§19.8 Aufnahme/Narration + Video-Export bewusst weggelassen**
-> (out of scope, siehe §19.8/Spec). **Automatisiert grün** (cargo test 27, typecheck, vite build, MCP-E2E,
-> Multi-Agent-Reviews je Feature). **Noch NICHT in der echten App durchgeklickt** → **nächste Session:
-> vollständiger GUI-Test (next-steps.md A1–A7), danach Polish auswählen** (next-steps.md Abschnitt B);
-> Distribution/Notarization (C) später.
+> (out of scope, siehe §19.8/Spec). **Neu: §20 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt**
+> (Klick → Quelle, Auswählen/Löschen/Duplizieren, Inline-Text-Edit, Verschieben) **+ §21 feste 16:9-Folien-Bühne +
+> Scale-to-fit** (ersetzt responsive 100vh-Zonen; behebt Out-of-bounds beim Fenster-Resize, vereinheitlicht
+> Vorschau/Präsentation/Export/Print) — **beide im GUI bestätigt**. MCP-`instructions` lehren das 1280×720-Format.
+> **Automatisiert grün** (cargo test 27, typecheck, vite build, MCP-E2E, tsx-Unit für dom-edit,
+> 11 Multi-Agent-Reviews). **Nächster Fokus: Performance- & Security-Audit der ganzen App + Optimierungs-/
+> Überarbeitungs-Runde** (+ optionale Layout-Validierung) — next-steps.md **Abschnitt 1**; parallel offen: voller
+> GUI-Test der älteren §18/§19-Features (A1–A7) + Distribution/Notarization (C).
 
 ---
 
@@ -51,6 +55,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - **Interaktive Vorschau** (§18.1 Medium): Block-Umsortieren per Drag **in der Vorschau** + stufenloses **Bild-Resize** an der rechten Kante — beides **Pointer-Events** (WKWebView kann HTML5-DnD nicht zuverlässig); über `slideo:reorder-blocks`/`slideo:resize-image` → Store.
 - **In-Folien-Builds** (§19.1): `reveal: 'steps'` blendet Top-Level-Blöcke im Präsentationsmodus schrittweise ein; **parent-autoritative Navigation** (PresentationMode hält Folie + Schritt, sendet `slideo:show {index, step}`).
 - **Deck-weites Suchen & Ersetzen** (§19.9, Cmd/Ctrl+F) + Editor-`spellcheck`.
+- **Direktmanipulation in der Vorschau** (§20, **Phase 0–3**): Korrektur-Layer über KI-erzeugten **HTML-Zonen** — Element anklicken (→ „Klick → Quelle" markiert die Stelle im HTML-Editor **sichtbar** via Dekoration), auswählen, **Text inline bearbeiten** (Doppelklick/✎), **verschieben** (Drag → absolute %-Position, „aufs Canvas heben"), **duplizieren/löschen** über eine Mini-Toolbar (▲/✎/⧉/🗑) bzw. `Delete`/`Esc`; alles **Pointer-Events** im Iframe, undoable (Cmd/Z). Adressierung über **Kind-Index-Pfad ab `.slideo-content`** (kein Schema-Eingriff); Ops via `DOMParser` auf dem rohen `zone.html` ([dom-edit.ts](../src/lib/dom-edit.ts) `applyElementOp` move/editText/duplicate/delete, Store `applyZoneElementOp`), Toggle `previewEdit` ([ui.ts](../src/store/ui.ts)). `findSourceRange` am selben DOMParser-Parse verankert + Zuverlässigkeits-Guard; Stale-Pfad-Schutz via `expectTag`. Flussmodell/Markdown unberührt.
 
 ### Design
 - Light/minimalistisches App-Chrome (an Penwright orientiert), Material-Symbols-Icons, WCAG-AA-Kontraste, `prefers-reduced-motion`.
@@ -145,6 +150,7 @@ src/
 - Live-MCP-Eventfluss ins WebView; ob `slideoasset://` im sandboxed Iframe lädt; 3-Knopf-Schließen-Dialog; ob Claude Desktop `instructions`/`slideo_guide` einblendet.
 - **Roadmap §18:** Bild-Bubble-Toolbar, Transition-Animationen, HTML-Export, **PDF-Druck** (öffnet jetzt im Standardbrowser via `open_print_view`), Notizen, Theme-Picker, Komponenten via MCP.
 - **Roadmap §19:** interaktive Vorschau (Block-Drag + Bild-Resize via Pointer-Events), **Builds** (schrittweises Einblenden + die umgebaute parent-autoritative Navigation — auch normale Navigation gegentesten!), Charts via MCP, Alt-Text/Kontrast, **Custom-Fonts** (laden/Export), **Logo**, **Templates**, **Suchen & Ersetzen**, **Presenter-Tools** (§19.3: Übersicht/Sprung-Grid `g`, Laser/Stift `l`/`p`/`c`, Auto-Advance/Loop `a`), **Medien** (§19.8: Drag&Drop-Import, Bild-Crop, Icon-Komponente), **PPTX-Export** (§19.5: native Rekonstruktion). Checkliste in [next-steps.md](next-steps.md) A7.
+- **§20 Direktmanipulation (Phase 0–3):** „Klick → Quelle" (sichtbare Dekoration), Auswählen/Hover, **Inline-Text-Edit** (Doppelklick/✎), **Verschieben** (Drag → abs. %), **Duplizieren/Löschen** in der Vorschau (HTML-Zonen), Mini-Toolbar/`Delete`/`Esc`, Cmd/Z, Re-Select nach Re-Render, Stale-Pfad-Schutz. Headless grün (tsx-Unit für `dom-edit`, Script-Parse via `node --check`, typecheck/build), aber **GUI noch nicht durchgeklickt** — Checkliste in [next-steps.md](next-steps.md) Abschnitt 0.
 
 ## 7. Wichtige Konventionen & Stolpersteine
 

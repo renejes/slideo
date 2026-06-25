@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Zone } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
+import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { ZoneToolbar } from './ZoneToolbar'
 import { TiptapEditor } from './TiptapEditor'
@@ -28,6 +29,16 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
 
   const isHtml = zone.content_type === 'html'
   const isActive = activeZoneId === zone.id
+
+  // „Klick → Quelle" (Spec §20): bei Reveal für diese Zone die Card in den
+  // Sichtbereich scrollen (HtmlEditor übernimmt Markierung/Fokus). Nur den
+  // Reveal-Nonce DIESER Zone abonnieren → kein Re-Render bei anderen Zonen.
+  const revealNonce = useUiStore((s) => (s.htmlReveal?.zoneId === zone.id ? s.htmlReveal.nonce : null))
+  useEffect(() => {
+    if (revealNonce !== null) {
+      document.getElementById(`card-${zone.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [revealNonce, zone.id])
 
   // Drag&Drop-Medienimport (Spec §19.8): Bild/Video/Audio direkt auf die Folie
   // ziehen. Nutzt HTML5-File-DnD (in der Desktop-App via dragDropEnabled:false
@@ -143,6 +154,7 @@ export function ZoneCard({ zone, index }: ZoneCardProps) {
       <div className="px-4 py-3.5">
         {isHtml ? (
           <HtmlEditor
+            zoneId={zone.id}
             initialHtml={zone.html ?? ''}
             onChange={(value) => updateZoneHtml(zone.id, value)}
             onFocus={() => setActiveZone(zone.id)}

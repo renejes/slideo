@@ -1022,3 +1022,139 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 
 ### 19.10 Empfohlene Reihenfolge
 19.2 (Charts, sofort) → 19.7 (A11y, klein) → 19.1 Builds (Flagship) → 19.3 (Presenter-Tools) → 19.4 (Vorlagen/Fonts) → 19.9 (Produktivität) → 19.8 (Medien) → 19.5 (PPTX) → 19.1 Auto-Animate.
+
+## 20. Direktmanipulation in der Vorschau — *Korrektur-Layer über KI-Output*
+
+> **Leitidee:** Die KI baut über MCP oft **HTML-Zonen** (designlastig). Diese per Hand im Code zu korrigieren
+> ist mühsam. Ziel: vorhandene Elemente **direkt in der rechten Vorschau** anfassen — auswählen, im Text
+> bearbeiten, verschieben, duplizieren, löschen. Das ist **kein** From-Scratch-Design-Canvas (kein PowerPoint):
+> man bearbeitet **bestehende** Elemente, **neue entstehen durch Duplizieren + Bearbeiten**. Das **flussbasierte
+> Modell bleibt unangetastet** (Folien, Reihenfolge, Notizen, Übergänge, Builds, Layouts) — Direktmanipulation
+> betrifft nur das **Innenleben einer HTML-Zone**. Bleibt on-thesis (KI baut, Mensch justiert). Plan:
+> [direct-manipulation-plan.md](direct-manipulation-plan.md). Nur **HTML-Zonen** (Markdown bleibt Fluss/Tiptap/Outline).
+
+**Kern-Mechanik — Adressierung ohne ID-Injektion:** Elemente werden über einen **Kind-Index-Pfad** ab
+`.slideo-content` (= oberstes Level von `zone.html`) adressiert. Der Renderer gibt `zone.html` strukturell 1:1 aus,
+daher ist der Pfad eine stabile, bidirektionale Adresse. **Kein Schema-/Quelltext-Eingriff** (kein `data-*`).
+`resolveAssetRefs` ändert nur Attribut-*Werte* (`src`), nicht die *Struktur* → der im Live-DOM berechnete Pfad
+passt auf das geparste rohe Quell-DOM; `assets/x`-Refs überleben das Re-Serialisieren.
+
+- ✅ **Phase 0 — „Klick → Quelle" UMGESETZT:** Klick auf ein Element in der Vorschau → Zone aktiv + passende
+  Stelle (öffnendes Tag) im HTML-Editor (CodeMirror) markiert + dorthin gescrollt. `findSourceRange`
+  ([dom-edit.ts](../src/lib/dom-edit.ts)) ist **am selben DOMParser-Parse verankert** wie die Ops (kein eigenes
+  Tree-Construction-Modell → keine Divergenz bei implizitem `<tbody>`/Auto-Close): Zielelement via Pfad auflösen,
+  Dokument-Index unter gleichnamigen Elementen bestimmen, das gleichrangige öffnende Tag-Literal im Quelltext
+  nehmen. **Zuverlässigkeits-Guard:** stimmt die Zahl der Quell-Literale nicht mit der Zahl gleichnamiger
+  Elemente überein (HTML5 synthetisiert/verwirft Elemente — z.B. leeres `<p>` aus verirrtem `</p>`,
+  Foster-Parenting), gibt es **null** (keine Markierung) statt einer **falschen**. UI-Store `htmlReveal`
+  (`focusEditor:false` im Direktbearbeiten-Modus → Fokus bleibt im Iframe).
+- ✅ **Phase 1 — Auswählen / Löschen / Duplizieren UMGESETZT:** Direktbearbeiten-Toggle in der Vorschau-Kopfzeile
+  (`previewEdit` im UI-Store) schaltet einen Auswahl-Layer **im `editScript()`** ([renderer.ts](../src/lib/renderer.ts))
+  **per Pointer-Events** zu (WKWebView-Regel; Overlays im Iframe gezeichnet, Kommunikation nur via `postMessage`):
+  Hover-Umrandung, Klick-Auswahl (Auswahl-Box + Mini-Toolbar **▲ Ebene hoch / ⧉ Duplizieren / 🗑 Löschen**),
+  `Esc` = Ebene hoch/deselektieren, `Delete` = löschen (Fokus-/Viewport-Guard; **Backspace bewusst nicht**, weil
+  reflexhaft „zurück"). Auswahl-Granularität: **kleinstes Element + ▲/Esc hoch**. HTML-Zonen tragen die
+  Markierungsklasse `slideo-zone-html`. Ops über Store-Action `applyZoneElementOp` → `applyElementOp`
+  (DOMParser auf dem rohen `zone.html`, `recordHistory=true` → **Cmd/Z**). **Re-Select-Handshake:** nach dem
+  220-ms-Re-Render schickt PreviewPane die (ggf. angepasste) Adresse via `slideo:reselect` zurück (delete → Eltern,
+  duplicate → Klon). **Stale-Pfad-Schutz:** Ops führen den erwarteten `tag` mit; passt das per Pfad aufgelöste
+  Element nicht (paralleler MCP-Edit hat die Zone umgebaut), ist die Op ein **No-op** (kein falsches Element).
+- ✅ **Phase 2 — Inline-Text-Edit UMGESETZT:** **Doppelklick** auf ein Element (oder Toolbar-**✎**) → `contenteditable`,
+  Text wird selektiert; **Enter** committet (Shift+Enter = Umbruch), **Blur** committet, **Esc** verwirft (stellt das
+  ursprüngliche `innerHTML` wieder her). Editierbar sind nur Elemente mit **reinem Inline-Inhalt** (`isInlineEditable`:
+  alle direkten Kinder in einer Inline-Whitelist span/a/strong/em/`<br>`/…) — **Block-Container** (Karten, Komponenten,
+  `data-id`-Wrapper) sind gesperrt, damit der Commit ihre Struktur nicht plattmacht (doppelt geguarded, auch in
+  `applyElementOp`). Commit schickt das bearbeitete **Inline-HTML** (`slideo:edit-text` mit `html`) → `applyElementOp('editText')`
+  setzt `el.innerHTML = sanitizeInline(html)` (behält erlaubtes Inline-Markup + `class/style/data-id/href`, verwirft
+  `<script>`/`<style>`-Tags inkl. Inhalt, entfernt `on*`/`javascript:`/`url()`, „unwrapped" unbekannte Tags). Während
+  des Edits bailen Hover/Klick/keydown des Auswahl-Layers + `reposition` (Overlays bleiben aus).
+- ✅ **Phase 3 — Verschieben + „Folie einfrieren" UMGESETZT:** Drag auf dem **ausgewählten** Element (Schwelle 4 px) →
+  live `transform` (das Element bleibt während des Drags im Fluss → andere Elemente springen nicht). Position als **%**
+  relativ zur **Padding-Box des Containing Blocks** (nächster positionierter Vorfahre bzw. der Top-Level-Block via
+  `getComputedStyle`, Fallback `.slideo-zone`; **nicht** `offsetParent`, das auch statische `<td>` liefert).
+  **Freeze-on-first-move (Fluss-Kontext):** Ist das gezogene Element noch im Fluss, wird sein **Fluss-Eltern** (P)
+  eingefroren: alle Fluss-Geschwister von P werden absolut an ihre **Ist-Position+Größe** gepinnt (`margin:0`+
+  `box-sizing`+`width%`) und — wenn P verschachtelt ist — P selbst auf seine **Ist-Höhe** fixiert (nur `height`,
+  **keine** Positionsänderung → es entsteht **kein neuer Containing-Block**, damit bereits-absolute Geschwister nicht
+  verspringen), damit P nicht kollabiert und **%-positionierte** Geschwister (z.B. `top:171%` relativ zu P) stehen
+  bleiben; der gezogene Block bekommt die Drop-Position (`slideo:freeze-zone` → `freezeZoneLayout` → `applyFreezeLayout`,
+  je Item ein `expectTag`-Stale-Pfad-Schutz). Danach (Kontext „eingefroren") bewegt `slideo:move-element` →
+  `applyElementOp('move')` nur noch das einzelne Element. Der **Bezugsrahmen** ist stets der *bestehende, tatsächliche*
+  Containing-Block (`moveCb`/`createsCB`: nächster Vorfahre mit `position`/`transform`/`filter`/`perspective`, sonst
+  `.slideo-content`-falls-positioniert, sonst Zone — **nicht** `offsetParent`, das auch statische `<td>` liefert).
+  `margin:0` macht die Platzierung **pixelgenau**. Cursor `move` als Affordance; `suppressClick` nur bei echtem
+  `pointerup`; `position:fixed`-Elemente sind viewport-gepinnt → kein Canvas-Move. **v1-Grenzen:** P-Höhe in px gepinnt
+  → optimal für Folien in ~100vh und ein Verschachtelungs-Level (tiefere auto-height-Ketten / sehr lange Scroll-Zonen
+  können driften); positioniert man **`.slideo-content` selbst** via Custom-CSS (`position`/`transform`), kann es beim
+  Top-Level-Freeze kollabieren (nicht über `zone.html` pinnbar) → dann verspringen Top-Level-Elemente; Custom-CSS sollte
+  `.slideo-content` nicht positionieren, wenn Direktmanipulation genutzt wird.
+- ✅ **Undo (Cmd/Z) auch bei Fokus im Iframe:** Da Direktmanipulationen den Fokus im sandboxed Vorschau-Iframe lassen,
+  greift der Fenster-`Cmd/Z` nicht. Das Iframe leitet `Cmd/Ctrl+Z` (außerhalb von Eingabefeldern) per
+  `slideo:undo` an den Parent → Store-`undo()` (jede Op ist `recordHistory=true`).
+
+**Offene Entscheidungen (geklärt):** Auswahl = kleinstes Element + ▲/Esc hoch · Verschieben hebt Fließ-Elemente
+aufs Canvas (gekennzeichnet) · Re-Serialisierung durch die Ops formatiert `zone.html` einmalig neu
+(Attribut-Reihenfolge/Whitespace) — **akzeptiert & dokumentiert** · Inline-Text-Edit behält erlaubtes Inline-Markup
+(sanitisiert), mehrzeilig per `<br>` (contenteditable) · Position in `%` der Containing-Block-Padding-Box.
+
+**v1-Grenzen / bewusst OUT:** kein From-Scratch-Zeichnen (Duplizieren+Bearbeiten deckt es ab); kein generisches
+Resize (Bilder sind schon resizebar), kein Multi-Select/Gruppieren/Ausrichten/Snapping/Rotation/z-Index-UI; keine
+Direktmanipulation in Markdown-Zonen. **Phase-0-Highlight** degradiert bei vom HTML5-Parser synthetisierten/
+verworfenen gleichnamigen Elementen (malformed `<p>`-mit-Blockinhalt, verirrte End-Tags) zu **keiner** Markierung
+(nie zu einer falschen); die destruktiven Ops sind davon **nicht** betroffen (sie laufen über DOMParser = Live-DOM).
+Theoretische Fragment-Parsing-Divergenz (`.slideo-content`-innerHTML vs DOMParser-`body`) bei rohen Tabellen-/
+Listenfragmenten ist v1-akzeptabel; Robustheits-Upgrade (pro Element `data-slideo-id`) bleibt für später.
+
+**Additive Felder:** keine im `.slideo`-Schema — nur der **HTML-Inhalt** einer Zone ändert sich; `version`
+bleibt "1.0". Neuer UI-State: `previewEdit`, `htmlReveal` (nicht persistiert).
+
+## 21. Feste Folien-Bühne (16:9) + Scale-to-fit
+
+> **Problem (aus §20-Praxis):** Folien waren responsiv (`.slideo-zone { width:100%; min-height:100vh }`, Inhalt
+> floss, Seitenverhältnis = Fenster). Direktmanipulations-Positionen sind **%** (skalieren mit dem Container), die
+> Element-**Größen** im KI-HTML aber `rem`/px (fix). Beim Fenster-Resize divergierten beide → Elemente liefen
+> **out of bounds**. **Standardlösung (PowerPoint/Keynote/Google Slides/reveal.js):** feste logische Foliengröße +
+> **gleichmäßiges Skalieren** der ganzen Folie ins Fenster. Vom Menschen so gewählt.
+
+**Modell:** Jede Folie ist logisch **1280×720 (16:9)**. Der Renderer wickelt jede Zone in ein `.slideo-frame`
+(Layout-/Navigations-Einheit); die `.slideo-zone` ist die feste 1280×720-Bühne und wird per
+`transform: scale(var(--slideo-scale))` (transform-origin center, im Frame über `display:grid; place-items:center`
+zentriert) eingepasst. Überlauf wird **abgeschnitten** (`overflow:hidden`, PPT/Keynote-Standard — Inhalt wird so
+gestaltet, dass er passt). Der Skalierungsfaktor wird **im Iframe per JS** gesetzt (`navScript` `sldFit()` →
+`--slideo-scale` + `window.__sldScale`, neu berechnet bei `resize`):
+- **Vorschau** (`present:false`, editierbar): `SCALE_FIT='width'` → `s = clientWidth/1280`; Frames `width:100%;
+  aspect-ratio:16/9`, vertikal gestapelt + Scroll.
+- **Präsentation** (`present:true`: In-App-Audience, Standalone-Export, Projector): `SCALE_FIT='both'` →
+  `s = min(innerW/1280, innerH/720)`, Letterbox; `deck` (Transition) = Frame `is-active`/`is-prev` absolut `inset:0`,
+  sonst Scroll-Snap (`.slideo-frame` 100vh).
+- **Print/PDF** (`renderPrintPage`): Frame = 1280×720-Seite (`page-break`), Zone `transform:none` (1:1, deckt sich
+  jetzt mit dem Editor-Maßstab).
+- **Thumbnail/Speaker-Vorschau** (`renderSingleZonePage`): **fit-both** (`s = min(...)`, Frame `position:fixed;
+  inset:0`) → eine Folie zentriert/eingepasst in jede Box. SpeakerView rendert „aktuell"+„nächste" je als eigene
+  `renderSingleZonePage` (statt Deck + `goto`).
+
+**Wechselwirkung mit Skalierung (kritisch):** `getBoundingClientRect` liefert in einer skalierten Zone
+**Bildschirm-px** (skaliert), `clientWidth/Height/Left/Top` dagegen **unskalierte Layout-px** (CSS-Transform berührt
+`client*` nicht). Alle px/Transform-Stellen in der Zone werden daher durch `window.__sldScale` (`s`) korrigiert:
+`pctFromRect` (§20-Positionen) teilt die `getBoundingClientRect`-Anteile **und** das Maus-Delta durch `s`, die
+`client*` bleiben außerhalb `/s` — **nicht** von selbst scale-invariant (Zähler skaliert ÷ Nenner `clientWidth`
+unskaliert wäre um `s` falsch); Verschiebe-Live-`translate(dx/s,dy/s)`; Freeze-`heightPx = rect.height/s`;
+**Auto-Animate-FLIP** `translate(dx/SC,dy/SC)` (die Morph-`scale(sx,sy)` bleibt — **echtes** `rect/rect`-Verhältnis).
+*Nur* das Bild-Resize (`rect/rect`) ist von Haus aus scale-invariant. Die §20-Auswahl-Overlays sind `position:fixed`
+(Bildschirm-Koords) → unberührt korrekt.
+
+**Effekt:** Beim Fenster-Resize skaliert die ganze Folie (Positionen **und** Größen) gemeinsam → **WYSIWYG bei jeder
+Fenstergröße, nichts läuft mehr raus**; Vorschau/Präsentation/Export/Print sind im selben festen Koordinatensystem
+vereinheitlicht.
+
+**Additive Felder:** keine im `.slideo`-Schema; `version` bleibt "1.0" (reine Render-/CSS-Änderung). **v1-Grenzen:**
+Überlauf wird geclippt (kein Auto-Verkleinern); kurzer Skalierungs-„Flash" bis das Iframe-Skript den Faktor setzt
+(Skript läuft am Body-Ende, i.d.R. vor dem ersten Paint).
+
+**KI-Anbindung (wichtig):** Damit über MCP generierte Decks von vornherein passen (keine zu großen Folien /
+Out-of-bounds-Elemente), lehren die MCP-`instructions` (Regel 0 „FORMAT" + HTML-Regel 8) **und** der `slideo_guide`
+das feste **1280×720**-Format: alles in die **Safe-Area** (x 64–1216 / y 64–656), Schriftgrößen prüfen, lieber mehr
+Folien als eine überfüllte; nur rein dekorative Formen dürfen über den Rand hinausragen, niemals Text/Inhalt
+([tools.rs](../src-tauri/src/tools.rs) `server_instructions`/`build_guide`). Da der MCP-Server kein Layout misst,
+ist das eine **Anweisung** (sehr wirksam), keine harte Garantie; eine optionale Layout-Validierung (Headless-Browser,
+Element-Grenzen vs. 1280×720) bleibt ein möglicher Folgeschritt.

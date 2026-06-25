@@ -1,10 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
-import type { Presentation } from '@/types'
+import { useMemo } from 'react'
+import type { Presentation, Zone, AssetMap } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
-import { renderFullPage } from '@/lib/renderer'
-import { isTauri, assetUrlBase } from '@/lib/tauri'
-
-const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
+import { renderSingleZonePage } from '@/lib/renderer'
 
 interface SpeakerViewProps {
   presentation: Presentation
@@ -21,10 +18,6 @@ interface SpeakerViewProps {
 // Timer, Folienzähler und Notizen — alles im selben Fenster.
 export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal = 1 }: SpeakerViewProps) {
   const assets = usePresentationStore((s) => s.assets)
-  const html = useMemo(
-    () => renderFullPage(presentation, { present: false, assets, assetUrlBase: ASSET_BASE }),
-    [presentation, assets],
-  )
   const zones = useMemo(
     () => [...presentation.zones].sort((a, b) => a.order - b.order),
     [presentation],
@@ -40,7 +33,7 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
       <div className="flex min-w-0 flex-[1.6] flex-col gap-2">
         <Label>Aktuell · {current?.label ?? '—'}</Label>
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-black">
-          <MiniSlide html={html} index={index} />
+          {current && <MiniSlide presentation={presentation} zone={current} assets={assets} />}
         </div>
       </div>
 
@@ -58,7 +51,7 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
           <Label>{next ? `Nächste · ${next.label}` : 'Letzte Folie'}</Label>
           <div className="aspect-video overflow-hidden rounded-lg border border-white/10 bg-black">
             {next ? (
-              <MiniSlide html={html} index={index + 1} />
+              <MiniSlide presentation={presentation} zone={next} assets={assets} />
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-white/30">
                 Ende der Präsentation
@@ -86,20 +79,23 @@ function Label({ children }: { children: React.ReactNode }) {
   )
 }
 
-// Eine Folie aus dem gerenderten Deck, auf einen Index gescrollt.
-function MiniSlide({ html, index }: { html: string; index: number }) {
-  const ref = useRef<HTMLIFrameElement>(null)
-
-  const goto = () =>
-    ref.current?.contentWindow?.postMessage({ type: 'slideo:goto', index, smooth: false }, '*')
-
-  useEffect(goto, [index])
-
+// Eine einzelne Folie, ins Fenster eingepasst (feste 16:9-Bühne, Spec §21).
+function MiniSlide({
+  presentation,
+  zone,
+  assets,
+}: {
+  presentation: Presentation
+  zone: Zone
+  assets: AssetMap
+}) {
+  const html = useMemo(
+    () => renderSingleZonePage(presentation, zone, assets),
+    [presentation, zone, assets],
+  )
   return (
     <iframe
-      ref={ref}
       srcDoc={html}
-      onLoad={goto}
       title="Folienvorschau"
       sandbox="allow-scripts"
       className="h-full w-full border-0"
