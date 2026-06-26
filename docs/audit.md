@@ -28,11 +28,21 @@ auf macOS nicht kompiliert; `proc-macro-error` build-only; `unic-*` transitiv). 
 | S8 IPC-Zeilen-/Byte-Cap | ✅ umgesetzt | ipc.rs |
 | S9 Print-Temp randomisiert | ✅ umgesetzt | commands.rs |
 
+**Performance: Quick Wins P1/P4/P5 umgesetzt** (Commit `e49e6ff`), adversarial review-bestätigt (merge-ready):
+
+| Finding | Status |
+|---|---|
+| P1 Material-Symbols-Font subsetten | ✅ 3,63 MB → 42 KB (`dist/assets` 5,2 → 1,8 MB); Codepoint-Rendering + `npm run icons:subset` — **GUI: Icons sichtprüfen** (Fehlende rendern als Wort) |
+| P4 `resolveAssetRefs` header-only + nicht-referenzierte überspringen | ✅ umgesetzt |
+| P5 `React.memo(ZoneCard)` | ✅ umgesetzt |
+| P11 Undo-`structuredClone` | ⏭️ übersprungen (Safari-15.4-Kompat vs sub-ms) |
+| P2/P6 srcDoc-In-Place-Patch · P3/P7 Bild-Protocol+Cache · P8 Code-Splitting · P10/P12/P13 | ⬜ offen (GUI-abhängig / größer) |
+
 **Offen (Mensch / nächste Phase):**
-- **GUI-Verifikation der CSP (S2/S3)** auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows/WebView2): App lädt,
-  MCP-IPC + Projector-Fenster laufen, Folien-Nav/§20/Auto-Animate funktionieren, gestreamte Videos/Audios laden, **keine**
-  CSP-Verstöße in der DevTools-Konsole.
-- **Performance P1–P13** ist die **nächste Phase** (noch nicht begonnen — der Nutzer wollte erst Security, dann Performance).
+- **GUI-Verifikation der CSP (S2/S3) + Font (P1)** auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows/WebView2):
+  App lädt, MCP-IPC + Projector-Fenster laufen, Folien-Nav/§20/Auto-Animate funktionieren, gestreamte Videos/Audios laden,
+  **alle Icons rendern** (keine als Klartext-Wort), **keine** CSP-Verstöße in der DevTools-Konsole.
+- **Performance-Rest** (P2/P3/P6/P7 + Polish) ist GUI-abhängig (Vorschau-Render, Bild-Streaming) → nächste Runde nach der GUI-Verifikation.
 
 **Akzeptierte Restrisiken (dokumentiert, kein Fix geplant):**
 - **S1 Same-UID:** ein Prozess desselben Nutzers kann `ipc.json` (0600) lesen und damit das Token — er hat ohnehin die

@@ -31,12 +31,15 @@
 - [x] **Ergebnis:** Bedrohungsmodell-Notiz + priorisierte Härtungsliste → **[audit.md](audit.md)**.
 - [ ] **OFFEN (Mensch):** CSP-GUI-Smoke-Test auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows) — DevTools-Konsole auf CSP-Verstöße.
 
-### 1b. Performance-Check (messen → optimieren)
-- [ ] **Bundle:** Material-Symbols-Variable-Font (~3,6 MB) auf genutzte Icons **subsetten**; `index`-Chunk (~1,3 MB)
-      Code-Splitting prüfen.
-- [ ] **Vorschau-Re-Render:** debouncter `srcDoc`-Reload (220 ms) — Double-Buffer/In-Place statt Voll-Reload?
-- [ ] **Skalierung/Reposition** (§20/§21): rAF-Pfade, Messungen pro Frame/Drag.
-- [ ] **Große Decks/Assets:** Data-URI-Inlining vs. Streaming; MCP-Sync-Last bei vielen Folien.
+### 1b. Performance-Check (gemessen → optimiert) — Quick Wins umgesetzt (Audit [audit.md](audit.md), Commit `e49e6ff`)
+- [x] **Bundle (P1):** Material-Symbols-Font auf die ~70 genutzten Icons **subgesetzt** → 3,63 MB → 42 KB (`dist/assets`
+      5,2 → 1,8 MB), Codepoint-Rendering + `npm run icons:subset`. — **GUI: Icons sichtprüfen.**
+- [x] **Asset-Refs (P4):** `resolveAssetRefs` header-only MIME + nicht-referenzierte Assets überspringen.
+- [x] **React-Re-Render (P5):** `React.memo(ZoneCard)` — Tippen re-rendert nicht mehr alle Folien.
+- [ ] **`index`-Chunk (P8):** Code-Splitting (Tiptap/CodeMirror/dnd-kit lazy) — offen.
+- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — offen (GUI-abhängig).
+- [ ] **Bilder (P3/P7):** statt inline-base64 über `slideoasset://` + Protocol-Handler-Cache — offen (GUI-abhängig).
+- [ ] **Polish (P10/P12/P13):** Sync-Debounce, Asset-Speicher (`Vec<u8>`), ZIP-`Stored` für Assets — offen.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde
 - [ ] Workflow/UX end-to-end (Onboarding, Editor-Fluss, MCP-Erststart-Modal), Architektur-Schulden, Renderer/State
