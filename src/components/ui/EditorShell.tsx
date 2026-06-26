@@ -36,7 +36,11 @@ export function EditorShell() {
   const togglePreview = useLayoutStore((s) => s.togglePreview)
 
   const ref = useRef<HTMLDivElement>(null)
-  const [avail, setAvail] = useState(1200)
+  // Sinnvoller Startwert bis der ResizeObserver feuert (vermeidet einen ersten Frame
+  // mit zu wenig Kapp-Druck auf schmalen Bildschirmen).
+  const [avail, setAvail] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1200,
+  )
   useEffect(() => {
     const el = ref.current
     if (!el) return

@@ -59,9 +59,12 @@ Gilt nur fürs App-Chrome; Slide-Inhalt/Tokens sind davon unabhängig.
   surface `#ffffff`, border `#ececec`, text `#1a1a1a`, ein ruhiger Blau-Akzent
   (`accent #4f7df9`, für Text/Buttons auf Weiß `accent-600 #2f63e6` wegen WCAG AA),
   Custom-HTML-Zonen = gedämpfte Terrakotta (`warn`).
-- **Icons:** Google **Material Symbols** (Outlined), selbst-gehostet via npm `material-symbols`
-  (offline, kein CDN) — Wrapper [src/components/ui/Icon.tsx](src/components/ui/Icon.tsx), Default wght 300.
-  Keine Emoji/Unicode-Glyphen.
+- **Icons:** Google **Material Symbols** (Outlined), selbst-gehostet (offline, kein CDN) — Wrapper
+  [src/components/ui/Icon.tsx](src/components/ui/Icon.tsx), Default wght 300. Keine Emoji/Unicode-Glyphen.
+  **Auf die genutzten Icons subgesetzt** (Audit P1, ~42 KB statt ~3,63 MB; Variations-Achsen erhalten):
+  gerendert per **Codepoint** ([icon-codepoints.ts](src/lib/icon-codepoints.ts) + [material-symbols.css](src/styles/material-symbols.css)),
+  nicht per Ligatur. **Neues Icon → Name in [scripts/icon-names.txt](scripts/icon-names.txt) + `npm run icons:subset`**
+  (sonst zeigt Icon.tsx den Klartext-Namen als sichtbaren Hinweis).
 - **Prinzipien:** Hierarchie über Typo + dünne 1px-Borders statt Schatten; Hover sehr subtil
   (bg ODER text, nicht beides); Tabs als Unterstrich-Indikator; sichtbare Focus-Rings;
   `prefers-reduced-motion` respektiert. Restraint > Dekoration.
@@ -90,7 +93,7 @@ Komponenten-Bibliothek + erweiterter Agenten-Skill (§18.7) + **Komponenten-Pale
 gesamt inkl. `icon`), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-Folien-Builds + Auto-Animate**
 (§19.1: `set_zone_reveal`, parent-autoritative Präsentations-Nav, **Übergang `auto`** = FLIP-Morph gleicher
 `data-id`-Elemente), Vorlagen & Marke
-(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck + **Outline-Modus** + **Versionshistorie** (§19.9),
+(§19.4: **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**), Suchen & Ersetzen + Spellcheck + **Versionshistorie** (§19.9; Outline-Modus später entfernt),
 **Presenter-Tools** (§19.3: **Folien-Übersicht/Sprung-Grid**, **Laser-/Stift-Overlay**, **Auto-Advance/Loop**,
 **echtes Zweitfenster** = randlos bildschirmfüllendes „projector"-Fenster auf gewähltem Monitor), **Medien**
 (§19.8: **Drag&Drop-Import**, **Bild-Crop**, **Icon-Inline-SVG** — Aufnahme/Narration **bewusst weggelassen**, s.u.), **PPTX-Export**
@@ -150,19 +153,19 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   Bei offener Übersicht übernimmt [SlideOverview.tsx](src/components/presentation/SlideOverview.tsx)
   die Tastatur (Capture-Listener); PresentationMode steigt dann früh aus. Annotationen werden über
   einen `key`-Remount (Folienindex + Lösch-Nonce) geleert. Kein Datenmodell-/Rust-Eingriff.
-- **Outline-Modus (§19.9-Rest, umgesetzt):** Ansichtswechsel „Folien ⇄ Gliederung" über `editorView`
-  (`'slides'|'outline'`) im [ui-Store](src/store/ui.ts), Segmented-Control in der [Topbar](src/components/ui/Topbar.tsx);
-  [App.tsx](src/App.tsx) rendert bei `outline` die [OutlineView](src/components/editor/OutlineView.tsx)
-  vollbreit (ohne Sidebar/Vorschau). Bearbeitet **ausschließlich** das bestehende Markdown — **kein
-  Datenmodell-Eingriff**: [outline.ts](src/lib/outline.ts) `parseOutline`/`recombineOutline` zerlegt eine
-  Zone in Titel (= erste ATX-Überschrift) + Rumpf und setzt verlustfrei zusammen (CRLF→LF normalisiert).
-  Jede `OutlineRow` hält **lokalen** Editierzustand und schreibt per `updateZoneMarkdown` (kein History-
-  Snapshot, wie Texteingaben) zurück; ein Re-Sync-Effekt übernimmt externe Änderungen (Undo/MCP) nur bei
-  echtem Unterschied (`recombineOutline(local) !== zone.markdown`) — gegen Cursor-Sprünge (wie TiptapEditor).
-  **Modell:** „Titel = erste Überschrift" — eine Überschrift, die im Rumpf-Feld oben getippt wird, wandert
-  bei Re-Sync/Remount kanonisch ins Titel-Feld (ausgabe-identisch). Strukturelle Aktionen (Reorder/Einfügen/
-  Löschen) rufen vorher `blur()` (`runStructural`), damit der globale Cmd/Z-Undo-Guard nicht im fokussierten
-  Textfeld hängenbleibt (WKWebView fokussiert Buttons nicht). HTML-Folien sind read-only (Öffnen-Link).
+- **Editor-Shell: skalierbare + einklappbare Spalten + Reorder in der Folienliste (UX-Überarbeitung):**
+  Drei frei skalierbare, **einzeln einklappbare** Spalten (Folienliste · Editor · Vorschau) in
+  [EditorShell.tsx](src/components/ui/EditorShell.tsx): hand-gerollte [Splitter](src/components/ui/Splitter.tsx)
+  (Pointer-Events, mit `pointercancel`/blur-Cleanup + `touch-none`), je Spalte ein Einklapp-Button + schmale
+  Wieder-öffnen-Leiste; Breiten + Einklapp-Zustand persistent ([store/layout.ts](src/store/layout.ts),
+  localStorage, beim Rehydrieren re-geclamped). Genau ein offener Bereich ist **elastisch** (Priorität
+  Editor › Vorschau › Folienliste); ein `ResizeObserver` hält dem elastischen Bereich seine Mindestbreite
+  (feste Bereiche weichen zurück) statt Überlauf; **mind. ein Bereich bleibt offen** (Store-Guard). Die
+  **Folienliste** ([ZoneList](src/components/ui/ZoneList.tsx)) hat jetzt **Drag-Reorder** (dnd-kit, dieselbe
+  `reorderZones`-Action wie der Editor; Klick = Auswahl via `distance:6`-Sensor). **Outline-Modus entfernt**
+  (OutlineView/outline.ts/`editorView`/Topbar-Segmented-Control): redundant, seit Reorder/Einfügen/Löschen/Edit
+  im Editor + der Folienliste liegen (Reorder war sein einziger exklusiver Nutzen); behebt nebenbei den
+  „Editor verschwindet in der Gliederung"-Effekt. Reine UI-/Store-Änderung, kein Datenmodell-Eingriff.
 - **Versionshistorie (§19.9-Rest, umgesetzt):** lokale `.slideo`-Snapshots in
   `<config>/slideo/history/<deck-key>/` ([history.rs](src-tauri/src/history.rs)) — je Snapshot eine **volle
   `.slideo`-Kopie** (Reuse von `file::write_presentation`/`read_presentation`) + `index.json` (neueste zuerst).
@@ -286,9 +289,9 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   `tauri:dev`/`tauri build` (macOS **und** Windows) auf CSP-Verstöße prüfen (App lädt, MCP-IPC/Projector, Nav/§20/Auto-Animate,
   Video/Audio-Streaming). Headless grün: **cargo test 33** (+4 neue Tests), typecheck, vite build.
 
-**Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest, Outline-Modus +
+**Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
-app-weit geprüft → 35 Tools). **§19.8 Aufnahme/Narration + Video-Export ist bewusst weggelassen** (out of scope —
+app-weit geprüft → 35 Tools; **Outline-Modus §19.9 wieder entfernt** — redundant, Reorder liegt jetzt in der Folienliste). **§19.8 Aufnahme/Narration + Video-Export ist bewusst weggelassen** (out of scope —
 off-thesis; Medien-Bedarf via Einbettung gedeckt; siehe [[scope-mcp-authoring-thesis]]). **Neu: §20
 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt** (Klick→Quelle, Auswählen/Löschen/Duplizieren,
 Inline-Text, Verschieben; s.o.) **+ §21 feste 16:9-Folien-Bühne + Scale-to-fit** (ersetzt responsive 100vh-Zonen;

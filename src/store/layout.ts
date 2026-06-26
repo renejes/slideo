@@ -63,6 +63,21 @@ export const useLayoutStore = create<LayoutState>()(
             : { previewCollapsed: !s.previewCollapsed },
         ),
     }),
-    { name: 'slideo-layout' },
+    {
+      name: 'slideo-layout',
+      version: 1,
+      // Persistierte Breiten beim Laden einmalig re-clampen (alte/korrupte Stände aus
+      // localStorage können sonst out-of-range sein; nudge clampt nur live). Die
+      // Action-Funktionen kommen aus `current`.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<LayoutState>
+        return {
+          ...current,
+          ...p,
+          sidebarWidth: clamp(p.sidebarWidth ?? current.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX),
+          previewWidth: clamp(p.previewWidth ?? current.previewWidth, PREVIEW_MIN, PREVIEW_MAX),
+        }
+      },
+    },
   ),
 )

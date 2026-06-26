@@ -1017,7 +1017,7 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 ### 19.9 Produktivität — *klein–medium*
 - ✅ **Suchen & Ersetzen UMGESETZT:** deck-weites Modal ([FindReplaceModal.tsx](../src/components/modals/FindReplaceModal.tsx)), Live-Trefferzahl, Store `replaceAllInDeck` (Markdown + HTML aller Zonen). Öffnen per Cmd/Ctrl+F oder Topbar-Lupe.
 - ✅ **Rechtschreibung UMGESETZT:** `spellcheck` am Tiptap-Editor.
-- ✅ **Outline-Modus UMGESETZT:** Ansichtswechsel „Folien ⇄ Gliederung" (Topbar, `editorView` im UI-Store). [OutlineView.tsx](../src/components/editor/OutlineView.tsx) zeigt alle Folien als editierbare Liste: Titel (= erste Überschrift) + Rumpf (= restliches Markdown), zerlegt/zusammengesetzt verlustfrei über [outline.ts](../src/lib/outline.ts) (`parseOutline`/`recombineOutline`). Bearbeitet **ausschließlich** das bestehende Markdown (kein Datenmodell-Eingriff); pro Zeile Reorder (↑/↓), Slide einfügen/löschen, „im Folien-Editor öffnen". HTML-Folien sind read-only (Hinweis + Öffnen-Link). Lokaler Editierzustand mit Re-Sync-Guard (wie Tiptap) gegen Cursor-Sprünge.
+- ❌ **Outline-Modus — wieder ENTFERNT** (war zwischenzeitlich umgesetzt): Der „Folien ⇄ Gliederung"-Modus wurde nach GUI-Feedback entfernt, weil er redundant war — Reorder/Einfügen/Löschen/Edit liegen im Editor, und die **Folienliste** (Sidebar, [ZoneList.tsx](../src/components/ui/ZoneList.tsx)) hat jetzt **Drag-Reorder** (dnd-kit). Reorder war der einzige exklusive Nutzen der Gliederung. Mit der Entfernung verschwand auch der „Editor verschwindet in der Gliederung"-Effekt. Siehe Editor-Shell-Überarbeitung (skalierbare/einklappbare Spalten) in CLAUDE.md.
 - ✅ **Versionshistorie UMGESETZT:** lokale Snapshots der `.slideo` unter `<config>/slideo/history/<deck-key>/` ([history.rs](../src-tauri/src/history.rs): je Snapshot eine volle `.slideo`-Kopie + `index.json`). **Auto-Snapshot beim Speichern** (dedupliziert: kein Snapshot, wenn unverändert) **+ manuelle Schnappschüsse** mit Beschriftung; Kappung auf 50 (ältere **Auto**-Snapshots zuerst, manuelle bleiben). [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx): Liste, Wiederherstellen (undoable, Dateipfad bleibt → zum Übernehmen speichern), Löschen. Tauri-Commands `list_snapshots`/`create_snapshot`/`restore_snapshot`/`delete_snapshot` (Snapshot-ID path-traversal-sicher validiert).
 
 ### 19.10 Empfohlene Reihenfolge
@@ -1031,7 +1031,7 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 > man bearbeitet **bestehende** Elemente, **neue entstehen durch Duplizieren + Bearbeiten**. Das **flussbasierte
 > Modell bleibt unangetastet** (Folien, Reihenfolge, Notizen, Übergänge, Builds, Layouts) — Direktmanipulation
 > betrifft nur das **Innenleben einer HTML-Zone**. Bleibt on-thesis (KI baut, Mensch justiert). Plan:
-> [direct-manipulation-plan.md](direct-manipulation-plan.md). Nur **HTML-Zonen** (Markdown bleibt Fluss/Tiptap/Outline).
+> [direct-manipulation-plan.md](direct-manipulation-plan.md). Nur **HTML-Zonen** (Markdown bleibt Fluss/Tiptap).
 
 **Kern-Mechanik — Adressierung ohne ID-Injektion:** Elemente werden über einen **Kind-Index-Pfad** ab
 `.slideo-content` (= oberstes Level von `zone.html`) adressiert. Der Renderer gibt `zone.html` strukturell 1:1 aus,

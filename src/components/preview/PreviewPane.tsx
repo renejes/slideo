@@ -11,7 +11,7 @@ const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
 // Live-Vorschau der gesamten Präsentation neben dem Editor.
 // Re-rendert debounced in ein isoliertes Iframe (sandbox) und scrollt zur
 // aktiven Zone.
-export function PreviewPane({ onCollapse }: { onCollapse?: () => void } = {}) {
+export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   const presentation = usePresentationStore((s) => s.presentation)
   const assets = usePresentationStore((s) => s.assets)
   const activeZoneId = usePresentationStore((s) => s.activeZoneId)

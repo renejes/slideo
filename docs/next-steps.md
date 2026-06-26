@@ -42,8 +42,11 @@
 - [ ] **Polish (P10/P12/P13):** Sync-Debounce, Asset-Speicher (`Vec<u8>`), ZIP-`Stored` für Assets — offen.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde
-- [ ] Workflow/UX end-to-end (Onboarding, Editor-Fluss, MCP-Erststart-Modal), Architektur-Schulden, Renderer/State
-      vereinfachen, Konsistenz Vorschau ↔ Präsentation ↔ Export. Bewusst Refactor + Politur statt neuer Features.
+- [x] **Editor-Shell überarbeitet** (aus GUI-Feedback): drei frei **skalierbare + einzeln einklappbare** Spalten
+      (Folienliste · Editor · Vorschau, persistente Breiten/Zustände; [EditorShell.tsx](../src/components/ui/EditorShell.tsx)/[Splitter.tsx](../src/components/ui/Splitter.tsx)/[layout.ts](../src/store/layout.ts)),
+      **Drag-Reorder in der Folienliste** ([ZoneList.tsx](../src/components/ui/ZoneList.tsx)), **Outline-Modus entfernt** (redundant). — **GUI-Test offen.**
+- [ ] Weiter: Onboarding/MCP-Erststart-Modal, Architektur-Schulden, Renderer/State vereinfachen, Konsistenz
+      Vorschau ↔ Präsentation ↔ Export. Bewusst Refactor + Politur statt neuer Features.
 
 ### 1d. Layout-Validierung (harte 1280×720-Garantie) — optional
 - [ ] §21 + MCP-`instructions` steuern AI-Decks Richtung „passt", aber der MCP-Server misst **kein** Layout. Vorschlag:
