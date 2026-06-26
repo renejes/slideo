@@ -2,9 +2,6 @@ import { create } from 'zustand'
 
 export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history'
 
-/** Editor-Ansicht: visueller Folien-Editor oder textuelle Gliederung (Spec §19.9). */
-export type EditorView = 'slides' | 'outline'
-
 /**
  * „Klick → Quelle" (Spec §20): markiert eine Quell-Range im HTML-Editor der
  * gegebenen Zone. `nonce` triggert das erneute Anspringen auch bei gleicher Range.
@@ -23,8 +20,6 @@ interface UiState {
   modal: ModalKind | null
   openModal: (modal: ModalKind) => void
   closeModal: () => void
-  editorView: EditorView
-  setEditorView: (view: EditorView) => void
   /** Direktbearbeiten in der Vorschau (Auswahl-Layer für HTML-Zonen, Spec §20). */
   previewEdit: boolean
   setPreviewEdit: (on: boolean) => void
@@ -39,8 +34,6 @@ export const useUiStore = create<UiState>((set) => ({
   modal: null,
   openModal: (modal) => set({ modal }),
   closeModal: () => set({ modal: null }),
-  editorView: 'slides',
-  setEditorView: (editorView) => set({ editorView }),
   previewEdit: false,
   setPreviewEdit: (previewEdit) => set({ previewEdit }),
   togglePreviewEdit: () => set((s) => ({ previewEdit: !s.previewEdit })),

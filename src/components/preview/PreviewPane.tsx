@@ -11,7 +11,7 @@ const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
 // Live-Vorschau der gesamten Präsentation neben dem Editor.
 // Re-rendert debounced in ein isoliertes Iframe (sandbox) und scrollt zur
 // aktiven Zone.
-export function PreviewPane() {
+export function PreviewPane({ onCollapse }: { onCollapse?: () => void } = {}) {
   const presentation = usePresentationStore((s) => s.presentation)
   const assets = usePresentationStore((s) => s.assets)
   const activeZoneId = usePresentationStore((s) => s.activeZoneId)
@@ -174,24 +174,36 @@ export function PreviewPane() {
   }
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col border-l border-chrome-border bg-chrome-bg">
+    <section className="flex h-full w-full flex-col border-l border-chrome-border bg-chrome-bg">
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5 text-chrome-muted">
         <Icon name="visibility" size={15} weight={400} />
         <span className="text-[11px] font-semibold uppercase tracking-wider">Vorschau</span>
-        <button
-          onClick={togglePreviewEdit}
-          aria-pressed={previewEdit}
-          title="Direktbearbeiten: Elemente in HTML-Folien anklicken, duplizieren, löschen"
-          className={
-            'ml-auto flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ' +
-            (previewEdit
-              ? 'bg-chrome-accent-soft text-chrome-accent-600'
-              : 'text-chrome-muted hover:text-chrome-text')
-          }
-        >
-          <Icon name="arrow_selector_tool" size={15} weight={400} />
-          Bearbeiten
-        </button>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={togglePreviewEdit}
+            aria-pressed={previewEdit}
+            title="Direktbearbeiten: Elemente in HTML-Folien anklicken, duplizieren, löschen"
+            className={
+              'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ' +
+              (previewEdit
+                ? 'bg-chrome-accent-soft text-chrome-accent-600'
+                : 'text-chrome-muted hover:text-chrome-text')
+            }
+          >
+            <Icon name="arrow_selector_tool" size={15} weight={400} />
+            Bearbeiten
+          </button>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              title="Vorschau einklappen"
+              aria-label="Vorschau einklappen"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+            >
+              <Icon name="chevron_right" size={18} />
+            </button>
+          )}
+        </div>
       </div>
       <div className="min-h-0 flex-1 p-3.5 pt-0">
         <iframe

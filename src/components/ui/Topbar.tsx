@@ -27,8 +27,6 @@ export function Topbar() {
   const exportPptx = usePresentationStore((s) => s.exportPptx)
   const setMode = usePresentationStore((s) => s.setMode)
   const openModal = useUiStore((s) => s.openModal)
-  const editorView = useUiStore((s) => s.editorView)
-  const setEditorView = useUiStore((s) => s.setEditorView)
 
   const tauri = isTauri()
   const fileHint = tauri ? undefined : 'Nur in der Desktop-App verfügbar (npm run tauri:dev)'
@@ -53,27 +51,6 @@ export function Topbar() {
               title="Ungespeicherte Änderungen"
             />
           )}
-        </div>
-      )}
-
-      {presentation && (
-        <div
-          role="group"
-          aria-label="Ansicht wechseln"
-          className="ml-3 flex shrink-0 items-center gap-0.5 rounded-lg border border-chrome-border bg-chrome-bg p-0.5"
-        >
-          <ViewBtn
-            active={editorView === 'slides'}
-            onClick={() => setEditorView('slides')}
-            icon="view_agenda"
-            label="Folien"
-          />
-          <ViewBtn
-            active={editorView === 'outline'}
-            onClick={() => setEditorView('outline')}
-            icon="segment"
-            label="Gliederung"
-          />
         </div>
       )}
 
@@ -174,36 +151,5 @@ export function Topbar() {
         </button>
       </div>
     </header>
-  )
-}
-
-// Segment-Button für den Ansichtswechsel Folien ⇄ Gliederung (§19.9).
-function ViewBtn({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  icon: string
-  label: string
-}) {
-  return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      title={label}
-      className={
-        'flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium transition-colors ' +
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
-        (active
-          ? 'bg-chrome-surface text-chrome-text shadow-card'
-          : 'text-chrome-muted hover:text-chrome-secondary')
-      }
-    >
-      <Icon name={icon} size={16} weight={400} />
-      {label}
-    </button>
   )
 }

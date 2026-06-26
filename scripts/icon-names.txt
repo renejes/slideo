@@ -57,7 +57,6 @@ present_to_all
 repeat
 save
 search
-segment
 settings
 settings_backup_restore
 show_chart
@@ -66,7 +65,6 @@ sticky_note_2
 terminal
 timeline
 upload
-view_agenda
 visibility
 warning
 widgets

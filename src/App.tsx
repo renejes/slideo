@@ -14,10 +14,7 @@ import { McpSetupModal } from '@/components/modals/McpSetupModal'
 import { FindReplaceModal } from '@/components/modals/FindReplaceModal'
 import { ComponentPaletteModal } from '@/components/modals/ComponentPaletteModal'
 import { HistoryModal } from '@/components/modals/HistoryModal'
-import { Sidebar } from '@/components/ui/Sidebar'
-import { EditorCanvas } from '@/components/editor/EditorCanvas'
-import { OutlineView } from '@/components/editor/OutlineView'
-import { PreviewPane } from '@/components/preview/PreviewPane'
+import { EditorShell } from '@/components/ui/EditorShell'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
 export default function App() {
@@ -27,7 +24,6 @@ export default function App() {
   const undo = usePresentationStore((s) => s.undo)
   const modal = useUiStore((s) => s.modal)
   const openModal = useUiStore((s) => s.openModal)
-  const editorView = useUiStore((s) => s.editorView)
   const [showMcpSetup, setShowMcpSetup] = useState(false)
 
   const openNew = () => openModal('new')
@@ -100,25 +96,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-chrome-bg text-chrome-text">
       <Topbar />
-      {presentation ? (
-        editorView === 'outline' ? (
-          <div className="flex min-h-0 flex-1">
-            <OutlineView />
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1">
-            <Sidebar />
-            <main className="flex min-h-0 flex-1">
-              <div className="min-w-0 flex-1">
-                <EditorCanvas />
-              </div>
-              <PreviewPane />
-            </main>
-          </div>
-        )
-      ) : (
-        <EmptyState onNew={openNew} />
-      )}
+      {presentation ? <EditorShell /> : <EmptyState onNew={openNew} />}
       {modal === 'new' && <NewPresentationModal />}
       {modal === 'settings' && <SettingsModal />}
       {modal === 'find' && <FindReplaceModal />}
