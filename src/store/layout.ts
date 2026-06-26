@@ -19,10 +19,12 @@ interface LayoutState {
   sidebarWidth: number
   previewWidth: number
   sidebarCollapsed: boolean
+  editorCollapsed: boolean
   previewCollapsed: boolean
   /** Inkrementelles Skalieren über die Splitter (dx in px). */
   nudge: (which: 'sidebar' | 'preview', dx: number) => void
   toggleSidebar: () => void
+  toggleEditor: () => void
   togglePreview: () => void
 }
 
@@ -32,6 +34,7 @@ export const useLayoutStore = create<LayoutState>()(
       sidebarWidth: SIDEBAR_DEFAULT,
       previewWidth: PREVIEW_DEFAULT,
       sidebarCollapsed: false,
+      editorCollapsed: false,
       previewCollapsed: false,
       nudge: (which, dx) =>
         set((s) =>
@@ -39,8 +42,26 @@ export const useLayoutStore = create<LayoutState>()(
             ? { sidebarWidth: clamp(s.sidebarWidth + dx, SIDEBAR_MIN, SIDEBAR_MAX) }
             : { previewWidth: clamp(s.previewWidth + dx, PREVIEW_MIN, PREVIEW_MAX) },
         ),
-      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      togglePreview: () => set((s) => ({ previewCollapsed: !s.previewCollapsed })),
+      // Mindestens ein Bereich bleibt offen — das Einklappen des letzten offenen
+      // Bereichs wird ignoriert (sonst gäbe es eine leere Arbeitsfläche).
+      toggleSidebar: () =>
+        set((s) =>
+          !s.sidebarCollapsed && s.editorCollapsed && s.previewCollapsed
+            ? s
+            : { sidebarCollapsed: !s.sidebarCollapsed },
+        ),
+      toggleEditor: () =>
+        set((s) =>
+          !s.editorCollapsed && s.sidebarCollapsed && s.previewCollapsed
+            ? s
+            : { editorCollapsed: !s.editorCollapsed },
+        ),
+      togglePreview: () =>
+        set((s) =>
+          !s.previewCollapsed && s.sidebarCollapsed && s.editorCollapsed
+            ? s
+            : { previewCollapsed: !s.previewCollapsed },
+        ),
     }),
     { name: 'slideo-layout' },
   ),
