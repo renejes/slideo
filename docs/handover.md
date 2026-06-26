@@ -12,95 +12,68 @@ Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter.
 
 **Projektverzeichnis:** `/Users/renejesser/Desktop/Programming - Projekte/slideo`
 
-### Bitte zuerst diese Dokumente lesen (in dieser Reihenfolge):
-1. **`docs/project-status.md`** — was gebaut ist, Architektur, was getestet wurde, Stolpersteine.
-2. **`docs/next-steps.md`** — was als Nächstes ansteht: **Abschnitt 1 = Performance- & Security-Audit + Optimierung (neuer Fokus)**, dazu Layout-Validierung; parallel GUI-Test (A) + Distribution (C). §20/§21 stehen dort unter „0." als erledigt.
-3. **`docs/slideo-spec.md`** — die **maßgebliche Spezifikation**. Wichtig: §14 HTML-Zonen, §15 Assets, §16 Layouts/Agenten-Skill, §17 Custom-CSS, **§18 Roadmap** (umgesetzt) und **§19 Roadmap II** (Richtung „vollwertige Präsentationssoftware" — umgesetzt: §19.2 Charts, §19.7 A11y, §19.1 Builds, §19.4 Vorlagen/Marke, §19.9 Suchen&Ersetzen, §19.3 **teilweise** (Übersicht/Laser/Stift/Auto-Advance), §19.8 **teilweise** (Drag&Drop/Crop/Icon), §19.5 PPTX (native Rekonstruktion), §18.7 Komponenten-Palette (UI-Klick-Einfügen mit Formularen + Live-Vorschau), §19.9 Outline-Modus (editierbare Gliederung) + Versionshistorie (lokale `.slideo`-Snapshots), §19.1 Auto-Animate (Übergang `auto`: FLIP-Morph gleicher `data-id`-Elemente), §19.3 echtes Zweitfenster (Presenter-Modus auf zweitem Display), **MCP-Parität app-weit geprüft** (35 Tools); §19.8 Aufnahme/Narration + Video-Export **bewusst weggelassen** (out of scope). **Feature-Roadmap §18/§19 durch.** **NEU UMGESETZT & im GUI bestätigt: §20 Direktmanipulation in der Vorschau** (Elemente direkt anfassen: Klick→Quelle, Auswählen, Inline-Text, Verschieben, Duplizieren, Löschen, Undo) **+ §21 feste 16:9-Folien-Bühne (1280×720) + Scale-to-fit**. **Damit ist die Feature-Roadmap abgeschlossen.** **Nächster Fokus: Performance- & Security-Audit der GESAMTEN App + eine Optimierungs-/Überarbeitungs-Runde** (Workflow/Architektur nochmal durchdenken), dazu die optionale **Layout-Validierung** (harte 1280×720-Garantie). Sekundär weiter offen: vollständiger GUI-Test der §18/§19-Features + Distribution. Jeder Punkt nennt v1-Scope + Status. Bei Widersprüchen gewinnt die Spec; im Zweifel mich fragen.
-4. `CLAUDE.md` (Projektwurzel) — Konventionen & Design-System in Kürze.
-5. **`docs/direct-manipulation-plan.md`** — **Referenz** (der inzwischen UMGESETZTE Plan zu §20). Nur zum Nachschlagen, **nicht mehr zu bauen** — §20 ist fertig (siehe Spec §20/§21).
+### Das Ziel dieser Session (Hauptaufgabe)
+**Editor aufräumen + Direktmanipulation auf Markdown ausweiten** — der Plan steht in **`docs/editor-cleanup-plan.md`**. Drei Punkte, in dieser Reihenfolge:
+1. **Kontext-sensitive Editor-Tools** (klein): Layout- + Ausrichtungs-Dropdown nur noch für Markdown-Zonen zeigen (bei HTML-Zonen sind sie praktisch wirkungslos/verwirrend); Bild-„Größe" vs. Vorschau-Resize entscheiden.
+2. **Zone-Reorder konsolidieren** (klein): Umsortieren gibt es aktuell doppelt (Karten-Drag-Handle im Editor **und** neue Folienliste in der Sidebar) → Empfehlung: nur in der Folienliste, Karten-Handle entfernen.
+3. **Direktmanipulation für Markdown-Zonen** (größer, phasen): Blöcke in der Vorschau auswählen / inline bearbeiten / duplizieren / löschen (kein Verschieben — Markdown bleibt flussbasiert). Adressierung über das vorhandene `data-block-index`. Der harte Teil: editiertes Block-HTML → Markdown (Empfehlung: über Tiptap serialisieren = eine Quelle der Wahrheit).
 
-### Der wichtigste Kontext (damit du sofort handlungsfähig bist):
-- **Tech:** Tauri 2 (Rust) + React 18/TS + Vite · Tiptap (Markdown-WYSIWYG) · CodeMirror (HTML/CSS) · Tailwind (nur App-Chrome, NICHT im Slide-Iframe) · Material Symbols (offline) · Zustand-Store. Dateiformat `.slideo` = ZIP (`presentation.json` + `assets/`).
-- **MCP-Architektur (umgesetzt):** Eine Binary, zwei Modi — `slideo` (App) und `slideo mcp` (stdio-Server). Die laufende App hält den State, öffnet einen lokalen TCP-Socket (Port in `<config>/slideo/ipc.json`); `slideo mcp` leitet Tool-Calls dorthin weiter (hand-gerolltes JSON-RPC 2.0, **bewusste Abweichung von rmcp**). Mutationen → Tauri-Events → Frontend-Store live. **35 MCP-Tools** (app-weite Parität geprüft: alles Dokument-Authoring ist MCP-erreichbar) + **10 token-bewusste Komponenten** (`insert_component`, inkl. `icon`). MCP-Ziel-Registrierung mit Startauswahl (Claude Desktop / Meta-MCP / Claude Code).
-- **WKWebView-Faustregel:** HTML5-DnD (Element-Verschieben) und `window.print()` sind in der macOS-WebView unzuverlässig → Block-Drag/Bild-Resize laufen über **Pointer-Events**; PDF via `open_print_view` (Temp-Datei → Standardbrowser). **Canvas-Taint:** HTML→Bild rastern (`foreignObject`→Canvas) verseucht das Canvas → deshalb ist **PPTX nativ rekonstruiert** (pptxgenjs), nicht bild-basiert. **Datei-Drag&Drop** in die WebView braucht `"dragDropEnabled": false` in `tauri.conf.json` (sonst fängt Tauri den OS-Drop ab).
-- **Assets:** Bilder → Data-URI inline; Video/Audio → Custom-Protocol `slideoasset://localhost/<name>` (streamt aus dem AppState).
-- **Design:** light/minimalistisch (an „Penwright" orientiert), WCAG AA.
+**`docs/editor-cleanup-plan.md` ist maßgeblich** für diese Aufgabe (Scope, Dateien, Phasen, Risiken, offene Entscheidungen). **Kläre die offenen Entscheidungen (Bild-„Größe" behalten/entfernen; Reorder welche Stelle) kurz mit mir, bevor du in dem jeweiligen Punkt baust.**
 
-### KRITISCHE Stolpersteine (bitte beachten):
-- **Nach JEDER Backend-Änderung an Tools/Instructions:** App neu bauen (`npm run tauri:dev` oder `cargo build`) **UND Claude Desktop neu starten** — sonst läuft Claude Desktop gegen das alte MCP-Binary (häufigste Fehlerquelle bei „Tool fehlt").
-- **Markdown ist das primäre Content-Format.** HTML-Zonen nur für Interaktives, und dann mit Token-CSS-Variablen stylen. Für gestylten, aber editierbaren Text: `set_zone_css` / Custom-CSS-Panel (gescoped auf die Zone).
-- **State lebt im Zustand-Store**, nicht in lokalem React-State.
+### Bitte zuerst lesen (in dieser Reihenfolge):
+1. **`docs/editor-cleanup-plan.md`** — die Aufgabe dieser Session (Code-fundiert; enthält den verifizierten Ist-Stand von Editor-Tools vs. Vorschau-Fähigkeiten).
+2. **`CLAUDE.md`** (Projektwurzel) — Konventionen, Design-System, Architektur-Entscheidungen (ist aktuell, inkl. Security-Härtung, Editor-Shell, Icon-Subset).
+3. **`docs/slideo-spec.md`** — maßgebliche Spezifikation. Relevant: §14 HTML-Zonen, §16 Layouts, §17 Custom-CSS, **§20 Direktmanipulation** (HTML), **§21 feste 16:9-Bühne**, **§22 Security-Härtung**. (Outline-Modus §19.9 wurde wieder **entfernt** — siehe Spec-Notiz.)
+4. **`docs/done/audit.md`** — der Performance-/Security-Audit dieser Session (Bedrohungsmodell + Befunde + Umsetzungsstand). **Wichtig:** Security ist durch; von der Performance sind nur P1/P4/P5 umgesetzt, **P2/P3/P6/P7/P8/P10/P12/P13 sind noch offen** (sekundär, siehe unten).
+5. `docs/next-steps.md` — Gesamt-To-do (GUI-Test A1–A7, restliche Performance, Distribution C).
+6. `docs/done/direct-manipulation-plan.md` — Referenz zu §20 (vollständig umgesetzt; nicht mehr bauen).
 
-### Aktueller Stand:
-MVP **plus** die komplette **Roadmap §18** und große Teile von **§19** sind umgesetzt:
-- **§18:** Speaker-Notes, HTML- & PDF-Export + Teilen, Themes/Presets (5), Folien-Transitions, Bild-Positionierung Light **+ Medium** (Block-Drag & Bild-Resize **in der interaktiven Vorschau**, Pointer-Events), Komponenten-Bibliothek + erweiterter Agenten-Skill **+ Komponenten-Palette im Editor** (UI-Klick-Einfügen mit Parameter-Formularen + Live-Vorschau; derselbe Rust-Generator via Tauri-Commands `list_components`/`render_component`).
-- **§19:** Daten-Diagramme (`line_chart`/`donut_chart`, **10 Komponenten** inkl. `icon`), Barrierefreiheit (Alt-Text + WCAG-Kontrast), **In-Folien-Builds + Auto-Animate** (`set_zone_reveal`; Präsentationsmodus **parent-autoritativ** — Folie+Schritt im PresentationMode, Audience-Iframe ohne eigene Tastatur; **Übergang `auto`** = FLIP-Morph gleicher `data-id`-Elemente, **§19.1 komplett**), **Custom-Fonts** + **Logo/Brand** + **Starter-Templates**, **Suchen & Ersetzen** (Cmd/Ctrl+F) + Spellcheck + **Outline-Modus** (editierbare Gliederung) + **Versionshistorie** (lokale `.slideo`-Snapshots: Auto beim Speichern + manuell, Wiederherstellen) — **§19.9 komplett**, **Presenter-Tools** (§19.3 **komplett**: Folien-Übersicht/Sprung-Grid `g`, Laser/Stift `l`/`p`/`c`, Auto-Advance/Loop `a` + **echtes Zweitfenster** = randlos bildschirmfüllendes `projector`-Fenster auf gewähltem Monitor, Event-Sync), **Medien** (§19.8: Drag&Drop-Medienimport, Bild-Crop non-destruktiv, Icon-Inline-SVG; **Aufnahme/Narration bewusst weggelassen** — out of scope), **PPTX-Export** (§19.5: native Rekonstruktion via pptxgenjs), **Komponenten-Palette** (§18.7: UI-Klick-Einfügen mit Parameter-Formularen + Live-Vorschau), **MCP-Parität** (Logo/Fonts/Titel/Label-Tools → 35 Tools).
-- **35 MCP-Tools**, `slideo_guide` + `instructions` auf Stand. **MCP-Parität app-weit auditiert** → neu: `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` (referenzieren vorhandene Assets; KI lädt keine Binärdateien hoch). Datenmodell additiv erweitert (`meta.transition`/`meta.logo`, `zone.reveal`, `presentation.fonts`, Bild-`width/align/float`), `version` weiter "1.0".
-- **§20 Direktmanipulation in der Vorschau (umgesetzt, GUI-bestätigt):** Elemente von HTML-Zonen direkt in der rechten Vorschau anfassen — **Klick→Quelle** (markiert die Stelle im HTML-Editor), **Auswählen** (▲/Esc), **Inline-Text** (Doppelklick/✎), **Verschieben** (Drag → absolute %-Position; „Folie einfrieren" beim ersten Move, damit nichts nachrückt), **Duplizieren/Löschen**, **Undo (Cmd/Z)**. Adressierung über **Kind-Index-Pfad ab `.slideo-content`** (kein Schema-Eingriff); Ops via `DOMParser` auf rohem `zone.html` ([dom-edit.ts](../src/lib/dom-edit.ts)), Auswahl-Layer **per Pointer-Events** im `editScript` ([renderer.ts](../src/lib/renderer.ts)), Toggle `previewEdit`. Nur HTML-Zonen; Flussmodell unangetastet. Spec **§20**.
-- **§21 feste 16:9-Folien-Bühne + Scale-to-fit (umgesetzt, GUI-bestätigt):** Folien sind logisch **1280×720** (clip), gewickelt in `.slideo-frame`; per `transform: scale(var(--slideo-scale))` ins Fenster eingepasst (Vorschau fit-width, Präsentation fit-both, Letterbox). Behebt Out-of-bounds beim Fenster-Resize (alles skaliert gemeinsam), vereinheitlicht Vorschau/Präsentation/Export/Print. **MCP-`instructions` + `slideo_guide` lehren das 1280×720-Format** (Regel 0 „FORMAT" + Safe-Area x 64–1216 / y 64–656), damit AI-Decks nicht überlaufen. Spec **§21**. (Skalierungs-Detail: %-Positionen via `pctFromRect` werden per `/scale` korrigiert — `getBoundingClientRect` ist in der skalierten Zone Bildschirm-px, `clientWidth` aber Layout-px.)
+> `docs/project-status.md` ist **teilweise veraltet** (vor Audit + Editor-Shell geschrieben — nennt z.B. noch 27 Tests, Outline-Modus). Im Zweifel gelten CLAUDE.md + diese Übergabe + `docs/done/audit.md`.
 
-**Automatisiert grün:** `cargo test` (**27 Tests**), MCP-E2E-Test, `npm run typecheck`, `npx vite build`; viele Renderer-Details zusätzlich standalone per `tsx` geprüft. Jede neue Session wurde adversarial per Multi-Agent-Review gegengeprüft und die bestätigten Findings gefixt.
-**Noch NICHT am echten GUI getestet:** die §18/§19-Features (Bild-Toolbar/Crop, Block-Drag/Resize, Transitions, Builds + normale Navigation, Export/PDF/**PPTX**, Fonts, Logo, Templates, Suchen&Ersetzen, **Presenter-Tools** Übersicht/Laser/Stift/Auto-Advance, **Drag&Drop-Import**, **Icon-Komponente**) sowie die Altlasten (Live-MCP-Eventfluss, `slideoasset://` im Iframe, Schließen-Dialog). → **Checklisten in `docs/next-steps.md` A1–A7.**
+### Wichtigster Kontext (sofort handlungsfähig):
+- **Tech:** Tauri 2 (Rust) + React 18/TS + Vite · Tiptap (Markdown-WYSIWYG) · CodeMirror (HTML/CSS) · Tailwind (nur App-Chrome, NICHT im Slide-Iframe) · Material Symbols (offline, **subgesetzt**) · Zustand-Store. Dateiformat `.slideo` = ZIP (`presentation.json` + `assets/`).
+- **Editor-Shell (NEU diese Session):** drei frei **skalierbare + einzeln einklappbare** Spalten (Folienliste · Editor · Vorschau) — [EditorShell.tsx](../src/components/ui/EditorShell.tsx) / [Splitter.tsx](../src/components/ui/Splitter.tsx) / [store/layout.ts](../src/store/layout.ts). Genau ein Bereich ist „elastisch" (Priorität Editor›Vorschau›Folienliste). **Folienliste hat Drag-Reorder** ([ZoneList.tsx](../src/components/ui/ZoneList.tsx)). **Outline-Modus wurde entfernt** (redundant). → relevant für Punkt 2 des Plans.
+- **Direktmanipulation §20 (HTML-Zonen):** Klick→Quelle, Auswählen, Inline-Text, Verschieben (abs. %), Duplizieren, Löschen, Undo. Im Iframe per Pointer-Events ([renderer.ts](../src/lib/renderer.ts) `editScript`), Ops auf rohem `zone.html` via DOMParser ([dom-edit.ts](../src/lib/dom-edit.ts)), `previewEdit`-Toggle. **Markdown-Zonen** bekommen heute in der Vorschau nur **Block-Drag + Bild-Resize** (`renderEditableBlocks` → `data-block-index`) — Punkt 3 baut darauf auf.
+- **MCP-Architektur:** Eine Binary, zwei Modi (`slideo` App, `slideo mcp` stdio). Laufende App hält den State, lokaler TCP-Socket (Port+**Token** in `<config>/slideo/ipc.json`, 0600), `slideo mcp` leitet Tool-Calls weiter (hand-gerolltes JSON-RPC). **35 MCP-Tools** + 10 Komponenten.
+- **WKWebView-Faustregel:** HTML5-DnD + `window.print()` unzuverlässig → Pointer-Events; PDF via `open_print_view`. PPTX nativ rekonstruiert (Canvas-Taint). Datei-DnD braucht `dragDropEnabled:false`.
+- **Assets:** Bilder → Data-URI inline; Video/Audio → `slideoasset://localhost/<name>` (Streaming).
 
-### Was wir als Nächstes machen (Plan für die nächste Session):
+### KRITISCHE Stolpersteine:
+- **Icons sind subgesetzt** (Audit P1, ~42 KB): **neues Icon → Name in `scripts/icon-names.txt` eintragen + `npm run icons:subset`** ausführen. Sonst rendert das Icon als Klartext-Name (sichtbarer Hinweis). Codepoint-Rendering: [Icon.tsx](../src/components/ui/Icon.tsx) + [icon-codepoints.ts](../src/lib/icon-codepoints.ts).
+- **CSP ist jetzt gesetzt** (war `null`): App-CSP in `tauri.conf.json` (`script-src 'self'`) + eine eigene strikte CSP in den In-App-Folien-Iframes (`connect-src 'none'`, [renderer.ts](../src/lib/renderer.ts) `SLIDE_CSP_META`). **In-App-Folien laden keine externen Netzressourcen mehr** (gewollt; Standalone-Export bleibt offen). Bei neuem Frontend-Code, der etwas lädt: an die CSP denken.
+- **Nach JEDER Backend-Änderung an MCP-Tools/Instructions:** `cargo build`/`tauri:dev` neu **UND Claude Desktop neu starten** (sonst altes MCP-Binary).
+- **Markdown ist das primäre Content-Format.** **State lebt im Zustand-Store**, nicht in lokalem React-State.
 
-> **Die Feature-Roadmap ist durch (inkl. §20 Direktmanipulation + §21 feste Bühne, beide im GUI bestätigt). Der
-> nächste Schwerpunkt ist NICHT mehr „Features bauen", sondern QUALITÄT & REIFE der Gesamt-App:
-> Performance- & Security-Audit → Optimierung/Überarbeitung → (optional) Layout-Validierung.**
+### Aktueller Stand (diese Session, Branch `security-hardening`, NICHT auf main gemergt):
+6 Commits, working tree clean, alles headless grün (`cargo test` **33**, `npm run typecheck`, `npx vite build`).
+- **Security-Audit + Härtung (S1–S9) umgesetzt** (Commit `bb73056`): IPC-Socket-Token + `ipc.json` 0600, App-CSP + Folien-CSP, print-Iframe sandbox, atomare+rechtebewahrende Config-Writes, `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb), randomisierter print-Temp-Name. `cargo audit` **0 Vulns**. Adversarial reviewt; 2 Review-Regressionen gefixt. Vollreport: `docs/done/audit.md`, Spec §22.
+- **Performance Quick Wins P1/P4/P5** (Commit `e49e6ff`): **Font-Subset 3,63 MB → 42 KB** (`dist/assets` 5,2 → 1,8 MB, alle Variations-Achsen erhalten, Codepoint-Rendering), `resolveAssetRefs` header-only + nicht-referenzierte überspringen, `React.memo(ZoneCard)`. (P11 bewusst übersprungen: Safari-Kompat.)
+- **Editor-Shell-Überarbeitung** (Commits `3cf4eaf`+`6565fa1`): skalierbare/einklappbare 3-Spalten, Folienlisten-Reorder, Outline-Modus entfernt. Review-Fixes in `8b8c346`.
 
-**1) Performance- & Security-Check der GESAMTEN App (zuerst — Bestandsaufnahme, dann gemeinsam priorisieren).**
-- **Security:** HTML-Zonen führen beliebiges JS im sandboxed Iframe aus (gewollt) — Isolationsgrenzen prüfen
-  (Iframe-`sandbox="allow-scripts"`, KEINE Tauri-APIs im Iframe), eine bewusste **CSP** setzen (in `tauri.conf.json`
-  aktuell `null`), die Pfade `slideoasset://` (Custom-Protocol) und `open_print_view`, die **MCP-Registrierung**
-  (`mcp_registration.rs` schreibt in die Claude-/Meta-/Code-Config — Schreibpfade/Idempotenz), Path-Traversal
-  (Snapshots: `valid_id` schon geschützt — gegenprüfen), **`.slideo`-Import** (untrusted ZIP/JSON), Asset-Handling.
-  Ziel: kurze Bedrohungsmodell-Notiz + Härtung vor Release (vgl. next-steps.md C0).
-- **Performance:** Initial-Bundle (Material-Symbols-Variable-Font ~3,6 MB → **subsetten**; `index`-Chunk ~1,3 MB →
-  Code-Splitting prüfen), Vorschau-Re-Render (debounced `srcDoc`-Reload — Double-Buffer/In-Place?), Skalierungs-/
-  Reposition-Pfade (rAF, §20/§21), große Decks/viele Assets (Data-URI-Inlining vs. Streaming), MCP-Sync-Last. Erst
-  **messen**, dann gezielt optimieren.
+### GUI-Verifikation OFFEN (bitte am Anfang den Menschen bitten, das zu prüfen):
+Diese Session hat viel UI/Render/CSP geändert, aber nur headless verifiziert. Vor/parallel zur neuen Aufgabe einmal `npm run tauri:dev`:
+- **Editor-Shell:** alle 3 Splitter ziehen; jede Spalte (auch Editor) ein-/ausklappen; nach App-Neustart bleiben Breiten/Zustand; 14"-Fall (Editor bleibt nutzbar). Folienliste-Reorder per Drag; Klick wählt weiter aus.
+- **CSP/Font:** DevTools-Konsole frei von `Refused to …`; **alle Icons rendern als Symbole** (nicht als Wörter); eingebettetes Video/Audio lädt.
+- (Älter offen: §18/§19-GUI-Test A1–A7, Multi-Display-Zweitfenster.)
 
-**2) Optimierungs-/Überarbeitungs-Runde (alles nochmal durchdenken).**
-- Workflow/UX end-to-end überarbeiten (Onboarding, Editor-Fluss, MCP-Setup-Erststart), Architektur-Schulden
-  aufräumen, Renderer/State vereinfachen wo möglich, Konsistenz Vorschau ↔ Präsentation ↔ Export. Bewusst
-  „Refactor + Politur" statt neuer Features.
-
-**3) Layout-Validierung (harte 1280×720-Garantie) — optionales Feature.**
-- §21 + die MCP-`instructions` (Regel 0 „FORMAT" + Safe-Area) steuern AI-Decks Richtung „passt", aber der
-  MCP-Server misst **kein** Layout → keine harte Garantie. Vorschlag: eine **Headless-Browser-Validierung**
-  (Element-Grenzen vs. 1280×720 — wie in der Diagnose dieser Session mit Chrome/`puppeteer-core` gemacht) als
-  Dev-/CI-Check ODER als Tool, das überlaufende Folien meldet/zurückweist. Siehe Spec §21 „KI-Anbindung".
-
-**Weiter offen (sekundär, parallel):**
-- **Vollständiger GUI-Test der §18/§19-Features** (Checklisten A1–A7 in `docs/next-steps.md`; v.a. Zweitfenster auf
-  Multi-Display, neue MCP-Tools, Export/PDF/PPTX). Frischer `npm run tauri:dev` + **Claude Desktop neu starten**
-  (35 Tools, **neue 1280×720-`instructions`** seit dieser Session).
-- **Distribution & Notarization** (next-steps.md Abschnitt C) und Polish-Kandidaten.
-- **Committen:** §20/§21 + das „Langsamkeit"-Test-Deck (`~/Desktop/langsamkeit.slideo`) sind noch **nicht committet**
-  (auf `main`, working tree dirty). Beim Start ggf. zuerst sauber committen/branchen.
-
-**Bewusst NICHT gebaut:** §19.8 **Aufnahme/Narration + Video-Export** (out of scope — off-thesis für eine
-MCP/KI-Authoring-App; Medien-Bedarf via Einbettung gedeckt; schlimmste WKWebView-Hürden). Siehe Spec §19.8.
-
-**Umgesetzte Roadmap (Kurzrecap):** §18 komplett; §19.1 Builds + **Auto-Animate**, §19.2 Charts, §19.3
-Presenter-Tools **inkl. echtem Zweitfenster**, §19.4 Vorlagen/Marke, §19.5 PPTX (nativ), §19.7 A11y, §19.8 Medien
-(Aufnahme out of scope), §19.9 Suchen&Ersetzen + **Outline-Modus** + **Versionshistorie**; §18.7
-**Komponenten-Palette**; **MCP-Parität app-weit geprüft → 35 Tools**; **§20 Direktmanipulation**; **§21 feste
-16:9-Bühne + Scale-to-fit**.
+### Sekundär offen (parallel/danach, nicht das Hauptziel):
+- **Restliche Performance** aus dem Audit: P2/P6 (srcDoc-In-Place-Patch statt Voll-Reload), P3/P7 (Bilder über `slideoasset://` + Handler-Cache — die CSP ist dafür schon vorbereitet), P8 (Code-Splitting), P10/P12/P13 (Sync-Debounce, Asset-Speicher, ZIP-`Stored`). Details: `docs/done/audit.md` Abschnitt 0 + `docs/next-steps.md` 1b.
+- **Distribution & Notarization** (`docs/next-steps.md` C).
+- **Merge-Entscheidung:** Branch `security-hardening` → main, wenn die GUI-Verifikation durch ist.
 
 ### Arbeitsweise:
-- Verifiziere Änderungen: `cd src-tauri && cargo test` (Rust), `npm run typecheck && npx vite build` (Frontend). GUI-abhängige Dinge teste ich (der Mensch) — sag mir genau, was ich prüfen soll.
-- Halte dich an die Spec; dokumentiere neue Architektur-Entscheidungen in der Spec und in `CLAUDE.md`.
-- **Adversariales Multi-Agent-Review je größerem Schritt**, bestätigte Findings fixen (so lief diese Session — sehr effektiv, hat reale Bugs gefangen).
-- Stelle Rückfragen, wenn etwas unklar ist, bevor du größere Umbauten startest.
+- Verifiziere: `cd src-tauri && cargo test` (falls Rust), `npm run typecheck && npx vite build` (Frontend). GUI-abhängiges teste ich (der Mensch) — sag genau, was ich prüfen soll.
+- **Adversariales Multi-Agent-Review je größerem Schritt**, bestätigte Findings fixen (lief diese Session sehr gut — fing echte Bugs).
+- Architektur-Entscheidungen in `slideo-spec.md` + `CLAUDE.md` verankern. `version` bleibt "1.0" (kein Schema-Eingriff).
+- Stelle Rückfragen, bevor du größere Umbauten startest; kläre die offenen Entscheidungen im Plan vorab mit mir.
 
-Bitte bestätige kurz, dass du die Dokumente gelesen hast, fasse den Stand in 3–4 Sätzen zusammen, und **lass uns mit dem Performance- & Security-Check der Gesamt-App beginnen (Punkt 1)** — erst eine kurze Bestandsaufnahme/Audit (Bedrohungsmodell + Performance-Messung), dann gemeinsam priorisieren, was wir optimieren (Punkt 2) und ob/wie wir die Layout-Validierung (Punkt 3) bauen. Kläre vorab Scope/Reihenfolge mit mir, falls unklar. (Der vollständige GUI-Test der §18/§19-Features bleibt parallel offen.)
+Bitte bestätige kurz, dass du die Dokumente gelesen hast, fasse den Stand in 3–4 Sätzen zusammen, und **lass uns mit Punkt 1 aus `docs/editor-cleanup-plan.md` beginnen** (kontext-sensitive Tools — kläre vorher die Bild-„Größe"-Entscheidung mit mir). Danach Punkt 2, dann Punkt 3 (phasen).
 
 ## PROMPT ENDE
 
 ---
 
 ### Hinweis zur Nutzung
-- Der nächste Schwerpunkt ist **Qualität & Reife** (Performance- & Security-Audit → Optimierung → optionale Layout-Validierung), nicht mehr Features. Falls du einen anderen Schwerpunkt willst (z.B. zuerst Distribution oder nur den GUI-Test), trag das im Abschnitt „Was wir als Nächstes machen" ein.
-- **Wichtig:** §20/§21 + das Test-Deck sind noch **nicht committet** (working tree dirty auf `main`). Außerdem hat sich das **MCP-`instructions`** geändert (1280×720-Format) → vor echter KI-Nutzung **`cargo build`/`tauri:dev` neu + Claude Desktop neu starten**.
-- Wenn du den Build vorher frisch gemacht hast, erwähne es — dann weiß der nächste Claude, dass Claude Desktop schon das aktuelle Binary nutzt.
+- **Hauptziel der nächsten Session:** die 3 Punkte aus `docs/editor-cleanup-plan.md` (Editor aufräumen + Markdown-Direktmanipulation).
+- Stand: Branch `security-hardening` (6 Commits, nicht auf main), headless grün; GUI-Verifikation (Shell + CSP/Font) steht aus.
+- `docs/done/` enthält abgeschlossene Pläne: `direct-manipulation-plan.md` (§20, vollständig) und `audit.md` (Audit-Record — Security komplett, Performance teilweise; die offenen Perf-Punkte sind im Audit-Doc + next-steps.md markiert).

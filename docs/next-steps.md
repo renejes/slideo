@@ -1,11 +1,16 @@
 # Slideo — Nächste Schritte
 
-> To-do-Dokument. **Feature-Roadmap §18/§19 + §20 Direktmanipulation + §21 feste 16:9-Bühne sind abgeschlossen
-> (GUI-bestätigt).** Reihenfolge jetzt: **(1) Performance- & Security-Audit der GESAMTEN App** → **(2) Optimierung/
-> Überarbeitung** (Workflow/Architektur nochmal durchdenken) → **(3) Layout-Validierung** (harte 1280×720-Garantie,
-> optional) → parallel: **vollständiger GUI-Test (A)** + **Distribution/Notarization (C)**. Vor dem Start ggf.
-> §20/§21 + Test-Deck **committen** (working tree dirty auf `main`).
-> Stand-Kontext: [project-status.md](project-status.md). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
+> **AKTUELLER FOKUS (nächste Session): Editor aufräumen + Direktmanipulation auf Markdown** —
+> Plan: **[editor-cleanup-plan.md](editor-cleanup-plan.md)** (Punkt 1 kontext-sensitive Tools → Punkt 2 Reorder
+> konsolidieren → Punkt 3 Markdown-Direktmanipulation). Übergabe: [handover.md](handover.md).
+>
+> **Erledigt diese Session (Branch `security-hardening`, headless grün, GUI-Verifikation offen):** Security-Audit +
+> Härtung S1–S9, Performance Quick Wins P1/P4/P5 (Font-Subset etc.), Editor-Shell (skalier-/einklappbare Spalten,
+> Folienlisten-Reorder, Outline entfernt). Audit-Record → [done/audit.md](done/audit.md). §20-Plan →
+> [done/direct-manipulation-plan.md](done/direct-manipulation-plan.md).
+>
+> **Sekundär offen:** restliche Performance (P2/P3/P6/P7/P8/P10/P12/P13, s.u. 1b), GUI-Test (A), Distribution (C).
+> Maßgebliche Spec: [slideo-spec.md](slideo-spec.md). (`project-status.md` ist teilweise veraltet.)
 
 ---
 
