@@ -24,11 +24,11 @@ Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter.
 1. **`docs/editor-cleanup-plan.md`** — die Aufgabe dieser Session (Code-fundiert; enthält den verifizierten Ist-Stand von Editor-Tools vs. Vorschau-Fähigkeiten).
 2. **`CLAUDE.md`** (Projektwurzel) — Konventionen, Design-System, Architektur-Entscheidungen (ist aktuell, inkl. Security-Härtung, Editor-Shell, Icon-Subset).
 3. **`docs/slideo-spec.md`** — maßgebliche Spezifikation. Relevant: §14 HTML-Zonen, §16 Layouts, §17 Custom-CSS, **§20 Direktmanipulation** (HTML), **§21 feste 16:9-Bühne**, **§22 Security-Härtung**. (Outline-Modus §19.9 wurde wieder **entfernt** — siehe Spec-Notiz.)
-4. **`docs/done/audit.md`** — der Performance-/Security-Audit dieser Session (Bedrohungsmodell + Befunde + Umsetzungsstand). **Wichtig:** Security ist durch; von der Performance sind nur P1/P4/P5 umgesetzt, **P2/P3/P6/P7/P8/P10/P12/P13 sind noch offen** (sekundär, siehe unten).
+4. **`docs/audit.md`** — der Performance-/Security-Audit dieser Session (Bedrohungsmodell + Befunde + Umsetzungsstand). **Wichtig:** Security ist durch; von der Performance sind nur P1/P4/P5 umgesetzt, **P2/P3/P6/P7/P8/P10/P12/P13 sind noch offen** (sekundär, siehe unten).
 5. `docs/next-steps.md` — Gesamt-To-do (GUI-Test A1–A7, restliche Performance, Distribution C).
 6. `docs/done/direct-manipulation-plan.md` — Referenz zu §20 (vollständig umgesetzt; nicht mehr bauen).
 
-> `docs/project-status.md` ist **teilweise veraltet** (vor Audit + Editor-Shell geschrieben — nennt z.B. noch 27 Tests, Outline-Modus). Im Zweifel gelten CLAUDE.md + diese Übergabe + `docs/done/audit.md`.
+> `docs/project-status.md` ist **teilweise veraltet** (vor Audit + Editor-Shell geschrieben — nennt z.B. noch 27 Tests, Outline-Modus). Im Zweifel gelten CLAUDE.md + diese Übergabe + `docs/audit.md`.
 
 ### Wichtigster Kontext (sofort handlungsfähig):
 - **Tech:** Tauri 2 (Rust) + React 18/TS + Vite · Tiptap (Markdown-WYSIWYG) · CodeMirror (HTML/CSS) · Tailwind (nur App-Chrome, NICHT im Slide-Iframe) · Material Symbols (offline, **subgesetzt**) · Zustand-Store. Dateiformat `.slideo` = ZIP (`presentation.json` + `assets/`).
@@ -46,7 +46,7 @@ Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter.
 
 ### Aktueller Stand (diese Session, Branch `security-hardening`, NICHT auf main gemergt):
 6 Commits, working tree clean, alles headless grün (`cargo test` **33**, `npm run typecheck`, `npx vite build`).
-- **Security-Audit + Härtung (S1–S9) umgesetzt** (Commit `bb73056`): IPC-Socket-Token + `ipc.json` 0600, App-CSP + Folien-CSP, print-Iframe sandbox, atomare+rechtebewahrende Config-Writes, `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb), randomisierter print-Temp-Name. `cargo audit` **0 Vulns**. Adversarial reviewt; 2 Review-Regressionen gefixt. Vollreport: `docs/done/audit.md`, Spec §22.
+- **Security-Audit + Härtung (S1–S9) umgesetzt** (Commit `bb73056`): IPC-Socket-Token + `ipc.json` 0600, App-CSP + Folien-CSP, print-Iframe sandbox, atomare+rechtebewahrende Config-Writes, `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb), randomisierter print-Temp-Name. `cargo audit` **0 Vulns**. Adversarial reviewt; 2 Review-Regressionen gefixt. Vollreport: `docs/audit.md`, Spec §22.
 - **Performance Quick Wins P1/P4/P5** (Commit `e49e6ff`): **Font-Subset 3,63 MB → 42 KB** (`dist/assets` 5,2 → 1,8 MB, alle Variations-Achsen erhalten, Codepoint-Rendering), `resolveAssetRefs` header-only + nicht-referenzierte überspringen, `React.memo(ZoneCard)`. (P11 bewusst übersprungen: Safari-Kompat.)
 - **Editor-Shell-Überarbeitung** (Commits `3cf4eaf`+`6565fa1`): skalierbare/einklappbare 3-Spalten, Folienlisten-Reorder, Outline-Modus entfernt. Review-Fixes in `8b8c346`.
 
@@ -57,7 +57,7 @@ Diese Session hat viel UI/Render/CSP geändert, aber nur headless verifiziert. V
 - (Älter offen: §18/§19-GUI-Test A1–A7, Multi-Display-Zweitfenster.)
 
 ### Sekundär offen (parallel/danach, nicht das Hauptziel):
-- **Restliche Performance** aus dem Audit: P2/P6 (srcDoc-In-Place-Patch statt Voll-Reload), P3/P7 (Bilder über `slideoasset://` + Handler-Cache — die CSP ist dafür schon vorbereitet), P8 (Code-Splitting), P10/P12/P13 (Sync-Debounce, Asset-Speicher, ZIP-`Stored`). Details: `docs/done/audit.md` Abschnitt 0 + `docs/next-steps.md` 1b.
+- **Restliche Performance** aus dem Audit: P2/P6 (srcDoc-In-Place-Patch statt Voll-Reload), P3/P7 (Bilder über `slideoasset://` + Handler-Cache — die CSP ist dafür schon vorbereitet), P8 (Code-Splitting), P10/P12/P13 (Sync-Debounce, Asset-Speicher, ZIP-`Stored`). Details: `docs/audit.md` Abschnitt 0 + `docs/next-steps.md` 1b.
 - **Distribution & Notarization** (`docs/next-steps.md` C).
 - **Merge-Entscheidung:** Branch `security-hardening` → main, wenn die GUI-Verifikation durch ist.
 
@@ -76,4 +76,4 @@ Bitte bestätige kurz, dass du die Dokumente gelesen hast, fasse den Stand in 3�
 ### Hinweis zur Nutzung
 - **Hauptziel der nächsten Session:** die 3 Punkte aus `docs/editor-cleanup-plan.md` (Editor aufräumen + Markdown-Direktmanipulation).
 - Stand: Branch `security-hardening` (6 Commits, nicht auf main), headless grün; GUI-Verifikation (Shell + CSP/Font) steht aus.
-- `docs/done/` enthält abgeschlossene Pläne: `direct-manipulation-plan.md` (§20, vollständig) und `audit.md` (Audit-Record — Security komplett, Performance teilweise; die offenen Perf-Punkte sind im Audit-Doc + next-steps.md markiert).
+- `docs/done/` enthält nur vollständig abgeschlossene Pläne: `direct-manipulation-plan.md` (§20). Der Audit-Record liegt **aktiv** in `docs/audit.md` — Security komplett, **Performance erst teilweise** (P1/P4/P5 umgesetzt; P2/P3/P6/P7/P8/P10/P12/P13 offen).

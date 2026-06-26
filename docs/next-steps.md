@@ -6,7 +6,7 @@
 >
 > **Erledigt diese Session (Branch `security-hardening`, headless grün, GUI-Verifikation offen):** Security-Audit +
 > Härtung S1–S9, Performance Quick Wins P1/P4/P5 (Font-Subset etc.), Editor-Shell (skalier-/einklappbare Spalten,
-> Folienlisten-Reorder, Outline entfernt). Audit-Record → [done/audit.md](done/audit.md). §20-Plan →
+> Folienlisten-Reorder, Outline entfernt). Audit-Record → [audit.md](audit.md). §20-Plan →
 > [done/direct-manipulation-plan.md](done/direct-manipulation-plan.md).
 >
 > **Sekundär offen:** restliche Performance (P2/P3/P6/P7/P8/P10/P12/P13, s.u. 1b), GUI-Test (A), Distribution (C).
