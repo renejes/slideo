@@ -2,13 +2,14 @@ import { useEffect, useReducer, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Editor } from '@tiptap/react'
 import { Icon } from '@/components/ui/Icon'
-import { IMAGE_SIZES, type ImageAlign, type ImageFloat } from '@/lib/tiptap-image'
+import { type ImageAlign, type ImageFloat } from '@/lib/tiptap-image'
 import { usePresentationStore } from '@/store/presentation'
 import { CropModal } from '@/components/modals/CropModal'
 import { notify } from '@/store/toast'
 
-// Floating-Toolbar für selektierte Bilder (Spec §18.1 „Light"): Größe (S/M/L/Voll),
-// Ausrichtung im Fluss und Float mit Textumfluss. Bewusst KEINE @tiptap/react-
+// Floating-Toolbar für selektierte Bilder (Spec §18.1 „Light"): Ausrichtung im Fluss
+// und Float mit Textumfluss (Breite wird stufenlos per Resize in der Vorschau gezogen,
+// die Größen-Presets sind dadurch redundant entfallen). Bewusst KEINE @tiptap/react-
 // BubbleMenu (deren tippy-DOM-Verwaltung kollidiert mit Reacts Commit-Phase →
 // "NotFoundError"). Stattdessen ein eigenes, per Portal in <body> gerendertes,
 // fixed positioniertes Panel über dem Bild.
@@ -111,14 +112,7 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
           style={style}
         >
           <div className="flex flex-col gap-1.5 rounded-xl border border-chrome-border bg-chrome-surface p-2 shadow-pop">
-            <Row label="Größe">
-          {IMAGE_SIZES.map((s) => (
-            <TextButton key={s.width} active={attrs.width === s.width} onClick={() => apply({ width: s.width })}>
-              {s.label}
-            </TextButton>
-          ))}
-        </Row>
-        <Row label="Ausrichtung">
+            <Row label="Ausrichtung">
           {(['left', 'center', 'right'] as ImageAlign[]).map((a) => (
             <IconButton
               key={a}

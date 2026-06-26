@@ -166,6 +166,44 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   (OutlineView/outline.ts/`editorView`/Topbar-Segmented-Control): redundant, seit Reorder/Einfügen/Löschen/Edit
   im Editor + der Folienliste liegen (Reorder war sein einziger exklusiver Nutzen); behebt nebenbei den
   „Editor verschwindet in der Gliederung"-Effekt. Reine UI-/Store-Änderung, kein Datenmodell-Eingriff.
+- **Editor-Cleanup (umgesetzt, ersetzt Teile des Obigen — [editor-cleanup-plan.md](docs/editor-cleanup-plan.md) Punkt 1+2):**
+  Die **linke Spalte (Sidebar) ist entfallen** — `Sidebar.tsx`/`ZoneList.tsx` gelöscht; [EditorShell.tsx](src/components/ui/EditorShell.tsx)
+  ist jetzt **2-spaltig** (Editor · Vorschau), [store/layout.ts](src/store/layout.ts) auf 2 Panes vereinfacht
+  (persist `version` 1→2, `migrate` verwirft alte `sidebar*`-Keys, `merge` re-clampt + garantiert „mind. ein Bereich
+  offen"). **Reorder + Folien-Überblick laufen jetzt allein über die Editor-Karten** (Karten-Drag-Handle bleibt;
+  bewusster Trade-off: bei sehr großen Decks weniger flottes Springen als eine schmale Liste). Der **Design-Tab**
+  (TokenEditor) lebt als **deck-weites Overlay** ([DesignModal.tsx](src/components/modals/DesignModal.tsx),
+  `openModal('design')`, Topbar-Button „Design" / Icon `palette`) statt als Dauer-Spalte. **Kontext-sensitive
+  ZoneToolbar:** Layout- + Ausrichtung-Dropdowns nur noch für **Markdown**-Zonen (`!isHtml`; bei HTML überschreibt
+  selbst-gestaltetes HTML diese `.layout-*`/`.align-*`-Klassen ohnehin). Redundanten **Topbar-„Komponente"-Button
+  entfernt** (jede ZoneCard hat ihn). **Bild-„Größe"-Presets** (S/M/L/Voll) aus [ImageToolbar.tsx](src/components/editor/ImageToolbar.tsx)
+  entfernt (Breite nur noch per stufenlosem Vorschau-Resize) + toter `IMAGE_SIZES`-Export weg. Reine UI-/Store-Änderung,
+  `version` "1.0". Adversarial reviewt (4 Dimensionen, 0 bestätigte Findings); typecheck + vite build grün. **GUI-Check ausstehend.**
+- **Design-System als „Brand Kit" (Produktrichtung, umgesetzt):** Web-Recherche bestätigt — „KI baut Deck → Mensch editiert
+  drüber" ist realer Markttrend (Gamma: $100M ARR / $2,1 Mrd. Bewertung, ganz auf dem „blank page problem" gebaut; +
+  CHI-2024/HBS-BCG-Studien: Editieren über KI-Drafts ist häufig **und** nötig). Konsequenz: das **globale** Design-System
+  **bleibt** (Konsistenz-Motor + KI-Vertrag — die häufigste Mensch-Korrektur ist global „mach's in Markenfarben", nicht
+  pro Folie), wird aber als **Brand Kit** entschlackt: [TokenEditor.tsx](src/components/tokens/TokenEditor.tsx) gegliedert
+  (Themes · Farben · Schriften+Upload · Logo · Übergang prominent; die abstrakten Größen `font-size-base`/`spacing-base`/
+  `border-radius` + „Zurücksetzen" unter eingeklapptem **„Erweitert"** — für KI/MCP voll verfügbar). Per-Folie-Abweichung
+  bleibt über das vorhandene `custom_css` (token-fähig). Markt-Leitplanken: Beautiful.ai (zu starr → Eintönigkeit), Tome
+  (zu wenig Kontrolle → eingestellt). Rein UI, alle 11 Tokens editierbar, kein Schema-Eingriff. Siehe [[ai-edit-over-workflow-thesis]].
+- **Markdown-Direktmanipulation in der Vorschau (editor-cleanup Punkt 3, umgesetzt):** §20 (HTML-Elemente, Kind-Index-Pfad)
+  ausgeweitet auf **ganze Markdown-Blöcke** (`.slideo-block`/`data-block-index`). Der `editScript`-Auswahl-Layer
+  ([renderer.ts](src/lib/renderer.ts)) trägt jetzt zwei Arten über `selKind` ('element' | 'block'): **(3a)** Block
+  auswählen/**duplizieren**/**löschen** (kein Verschieben/keine Ebenen — Flussmodell), Re-Select per `slideo:reselect-block`;
+  **(3b) Inline-Text-Edit** *einfacher* Blöcke (genau ein `p`/`h1`–`h3` mit reinem Inline-Inhalt → `blockEditable`;
+  komplexe Blöcke = Markdown-Editor). Beim Commit schickt das Iframe das **OUTER-HTML** des Elements; der Parent
+  ([PreviewPane.tsx](src/components/preview/PreviewPane.tsx)) konvertiert es via **transienter Tiptap-Instanz**
+  ([`htmlBlockToMarkdown`](src/lib/tiptap-markdown.ts), Option A = gleiche MD↔HTML-Regeln wie der Editor; ProseMirror-Schema
+  sanitisiert `<script>`/`on*` by construction, Audit S4). Store-Actions `deleteZoneBlock`/`duplicateZoneBlock`/`editZoneBlock`
+  ([presentation.ts](src/store/presentation.ts)) über `splitMarkdownBlocks` + Reassemble, **undoable** (`mutate`), bounds-checked.
+  **Bewusster Tradeoff** (Review): anders als §20 (`expectTag`) tragen die Block-Ops keinen Inhalts-Stale-Schutz, nur
+  Index-Bounds — akzeptiert (single-user, undoable; ein paralleler MCP-Edit *derselben* Zone im Sub-Sekunden-Commit-Fenster
+  ist selten). Leerer/No-op-Inline-Commit hält die Vorschau konsistent (Original wiederherstellen statt Block leeren).
+  **Nur Nicht-Split-Markdown-Zonen** (Wrapper entstehen via `editable && !isSplit`); split ausgenommen. **Kein Schema-Eingriff**
+  (`version` "1.0", nur `zone.markdown`). **Kein JS-Test-Runner im Projekt → Round-Trip ist GUI-zu-verifizieren** (Plan-Tests
+  3.8 konnten headless nicht laufen). GUI-Check ausstehend.
 - **Versionshistorie (§19.9-Rest, umgesetzt):** lokale `.slideo`-Snapshots in
   `<config>/slideo/history/<deck-key>/` ([history.rs](src-tauri/src/history.rs)) — je Snapshot eine **volle
   `.slideo`-Kopie** (Reuse von `file::write_presentation`/`read_presentation`) + `index.json` (neueste zuerst).

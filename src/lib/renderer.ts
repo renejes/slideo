@@ -520,6 +520,11 @@ function navScript(
  *     Elementen in HTML-Zonen + Mini-Toolbar (Ebene hoch / Duplizieren / Löschen);
  *     Adressierung über den Kind-Index-Pfad ab `.slideo-content`. Re-Select nach
  *     dem Re-Render über `slideo:reselect`.
+ *  3b. Markdown-Blöcke (editor-cleanup Punkt 3): in Markdown-Zonen ist die Einheit
+ *     der ganze `.slideo-block` (Adressierung über `data-block-index`). Auswahl →
+ *     Duplizieren/Löschen + Inline-Text-Edit einfacher Blöcke (p/h1–h3 → das editierte
+ *     HTML konvertiert der Parent via Tiptap nach Markdown); kein Verschieben/Ebenen
+ *     (Flussmodell). Re-Select über `slideo:reselect-block`. `selKind` ('element' | 'block').
  */
 function editScript(directEdit: boolean): string {
   return `
@@ -686,8 +691,10 @@ function editScript(directEdit: boolean): string {
         '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg></button>';
     document.body.appendChild(toolbar);
 
-    var selEl = null, selZone = null;
+    var selEl = null, selZone = null, selKind = null; // selKind: 'element' (HTML-Zone) | 'block' (Markdown)
     var editing = null;      // Element im Inline-Text-Edit (Phase 2)
+    var editingKind = null;  // 'element' (HTML-Zone) | 'block' (Markdown, Punkt 3b)
+    var editingBlock = null; // bei editingKind==='block': der zugehörige .slideo-block
     var editOrig = '';       // ursprüngliches innerHTML (für Abbruch)
     var moveState = null;    // aktiver Verschiebe-Drag (Phase 3)
     var suppressClick = false; // unterdrückt den Klick nach einem Drag
@@ -760,20 +767,53 @@ function editScript(directEdit: boolean): string {
         else if (selEl) { selBox.style.display = 'none'; toolbar.style.display = 'none'; }
       });
     }
+    // Toolbar je Auswahl-Art bestücken: HTML-Elemente bekommen alle Buttons, Markdown-
+    // Blöcke v1 nur Duplizieren + Löschen (kein „Ebene hoch"; Text-Edit folgt in 3b).
+    function configToolbar(kind) {
+      var up = toolbar.querySelector('[data-de="up"]');
+      var text = toolbar.querySelector('[data-de="text"]');
+      // Kein „Ebene hoch" bei Blöcken; der Text-Button erscheint nur, wenn der Block ein
+      // einfacher, inline-editierbarer Text-Block ist (sonst → Markdown-Editor, 3b).
+      if (up) up.style.display = kind === 'block' ? 'none' : '';
+      if (text) text.style.display = (kind === 'block' && !blockEditable(selEl)) ? 'none' : '';
+    }
     function select(el, silent) {
       if (selEl && selEl !== el) selEl.style.cursor = '';
-      selEl = el; selZone = inHtmlZone(el) ? el.closest('.slideo-zone-html') : null;
+      selEl = el; selZone = inHtmlZone(el) ? el.closest('.slideo-zone-html') : null; selKind = 'element';
       if (el) el.style.cursor = 'move'; // Affordance: ausgewähltes Element ist ziehbar (Phase 3)
       hoverBox.style.display = 'none';
+      configToolbar('element');
       boxFor(selBox, el); placeToolbar(el);
       if (!silent) {
         var path = pathOf(el);
         if (selZone && path) parent.postMessage({ type: 'slideo:select-element', zoneId: selZone.id.replace(/^zone-/, ''), path: path, tag: el.tagName.toLowerCase() }, '*');
       }
     }
+    // Markdown-Block auswählen (editor-cleanup Punkt 3): ganze .slideo-block-Einheit,
+    // adressiert über data-block-index (NICHT den Kind-Index-Pfad der HTML-Zonen).
+    // Kein 'move'-Cursor — Markdown bleibt flussbasiert (kein absolutes Verschieben).
+    function selectBlock(block, silent) {
+      if (selEl && selEl !== block) selEl.style.cursor = '';
+      selEl = block; selZone = block.closest('.slideo-zone'); selKind = 'block';
+      block.style.cursor = '';
+      hoverBox.style.display = 'none';
+      configToolbar('block');
+      boxFor(selBox, block); placeToolbar(block);
+      if (!silent) {
+        var bi = parseInt(block.getAttribute('data-block-index'), 10);
+        var zid = selZone ? selZone.id.replace(/^zone-/, '') : null;
+        if (zid != null && !isNaN(bi)) parent.postMessage({ type: 'slideo:select-block', zoneId: zid, blockIndex: bi }, '*');
+      }
+    }
+    function blockOpMsg(op) {
+      if (selKind !== 'block' || !selEl || !selZone) return;
+      var bi = parseInt(selEl.getAttribute('data-block-index'), 10);
+      if (isNaN(bi)) return;
+      parent.postMessage({ type: 'slideo:' + op + '-block', zoneId: selZone.id.replace(/^zone-/, ''), blockIndex: bi }, '*');
+    }
     function deselect() {
       if (selEl) selEl.style.cursor = '';
-      selEl = null; selZone = null;
+      selEl = null; selZone = null; selKind = null;
       selBox.style.display = 'none'; toolbar.style.display = 'none'; hoverBox.style.display = 'none';
       parent.postMessage({ type: 'slideo:deselect' }, '*');
     }
@@ -804,8 +844,42 @@ function editScript(directEdit: boolean): string {
       // Nur Elemente mit reinem Inline-Inhalt editieren — sonst würde der Commit
       // einen Block-Container (Karte/Komponente) plattmachen.
       if (!el || editing || !isInlineEditable(el)) return;
-      editing = el;
+      editing = el; editingKind = 'element'; editingBlock = null;
       editOrig = el.innerHTML; // Snapshot für Abbruch
+      selBox.style.display = 'none'; toolbar.style.display = 'none'; hoverBox.style.display = 'none';
+      el.setAttribute('contenteditable', 'true');
+      el.style.cursor = 'text';
+      el.focus();
+      try {
+        var range = document.createRange();
+        range.selectNodeContents(el);
+        var sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(range);
+      } catch (err) {}
+    }
+    // Punkt 3b: ein EINFACHER Text-Block (genau ein p/h1–h3 mit reinem Inline-Inhalt) ist
+    // inline editierbar. Komplexe Blöcke (Listen/Zitate/Code/Tabellen/Bild) NICHT — die
+    // bearbeitet man im Markdown-Editor (zu großes HTML→Markdown-Divergenzrisiko). Gibt das
+    // editierbare Element (p/h*) zurück oder null. Das Drag-Handle wird übersprungen.
+    function blockEditable(block) {
+      if (!block) return null;
+      var el = null, kids = block.children;
+      for (var i = 0; i < kids.length; i++) {
+        if (kids[i].classList && kids[i].classList.contains('slideo-drag')) continue;
+        if (el) return null; // mehr als ein Inhalts-Kind → nicht einfach
+        el = kids[i];
+      }
+      if (!el) return null;
+      var tag = el.tagName.toLowerCase();
+      if (tag !== 'p' && tag !== 'h1' && tag !== 'h2' && tag !== 'h3') return null;
+      if (!isInlineEditable(el)) return null;
+      return el;
+    }
+    function startBlockEdit(block) {
+      var el = blockEditable(block);
+      if (!el || editing) return;
+      editing = el; editingKind = 'block'; editingBlock = block;
+      editOrig = el.innerHTML;
       selBox.style.display = 'none'; toolbar.style.display = 'none'; hoverBox.style.display = 'none';
       el.setAttribute('contenteditable', 'true');
       el.style.cursor = 'text';
@@ -819,19 +893,40 @@ function editScript(directEdit: boolean): string {
     }
     function finishEdit(commit) {
       if (!editing) return;
-      var el = editing; editing = null; // zuerst, damit der Blur-Handler nicht doppelt feuert
+      var el = editing, kind = editingKind, block = editingBlock;
+      editing = null; editingKind = null; editingBlock = null; // zuerst, damit der Blur-Handler nicht doppelt feuert
       el.removeAttribute('contenteditable');
       el.style.cursor = '';
       if (commit) {
-        var zone = el.closest('.slideo-zone-html');
-        var path = pathOf(el);
-        // Bearbeitetes Inline-HTML schicken (Stil/Links bleiben erhalten);
-        // applyElementOp sanitisiert es. Re-Select macht der Parent.
-        var editedHtml = el.innerHTML;
-        if (zone && path) parent.postMessage({ type: 'slideo:edit-text', zoneId: zone.id.replace(/^zone-/, ''), path: path, html: editedHtml, tag: el.tagName.toLowerCase() }, '*');
+        if (kind === 'block') {
+          // Leeren Block NICHT via Inline-Edit erzeugen (dafür Löschen): Original wiederherstellen
+          // + Auswahl zeigen, KEINE Op posten — sonst zeigt die Vorschau einen geleerten Block,
+          // während der Store unverändert bleibt (kein Re-Render → keine Korrektur). Review-Fix.
+          if (!(el.textContent || '').trim()) {
+            el.innerHTML = editOrig; editOrig = '';
+            selectBlock(block, true);
+            return;
+          }
+          // Markdown-Block: das OUTER-HTML des editierten Elements (mit Tag → Überschrift-
+          // Level bleibt) → Parent konvertiert via Tiptap nach Markdown (Punkt 3b).
+          var zb = block ? block.closest('.slideo-zone') : null;
+          var bi = block ? parseInt(block.getAttribute('data-block-index'), 10) : NaN;
+          if (zb && !isNaN(bi)) parent.postMessage({ type: 'slideo:edit-block-text', zoneId: zb.id.replace(/^zone-/, ''), blockIndex: bi, html: el.outerHTML }, '*');
+          // Auswahl sofort wieder zeigen: bei einer ECHTEN Änderung re-rendert der Parent und
+          // schickt slideo:reselect-block (idempotent); bei einem No-op-Commit (Text unverändert)
+          // bliebe die Box sonst bis zur nächsten Interaktion verborgen. Review-Fix.
+          selectBlock(block, true);
+        } else {
+          var zone = el.closest('.slideo-zone-html');
+          var path = pathOf(el);
+          // Bearbeitetes Inline-HTML schicken (Stil/Links bleiben erhalten);
+          // applyElementOp sanitisiert es. Re-Select macht der Parent.
+          var editedHtml = el.innerHTML;
+          if (zone && path) parent.postMessage({ type: 'slideo:edit-text', zoneId: zone.id.replace(/^zone-/, ''), path: path, html: editedHtml, tag: el.tagName.toLowerCase() }, '*');
+        }
       } else {
         el.innerHTML = editOrig; // Abbruch: verworfenen Text zurücksetzen (kein Re-Render)
-        select(el, true); // Auswahl wieder zeigen
+        if (kind === 'block') selectBlock(block, true); else select(el, true); // Auswahl wieder zeigen
       }
       editOrig = '';
     }
@@ -956,9 +1051,17 @@ function editScript(directEdit: boolean): string {
     document.addEventListener('pointermove', function (e) {
       if (dragEl || resizeImg || editing || moveState) return;
       if (e.target && e.target.closest && e.target.closest('.slideo-de-ui')) { hoverBox.style.display = 'none'; return; }
-      var content = inHtmlZone(e.target) ? contentOf(e.target) : null;
-      if (!content || e.target === content || e.target === selEl) { hoverBox.style.display = 'none'; return; }
-      boxFor(hoverBox, e.target);
+      if (inHtmlZone(e.target)) {
+        // HTML-Zone: einzelne Elemente hervorheben.
+        var content = contentOf(e.target);
+        if (!content || e.target === content || e.target === selEl) { hoverBox.style.display = 'none'; return; }
+        boxFor(hoverBox, e.target);
+      } else {
+        // Markdown-Zone: den ganzen Block hervorheben (Block-granular).
+        var block = e.target.closest && e.target.closest('.slideo-block');
+        if (!block || block === selEl) { hoverBox.style.display = 'none'; return; }
+        boxFor(hoverBox, block);
+      }
     });
 
     // Klick = Auswahl (Capture, um Inhalts-Handler/Links im Edit-Modus zu schlagen).
@@ -966,26 +1069,41 @@ function editScript(directEdit: boolean): string {
       if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; } // nach Drag
       if (editing) return; // Text-Edit: native contenteditable-Klicks durchlassen
       if (e.target && e.target.closest && e.target.closest('.slideo-de-ui')) return; // Toolbar separat
-      if (!inHtmlZone(e.target)) { if (selEl) deselect(); return; } // außerhalb HTML-Zone → Auswahl fallen lassen
+      if (!inHtmlZone(e.target)) {
+        // Außerhalb einer HTML-Zone: ggf. einen Markdown-Block auswählen, sonst Auswahl fallen lassen.
+        var block = e.target.closest && e.target.closest('.slideo-block');
+        if (block) { e.preventDefault(); e.stopPropagation(); selectBlock(block); }
+        else if (selEl) deselect();
+        return;
+      }
       var content = contentOf(e.target);
       if (!content || e.target === content) { if (selEl) deselect(); return; }
       e.preventDefault(); e.stopPropagation();
       select(e.target);
     }, true);
 
-    // Doppelklick → Inline-Text-Edit (Phase 2).
+    // Doppelklick → Inline-Text-Edit (Phase 2 für HTML-Elemente, Punkt 3b für Markdown-Blöcke).
     document.addEventListener('dblclick', function (e) {
-      if (!inHtmlZone(e.target)) return;
-      var content = contentOf(e.target);
-      if (!content || e.target === content) return;
+      if (inHtmlZone(e.target)) {
+        var content = contentOf(e.target);
+        if (!content || e.target === content) return;
+        e.preventDefault();
+        if (e.target !== selEl) select(e.target);
+        startEdit(selEl);
+        return;
+      }
+      // Markdown-Block: nur einfache Text-Blöcke (p/h*) inline editieren.
+      var block = e.target.closest && e.target.closest('.slideo-block');
+      if (!block || !blockEditable(block)) return;
       e.preventDefault();
-      if (e.target !== selEl) select(e.target);
-      startEdit(selEl);
+      if (block !== selEl) selectBlock(block);
+      startBlockEdit(block);
     });
 
     // Verschiebe-Drag auf dem AUSGEWÄHLTEN Element starten (Phase 3).
     document.addEventListener('pointerdown', function (e) {
       if (editing || moveState || e.button !== 0) return;
+      if (selKind === 'block') return; // Markdown-Blöcke nicht verschiebbar (Flussmodell)
       if (e.target && e.target.closest && e.target.closest('.slideo-de-ui')) return;
       if (!selEl || (e.target !== selEl && !selEl.contains(e.target))) return;
       var zone = inHtmlZone(selEl) ? selEl.closest('.slideo-zone-html') : null;
@@ -1010,9 +1128,9 @@ function editScript(directEdit: boolean): string {
       e.preventDefault();
       var act = btn.getAttribute('data-de');
       if (act === 'up') levelUp();
-      else if (act === 'text') startEdit(selEl);
-      else if (act === 'duplicate') opMsg('duplicate');
-      else if (act === 'delete') opMsg('delete');
+      else if (act === 'text') { if (selKind === 'block') startBlockEdit(selEl); else startEdit(selEl); }
+      else if (act === 'duplicate') { if (selKind === 'block') blockOpMsg('duplicate'); else opMsg('duplicate'); }
+      else if (act === 'delete') { if (selKind === 'block') blockOpMsg('delete'); else opMsg('delete'); }
     });
 
     document.addEventListener('keydown', function (e) {
@@ -1029,9 +1147,11 @@ function editScript(directEdit: boolean): string {
         if (!deleteAllowed(e.target)) return;
         var r = selEl.getBoundingClientRect();
         if (r.bottom < 0 || r.top > window.innerHeight) return; // Auswahl off-screen
-        e.preventDefault(); opMsg('delete');
+        e.preventDefault();
+        if (selKind === 'block') blockOpMsg('delete'); else opMsg('delete');
       } else if (e.key === 'Escape') {
         e.preventDefault();
+        if (selKind === 'block') { deselect(); return; } // Blöcke haben keine Ebenen
         var content = contentOf(selEl);
         if (selEl.parentNode && selEl.parentNode !== content) levelUp();
         else deselect();
@@ -1049,6 +1169,10 @@ function editScript(directEdit: boolean): string {
         var section = document.getElementById('zone-' + d.zoneId);
         var el = section ? elAtPath(section, d.path) : null;
         if (el) select(el, true); else deselect();
+      } else if (d.type === 'slideo:reselect-block' && typeof d.zoneId === 'string' && typeof d.blockIndex === 'number') {
+        var bsection = document.getElementById('zone-' + d.zoneId);
+        var block = bsection ? bsection.querySelector('.slideo-block[data-block-index="' + d.blockIndex + '"]') : null;
+        if (block) selectBlock(block, true); else deselect();
       } else if (d.type === 'slideo:clear-select') {
         deselect();
       }

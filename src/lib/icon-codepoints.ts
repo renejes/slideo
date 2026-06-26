@@ -51,6 +51,7 @@ export const ICON_CODEPOINTS: Record<string, string> = {
   "linear_scale": "e260",
   "music_note": "e3a1",
   "notes": "e26c",
+  "palette": "e3b7",
   "pause": "e034",
   "picture_as_pdf": "e415",
   "play_arrow": "e037",

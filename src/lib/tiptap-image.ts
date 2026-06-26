@@ -15,14 +15,6 @@ import { resolveAsset } from './asset-resolver'
 export type ImageAlign = 'left' | 'center' | 'right'
 export type ImageFloat = 'left' | 'right'
 
-/** Bekannte Größen-Presets (Inline-`width`). 'Voll' = 100 %. */
-export const IMAGE_SIZES: { label: string; width: string }[] = [
-  { label: 'S', width: '25%' },
-  { label: 'M', width: '50%' },
-  { label: 'L', width: '75%' },
-  { label: 'Voll', width: '100%' },
-]
-
 function classAlign(el: HTMLElement): ImageAlign | null {
   if (el.classList.contains('align-left')) return 'left'
   if (el.classList.contains('align-center')) return 'center'

@@ -1,9 +1,28 @@
 # Slideo — Implementationsplan: Editor aufräumen + Direktmanipulation für Markdown
 
-> **Status:** geplant, noch nicht gebaut. Ziel der nächsten Session. Maßgeblich bleibt
-> [slideo-spec.md](slideo-spec.md); Architektur-Entscheidungen beim Umsetzen dort + in `CLAUDE.md` verankern.
-> Hintergrund: Code-Analyse (diese Session) der Editor-Textbereich-Tools vs. der **real implementierten**
-> Vorschau-Fähigkeiten.
+> **Status:** **Punkt 1 + 2 + 3 umgesetzt** (siehe „Umsetzungsstand" unten) — headless grün, **GUI-Check ausstehend**.
+> Zusätzlich das Design-Overlay zum **Brand Kit** entschlackt (Produktentscheidung, web-recherchiert; in `CLAUDE.md` +
+> Memory `ai-edit-over-workflow-thesis` verankert). Maßgeblich bleibt [slideo-spec.md](slideo-spec.md); Architektur-
+> Entscheidungen sind in `CLAUDE.md` verankert. Hintergrund: Code-Analyse der Editor-Textbereich-Tools vs. der **real
+> implementierten** Vorschau-Fähigkeiten.
+>
+> ## Umsetzungsstand (Punkt 1 + 2)
+> Punkt 2 wurde mit dem Entwickler zu einem **größeren Shell-Umbau** erweitert (statt nur „Reorder konsolidieren"):
+> - **P1.1** ✅ Layout/Ausrichtung-Dropdowns nur für Markdown (`!isHtml`) in [ZoneToolbar.tsx](../src/components/editor/ZoneToolbar.tsx).
+> - **P1.2** ✅ Bild-„Größe"-Presets aus [ImageToolbar.tsx](../src/components/editor/ImageToolbar.tsx) **entfernt** (Entscheidung B) + toter `IMAGE_SIZES`-Export weg.
+> - **P2** ✅ **Linke Sidebar komplett entfernt** (`Sidebar.tsx`/`ZoneList.tsx` gelöscht) → [EditorShell.tsx](../src/components/ui/EditorShell.tsx) 2-spaltig; [store/layout.ts](../src/store/layout.ts) auf 2 Panes (persist v1→v2 Migration). Reorder bleibt am **Karten-Drag-Handle** (eine Stelle). Design-Tab → **Overlay** ([DesignModal.tsx](../src/components/modals/DesignModal.tsx), Topbar-„Design"-Button). Topbar-„Komponente"-Button (redundant) entfernt.
+> - Adversarial reviewt (4 Dimensionen, **0 bestätigte Findings**); typecheck + vite build grün. **GUI-Check ausstehend.**
+>
+> ## Umsetzungsstand (Punkt 3 — Markdown-Direktmanipulation)
+> - **3a** ✅ Block in der Markdown-Vorschau auswählen/**duplizieren**/**löschen** (`.slideo-block`/`data-block-index`),
+>   undoable. `editScript` trägt zwei Auswahl-Arten über `selKind`; Store `deleteZoneBlock`/`duplicateZoneBlock`.
+> - **3b** ✅ **Inline-Text-Edit** einfacher Blöcke (p/h1–h3) → editiertes HTML via **transienter Tiptap-Instanz**
+>   ([`htmlBlockToMarkdown`](../src/lib/tiptap-markdown.ts), Plan-Option A) zurück nach Markdown; Store `editZoneBlock`.
+>   Kein Verschieben (Flussmodell); split-Zonen ausgenommen. Kein Schema-Eingriff.
+> - **3c** (Klick→Quelle in den Tiptap-Editor) bewusst **nicht** umgesetzt (optionaler Folgeschritt).
+> - **Abweichung von Plan 3.8:** das Projekt hat **keinen JS-Test-Runner** → die geplanten tsx-Round-Trip-Unit-Tests
+>   konnten nicht laufen; der MD↔HTML-Round-Trip ist **per GUI** zu verifizieren (Risiko bewusst auf einfache p/h-Blöcke
+>   begrenzt). Headless grün: typecheck + vite build.
 
 ## 0. Worum es geht (Leitidee)
 

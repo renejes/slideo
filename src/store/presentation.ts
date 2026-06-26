@@ -93,6 +93,14 @@ interface PresentationState {
   setZoneLayout: (id: string, layout: ZoneStyle['layout']) => void
   /** Sortiert die Markdown-Blöcke einer Zone um (Drag in der Vorschau). */
   reorderZoneBlocks: (id: string, order: number[]) => void
+  /** Direktmanipulation für Markdown-Blöcke (editor-cleanup Punkt 3): einen Top-Level-
+   *  Block in der Vorschau löschen bzw. duplizieren — über splitMarkdownBlocks +
+   *  Reassemble (`\n\n`), undoable (recordHistory). Flussmodell bleibt unberührt. */
+  deleteZoneBlock: (id: string, blockIndex: number) => void
+  duplicateZoneBlock: (id: string, blockIndex: number) => void
+  /** Inline-Text-Edit eines Markdown-Blocks (Punkt 3b): ersetzt blockIndex durch
+   *  `markdown` (vom Konverter htmlBlockToMarkdown). Leerer Block wird nicht erzeugt. */
+  editZoneBlock: (id: string, blockIndex: number, markdown: string) => void
   /** Setzt die Breite eines Bildes (Resize-Anfasser in der Vorschau), z.B. "63%". */
   resizeZoneImage: (id: string, blockIndex: number, imgIndex: number, width: string) => void
   /**
@@ -589,6 +597,46 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         ...p,
         zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)),
       }))
+      set({ activeZoneId: id })
+    },
+
+    deleteZoneBlock: (id, blockIndex) => {
+      const zone = get().presentation?.zones.find((z) => z.id === id)
+      if (!zone || zone.content_type !== 'markdown') return
+      const blocks = splitMarkdownBlocks(zone.markdown)
+      if (blockIndex < 0 || blockIndex >= blocks.length) return // stale/ungültig → no-op
+      const next = blocks.slice()
+      next.splice(blockIndex, 1)
+      const markdown = next.join('\n\n')
+      if (markdown === zone.markdown) return
+      mutate((p) => ({ ...p, zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)) }))
+      set({ activeZoneId: id })
+    },
+
+    duplicateZoneBlock: (id, blockIndex) => {
+      const zone = get().presentation?.zones.find((z) => z.id === id)
+      if (!zone || zone.content_type !== 'markdown') return
+      const blocks = splitMarkdownBlocks(zone.markdown)
+      if (blockIndex < 0 || blockIndex >= blocks.length) return
+      const next = blocks.slice()
+      next.splice(blockIndex + 1, 0, blocks[blockIndex]) // Klon direkt hinter das Original
+      const markdown = next.join('\n\n')
+      mutate((p) => ({ ...p, zones: p.zones.map((z) => (z.id === id ? { ...z, markdown } : z)) }))
+      set({ activeZoneId: id })
+    },
+
+    editZoneBlock: (id, blockIndex, markdown) => {
+      const zone = get().presentation?.zones.find((z) => z.id === id)
+      if (!zone || zone.content_type !== 'markdown') return
+      if (!markdown.trim()) return // leeren Block nicht via Inline-Edit erzeugen (dafür Löschen)
+      const blocks = splitMarkdownBlocks(zone.markdown)
+      if (blockIndex < 0 || blockIndex >= blocks.length) return // stale/ungültig → no-op
+      if (blocks[blockIndex] === markdown) return
+      const next = blocks.slice()
+      next[blockIndex] = markdown
+      const joined = next.join('\n\n')
+      if (joined === zone.markdown) return
+      mutate((p) => ({ ...p, zones: p.zones.map((z) => (z.id === id ? { ...z, markdown: joined } : z)) }))
       set({ activeZoneId: id })
     },
 

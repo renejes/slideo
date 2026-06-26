@@ -14,6 +14,7 @@ import { McpSetupModal } from '@/components/modals/McpSetupModal'
 import { FindReplaceModal } from '@/components/modals/FindReplaceModal'
 import { ComponentPaletteModal } from '@/components/modals/ComponentPaletteModal'
 import { HistoryModal } from '@/components/modals/HistoryModal'
+import { DesignModal } from '@/components/modals/DesignModal'
 import { EditorShell } from '@/components/ui/EditorShell'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
@@ -102,6 +103,7 @@ export default function App() {
       {modal === 'find' && <FindReplaceModal />}
       {modal === 'components' && <ComponentPaletteModal />}
       {modal === 'history' && <HistoryModal />}
+      {modal === 'design' && <DesignModal />}
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />

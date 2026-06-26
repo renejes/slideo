@@ -105,13 +105,13 @@ export function Topbar() {
         <span className="mx-1 h-5 w-px bg-chrome-border" />
 
         <button
-          onClick={() => openModal('components')}
+          onClick={() => openModal('design')}
           className={ghost}
           disabled={!presentation}
-          title="Komponente einfügen — token-bewusste Diagramme, Kennzahlen, Zeitstrahl, Zitat …"
+          title="Design — Theme, Farben, Schriften, Logo & Folien-Übergänge"
         >
-          <Icon name="widgets" size={18} />
-          Komponente
+          <Icon name="palette" size={18} />
+          Design
         </button>
 
         <button

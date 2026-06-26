@@ -1,9 +1,10 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   TOKEN_FIELDS,
   TRANSITIONS,
   SYSTEM_FONTS,
   LOGO_POSITIONS,
+  type TokenFieldDef,
   type TransitionKind,
   type LogoPosition,
 } from '@/types'
@@ -12,72 +13,85 @@ import { PRESETS, type Preset } from '@/lib/presets'
 import { contrastRatio, rateContrast } from '@/lib/contrast'
 import { Icon } from '@/components/ui/Icon'
 
-// Sidebar zum Bearbeiten der Design Tokens (CSS Custom Properties).
+// „Brand Kit" zum Bearbeiten der Design-Tokens (CSS Custom Properties). Lebt im
+// Design-Overlay ([DesignModal](../modals/DesignModal.tsx)). Gegliedert nach dem
+// Marktmodell (Gamma/Canva/Pitch): die MARKEN-Essentials (Themes · Farben · Schriften ·
+// Logo · Übergang) prominent, die abstrakten Layout-Größen (font-size-base/spacing-base/
+// border-radius) + „Zurücksetzen" unter „Erweitert" (für KI/MCP weiter voll verfügbar).
+const COLOR_FIELDS = TOKEN_FIELDS.filter((f) => f.kind === 'color')
+const FONT_FIELDS = TOKEN_FIELDS.filter((f) => f.kind === 'font')
+const ADVANCED_FIELDS = TOKEN_FIELDS.filter((f) => f.kind === 'size')
+
 export function TokenEditor() {
   const presentation = usePresentationStore((s) => s.presentation)
-  const setToken = usePresentationStore((s) => s.setToken)
-  const resetTokens = usePresentationStore((s) => s.resetTokens)
-
   if (!presentation) return null
-  const tokens = presentation.tokens
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-3 py-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-          Design-Tokens
-        </span>
-        <button
-          onClick={resetTokens}
-          className="rounded-md px-2 py-1 text-[12px] text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Alle Tokens zurücksetzen"
-        >
-          Zurücksetzen
-        </button>
-      </div>
-
-      <div className="overflow-y-auto">
-        <ThemePicker />
-
-        <div className="flex flex-col gap-2.5 px-3 pb-4">
-        {TOKEN_FIELDS.map((field) => {
-          const value = tokens[field.key] ?? ''
-          return (
-            <label key={field.key} className="flex flex-col gap-1">
-              <span className="text-[11px] font-medium text-chrome-muted">{field.label}</span>
-              <div className="flex items-center gap-2">
-                {field.kind === 'color' && (
-                  <input
-                    type="color"
-                    value={normalizeColor(value)}
-                    onChange={(e) => setToken(field.key, e.target.value)}
-                    className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-chrome-border bg-white p-0.5"
-                    aria-label={`${field.label} Farbe`}
-                  />
-                )}
-                <input
-                  type="text"
-                  value={value}
-                  list={field.kind === 'font' ? 'slideo-fonts' : undefined}
-                  onChange={(e) => setToken(field.key, e.target.value)}
-                  className="w-full rounded-md border border-chrome-border bg-white px-2 py-1.5 font-mono text-[12px] text-chrome-text transition-colors focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
-                />
-              </div>
-            </label>
-          )
-        })}
+    <div className="flex flex-col pb-1">
+      <ThemePicker />
+      <Section title="Farben">
+        <div className="flex flex-col gap-2.5">
+          {COLOR_FIELDS.map((f) => (
+            <TokenField key={f.key} field={f} />
+          ))}
         </div>
-
-        <FontsSection />
-        <LogoSection />
-        <ContrastCheck />
-        <TransitionPicker />
-      </div>
+      </Section>
+      <ContrastCheck />
+      <FontsSection />
+      <LogoSection />
+      <TransitionPicker />
+      <AdvancedSection />
     </div>
   )
 }
 
-// Custom-Fonts (Spec §19.4): Upload + Auswahlliste (datalist) für die Font-Felder.
+/** Einheitlicher Abschnitt mit Überschrift (Penwright-Stil). */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-chrome-border px-3 py-3">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
+        {title}
+      </span>
+      {children}
+    </div>
+  )
+}
+
+const fieldInputClass =
+  'w-full rounded-md border border-chrome-border bg-white px-2 py-1.5 font-mono text-[12px] ' +
+  'text-chrome-text transition-colors focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30'
+
+/** Ein einzelnes Token-Feld (Farbe/Font/Größe). Abonniert nur seinen eigenen Wert. */
+function TokenField({ field }: { field: TokenFieldDef }) {
+  const value = usePresentationStore((s) => s.presentation?.tokens[field.key] ?? '')
+  const setToken = usePresentationStore((s) => s.setToken)
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium text-chrome-muted">{field.label}</span>
+      <div className="flex items-center gap-2">
+        {field.kind === 'color' && (
+          <input
+            type="color"
+            value={normalizeColor(value)}
+            onChange={(e) => setToken(field.key, e.target.value)}
+            className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-chrome-border bg-white p-0.5"
+            aria-label={`${field.label} Farbe`}
+          />
+        )}
+        <input
+          type="text"
+          value={value}
+          list={field.kind === 'font' ? 'slideo-fonts' : undefined}
+          onChange={(e) => setToken(field.key, e.target.value)}
+          className={fieldInputClass}
+        />
+      </div>
+    </label>
+  )
+}
+
+// Schriften (Spec §19.4): die zwei Font-Token-Felder (Überschrift/Fließtext) +
+// Upload eigener Schriften + Auswahlliste (datalist) für die Font-Felder.
 function FontsSection() {
   const presentation = usePresentationStore((s) => s.presentation)
   const addFont = usePresentationStore((s) => s.addFont)
@@ -111,6 +125,11 @@ function FontsSection() {
           Hochladen
         </button>
       </div>
+      <div className="flex flex-col gap-2.5">
+        {FONT_FIELDS.map((f) => (
+          <TokenField key={f.key} field={f} />
+        ))}
+      </div>
       <input
         ref={fileRef}
         type="file"
@@ -119,7 +138,7 @@ function FontsSection() {
         className="hidden"
       />
       {uploaded.length > 0 ? (
-        <div className="flex flex-col gap-1">
+        <div className="mt-2 flex flex-col gap-1">
           {uploaded.map((f) => (
             <div key={f.asset} className="flex items-center gap-1.5 text-[12px] text-chrome-secondary">
               <Icon name="font_download" size={14} weight={400} className="text-chrome-faint" />
@@ -130,8 +149,8 @@ function FontsSection() {
           ))}
         </div>
       ) : (
-        <p className="text-[11px] text-chrome-faint">
-          Eigene Schrift hochladen → erscheint in „Überschrift-/Fließtext-Font".
+        <p className="mt-2 text-[11px] text-chrome-faint">
+          Eigene Schrift hochladen → erscheint oben in „Überschrift-/Fließtext-Font".
         </p>
       )}
       {/* Auswahlliste für die Font-Token-Felder (System + hochgeladen). */}
@@ -306,13 +325,56 @@ function TransitionPicker() {
   )
 }
 
+// „Erweitert": die abstrakten Layout-Größen + Zurücksetzen. Standardmäßig eingeklappt,
+// damit das Brand Kit beim Öffnen auf die Marken-Essentials fokussiert (Editor-Cleanup);
+// die Tokens bleiben voll editierbar und für die KI (MCP) unverändert verfügbar.
+function AdvancedSection() {
+  const resetTokens = usePresentationStore((s) => s.resetTokens)
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="border-t border-chrome-border">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-chrome-muted transition-colors hover:text-chrome-text"
+        aria-expanded={open}
+      >
+        <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} weight={400} />
+        Erweitert
+        <span className="ml-auto text-[10px] font-medium normal-case tracking-normal text-chrome-faint">
+          Größen &amp; Abstände
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3.5">
+          <div className="flex flex-col gap-2.5">
+            {ADVANCED_FIELDS.map((f) => (
+              <TokenField key={f.key} field={f} />
+            ))}
+          </div>
+          <button
+            onClick={resetTokens}
+            className="mt-3 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+            title="Alle Design-Tokens auf den Standard zurücksetzen"
+          >
+            <Icon name="settings_backup_restore" size={15} weight={400} />
+            Alle Tokens zurücksetzen
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Theme-Picker: kuratierte Token-Bündel mit einem Klick anwenden.
 function ThemePicker() {
   const applyPreset = usePresentationStore((s) => s.applyPreset)
 
   return (
-    <div className="px-3 pb-3">
-      <span className="mb-1.5 block text-[11px] font-medium text-chrome-muted">Themes</span>
+    <div className="px-3 pb-3 pt-1">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
+        Themes
+      </span>
       <div className="grid grid-cols-2 gap-1.5">
         {PRESETS.map((preset) => (
           <button

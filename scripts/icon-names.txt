@@ -50,6 +50,7 @@ ios_share
 linear_scale
 music_note
 notes
+palette
 pause
 picture_as_pdf
 play_arrow

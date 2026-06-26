@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history'
+export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history' | 'design'
 
 /**
  * „Klick → Quelle" (Spec §20): markiert eine Quell-Range im HTML-Editor der

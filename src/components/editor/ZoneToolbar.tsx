@@ -65,31 +65,39 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
       />
 
       <div className="ml-auto flex items-center gap-1.5">
-        <select
-          value={zone.style.layout}
-          onChange={(e) => setZoneLayout(zone.id, e.target.value as ZoneLayout)}
-          className={selectClass}
-          title="Layout (Zwei Spalten fügt automatisch einen +++ Spaltentrenner ein)"
-        >
-          {ZONE_LAYOUTS.map((l) => (
-            <option key={l.value} value={l.value}>
-              {l.label}
-            </option>
-          ))}
-        </select>
+        {/* Layout + Textausrichtung wirken nur auf den flussbasierten Markdown-Renderer
+            (`.layout-*`/`.align-*` in SLIDE_CSS). HTML-Zonen gestalten ihr Layout selbst
+            und überschreiben diese Klassen praktisch immer → dort ausgeblendet (Editor-Cleanup
+            Punkt 1). Bestehende Style-Werte bleiben im Modell erhalten, nur die UI blendet sie aus. */}
+        {!isHtml && (
+          <>
+            <select
+              value={zone.style.layout}
+              onChange={(e) => setZoneLayout(zone.id, e.target.value as ZoneLayout)}
+              className={selectClass}
+              title="Layout (Zwei Spalten fügt automatisch einen +++ Spaltentrenner ein)"
+            >
+              {ZONE_LAYOUTS.map((l) => (
+                <option key={l.value} value={l.value}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
 
-        <select
-          value={zone.style.text_align}
-          onChange={(e) => updateZoneStyle(zone.id, { text_align: e.target.value as TextAlign })}
-          className={selectClass}
-          title="Textausrichtung"
-        >
-          {TEXT_ALIGNS.map((a) => (
-            <option key={a.value} value={a.value}>
-              {a.label}
-            </option>
-          ))}
-        </select>
+            <select
+              value={zone.style.text_align}
+              onChange={(e) => updateZoneStyle(zone.id, { text_align: e.target.value as TextAlign })}
+              className={selectClass}
+              title="Textausrichtung"
+            >
+              {TEXT_ALIGNS.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         {!isHtml && (
           <button

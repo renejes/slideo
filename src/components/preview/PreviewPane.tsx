@@ -3,6 +3,7 @@ import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { renderFullPage } from '@/lib/renderer'
 import { findSourceRange } from '@/lib/dom-edit'
+import { htmlBlockToMarkdown } from '@/lib/tiptap-markdown'
 import { isTauri, assetUrlBase } from '@/lib/tauri'
 import { Icon } from '@/components/ui/Icon'
 
@@ -20,6 +21,9 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   const resizeZoneImage = usePresentationStore((s) => s.resizeZoneImage)
   const applyZoneElementOp = usePresentationStore((s) => s.applyZoneElementOp)
   const freezeZoneLayout = usePresentationStore((s) => s.freezeZoneLayout)
+  const deleteZoneBlock = usePresentationStore((s) => s.deleteZoneBlock)
+  const duplicateZoneBlock = usePresentationStore((s) => s.duplicateZoneBlock)
+  const editZoneBlock = usePresentationStore((s) => s.editZoneBlock)
   const previewEdit = useUiStore((s) => s.previewEdit)
   const togglePreviewEdit = useUiStore((s) => s.togglePreviewEdit)
   const setHtmlReveal = useUiStore((s) => s.setHtmlReveal)
@@ -28,6 +32,9 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   // Zuletzt direkt-manipulierte Auswahl {zoneId, path} für den Re-Select nach
   // dem (debounced) Re-Render. null = nichts ausgewählt.
   const lastSel = useRef<{ zoneId: string; path: number[] } | null>(null)
+  // Analog für Markdown-Block-Auswahl {zoneId, blockIndex} (Punkt 3). Gegenseitig
+  // exklusiv mit lastSel — genau eine Auswahl ist aktiv.
+  const lastSelBlock = useRef<{ zoneId: string; blockIndex: number } | null>(null)
 
   // Debounced Full-Page-Render (vermeidet Iframe-Reload bei jedem Tastendruck).
   // editable: Markdown-Blöcke per Drag umsortierbar (Spec §18.1 / interaktive Vorschau).
@@ -54,6 +61,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   useEffect(() => {
     if (!previewEdit) {
       lastSel.current = null
+      lastSelBlock.current = null
       iframeRef.current?.contentWindow?.postMessage({ type: 'slideo:clear-select' }, '*')
     }
   }, [previewEdit])
@@ -68,6 +76,17 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
       if (!zone || zone.content_type !== 'html') return
       const range = findSourceRange(zone.html ?? '', path)
       if (range) setHtmlReveal({ zoneId, from: range.from, to: range.to, focusEditor: false })
+    }
+    // lastSel (HTML-Element) und lastSelBlock (Markdown-Block) sind gegenseitig EXKLUSIV:
+    // jede Auswahl-Zuweisung löscht die andere. Sonst kann eine veraltete Block-Auswahl den
+    // handleLoad-Reselect „gewinnen", sobald ein Element-Op lastSel auf null setzt (Review-Fix).
+    function setElemSel(s: { zoneId: string; path: number[] } | null) {
+      lastSel.current = s
+      lastSelBlock.current = null
+    }
+    function setBlockSel(s: { zoneId: string; blockIndex: number } | null) {
+      lastSelBlock.current = s
+      lastSel.current = null
     }
     function onMessage(e: MessageEvent) {
       const d = e.data || {}
@@ -85,25 +104,50 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         // Klick → Quelle (Phase 0): Zone aktiv + Quell-Range im HTML-Editor markieren.
         const zoneId = d.zoneId as string
         const path = d.path as number[]
-        lastSel.current = { zoneId, path }
+        setElemSel({ zoneId, path })
         setActiveZone(zoneId)
         reveal(zoneId, path)
       } else if (d.type === 'slideo:deselect') {
-        lastSel.current = null
+        setElemSel(null) // leert beide Refs
+      } else if (d.type === 'slideo:select-block' && typeof d.zoneId === 'string' && typeof d.blockIndex === 'number') {
+        // Punkt 3: ganzer Markdown-Block ausgewählt (block-granular, kein HTML-Quell-Mapping).
+        setBlockSel({ zoneId: d.zoneId, blockIndex: d.blockIndex })
+        setActiveZone(d.zoneId)
+      } else if (d.type === 'slideo:delete-block' && typeof d.zoneId === 'string' && typeof d.blockIndex === 'number') {
+        deleteZoneBlock(d.zoneId, d.blockIndex)
+        setBlockSel(null) // Block ist weg → keine Re-Auswahl
+      } else if (d.type === 'slideo:duplicate-block' && typeof d.zoneId === 'string' && typeof d.blockIndex === 'number') {
+        duplicateZoneBlock(d.zoneId, d.blockIndex)
+        setBlockSel({ zoneId: d.zoneId, blockIndex: d.blockIndex + 1 }) // Klon (dahinter) wählen
+      } else if (
+        d.type === 'slideo:edit-block-text' &&
+        typeof d.zoneId === 'string' &&
+        typeof d.blockIndex === 'number' &&
+        typeof d.html === 'string'
+      ) {
+        // Punkt 3b: editiertes Block-HTML → Markdown (Tiptap, gleiche Quelle der Wahrheit) → Block ersetzen.
+        let markdown = ''
+        try {
+          markdown = htmlBlockToMarkdown(d.html as string)
+        } catch {
+          markdown = ''
+        }
+        if (markdown) editZoneBlock(d.zoneId, d.blockIndex, markdown)
+        setBlockSel({ zoneId: d.zoneId, blockIndex: d.blockIndex }) // Block bleibt am selben Index
       } else if (d.type === 'slideo:duplicate-element' && typeof d.zoneId === 'string' && Array.isArray(d.path)) {
         const path = d.path as number[]
         applyZoneElementOp(d.zoneId, path, 'duplicate', { expectTag: tag })
         // Klon liegt direkt nach dem Original → Auswahl auf den Klon (lastIndex+1).
         const clone = path.slice()
         clone[clone.length - 1] += 1
-        lastSel.current = { zoneId: d.zoneId, path: clone }
+        setElemSel({ zoneId: d.zoneId, path: clone })
         reveal(d.zoneId, clone)
       } else if (d.type === 'slideo:delete-element' && typeof d.zoneId === 'string' && Array.isArray(d.path)) {
         const path = d.path as number[]
         applyZoneElementOp(d.zoneId, path, 'delete', { expectTag: tag })
         // Nach dem Löschen das Eltern-Element wählen (Top-Level → keine Auswahl).
         const parentPath = path.slice(0, -1)
-        lastSel.current = parentPath.length ? { zoneId: d.zoneId, path: parentPath } : null
+        setElemSel(parentPath.length ? { zoneId: d.zoneId, path: parentPath } : null)
         if (parentPath.length) reveal(d.zoneId, parentPath)
       } else if (
         d.type === 'slideo:edit-text' &&
@@ -114,7 +158,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         // Phase 2: Inline-Text-Commit (bearbeitetes Inline-HTML; applyElementOp sanitisiert).
         const path = d.path as number[]
         applyZoneElementOp(d.zoneId, path, 'editText', { html: d.html as string, expectTag: tag })
-        lastSel.current = { zoneId: d.zoneId, path }
+        setElemSel({ zoneId: d.zoneId, path })
         reveal(d.zoneId, path)
       } else if (
         d.type === 'slideo:undo'
@@ -135,19 +179,19 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
           topPct: d.topPct as number,
           expectTag: tag,
         })
-        lastSel.current = { zoneId: d.zoneId, path }
+        setElemSel({ zoneId: d.zoneId, path })
         reveal(d.zoneId, path)
       } else if (d.type === 'slideo:freeze-zone' && typeof d.zoneId === 'string' && Array.isArray(d.items)) {
         // Phase 3: „Folie einfrieren" beim ersten Verschieben (alle Top-Level-Blöcke absolut).
         freezeZoneLayout(d.zoneId, d.items)
         const p = Array.isArray(d.path) ? (d.path as number[]) : null
-        lastSel.current = p ? { zoneId: d.zoneId, path: p } : null
+        setElemSel(p ? { zoneId: d.zoneId, path: p } : null)
         if (p) reveal(d.zoneId, p)
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [reorderZoneBlocks, resizeZoneImage, applyZoneElementOp, setActiveZone, setHtmlReveal])
+  }, [reorderZoneBlocks, resizeZoneImage, applyZoneElementOp, deleteZoneBlock, duplicateZoneBlock, editZoneBlock, setActiveZone, setHtmlReveal])
 
   const activeIndex = useMemo(() => {
     if (!presentation) return 0
@@ -167,9 +211,12 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   function handleLoad() {
     const win = iframeRef.current?.contentWindow
     win?.postMessage({ type: 'slideo:goto', index: activeIndex, smooth: false }, '*')
-    // Auswahl nach dem Re-Render wiederherstellen (Spec §20 Re-Select-Handshake).
-    if (previewEdit && lastSel.current) {
-      win?.postMessage({ type: 'slideo:reselect', ...lastSel.current }, '*')
+    // Auswahl nach dem Re-Render wiederherstellen (Spec §20 Re-Select-Handshake) —
+    // HTML-Element über den Pfad, Markdown-Block über den Block-Index.
+    if (previewEdit) {
+      if (lastSel.current) win?.postMessage({ type: 'slideo:reselect', ...lastSel.current }, '*')
+      else if (lastSelBlock.current)
+        win?.postMessage({ type: 'slideo:reselect-block', ...lastSelBlock.current }, '*')
     }
   }
 
@@ -182,7 +229,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
           <button
             onClick={togglePreviewEdit}
             aria-pressed={previewEdit}
-            title="Direktbearbeiten: Elemente in HTML-Folien anklicken, duplizieren, löschen"
+            title="Direktbearbeiten: in der Vorschau anklicken — HTML-Elemente bzw. Markdown-Blöcke: Text bearbeiten (Doppelklick), duplizieren, löschen"
             className={
               'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ' +
               (previewEdit
