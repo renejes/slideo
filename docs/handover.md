@@ -20,6 +20,13 @@ Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter.
 
 **`docs/editor-cleanup-plan.md` ist maßgeblich** für diese Aufgabe (Scope, Dateien, Phasen, Risiken, offene Entscheidungen). **Kläre die offenen Entscheidungen (Bild-„Größe" behalten/entfernen; Reorder welche Stelle) kurz mit mir, bevor du in dem jeweiligen Punkt baust.**
 
+### Vereinbarte Reihenfolge
+Die GUI-Verifikation des in der Vor-Session Gebauten (**Editor-Shell, CSP, Font/Icons**) ist **bestätigt** (funktioniert wie besprochen) — daher direkt mit dem Umbau starten. „Bauen statt erst optimieren": die offene Performance ist unsichtbarer Feinschliff für eine lokale App, der große Hebel (P1 Font, −65 % Bundle) ist schon drin.
+1. ✅ GUI-Check des Gebauten — erledigt.
+2. **Punkt 1** (kontext-sensitive Tools) → **Punkt 2** (Reorder konsolidieren) — klein, sofort, geringes Risiko.
+3. **Punkt 3** (Markdown-Direktmanipulation, Phasen 3a→3b, optional 3c) — dabei **P2/P6** (Vorschau-Voll-Reload → In-Place-Patch) **mitdenken**: beide leben in der Vorschau-/`editScript`-Pipeline. Wenn sich der Voll-Reload während der Direktmanipulation träge anfühlt, im selben Aufwasch glätten (Pipeline nur einmal anfassen, mit klarem Anlass — statt P2/P6 vorab als riskanten Refactor).
+4. **Danach:** restliche Performance-Politur (P3/P7 Bild-Protocol+Cache, P8 Code-Splitting, P10/P12/P13) + Distribution (`docs/next-steps.md` C).
+
 ### Bitte zuerst lesen (in dieser Reihenfolge):
 1. **`docs/editor-cleanup-plan.md`** — die Aufgabe dieser Session (Code-fundiert; enthält den verifizierten Ist-Stand von Editor-Tools vs. Vorschau-Fähigkeiten).
 2. **`CLAUDE.md`** (Projektwurzel) — Konventionen, Design-System, Architektur-Entscheidungen (ist aktuell, inkl. Security-Härtung, Editor-Shell, Icon-Subset).
@@ -50,16 +57,14 @@ Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter.
 - **Performance Quick Wins P1/P4/P5** (Commit `e49e6ff`): **Font-Subset 3,63 MB → 42 KB** (`dist/assets` 5,2 → 1,8 MB, alle Variations-Achsen erhalten, Codepoint-Rendering), `resolveAssetRefs` header-only + nicht-referenzierte überspringen, `React.memo(ZoneCard)`. (P11 bewusst übersprungen: Safari-Kompat.)
 - **Editor-Shell-Überarbeitung** (Commits `3cf4eaf`+`6565fa1`): skalierbare/einklappbare 3-Spalten, Folienlisten-Reorder, Outline-Modus entfernt. Review-Fixes in `8b8c346`.
 
-### GUI-Verifikation OFFEN (bitte am Anfang den Menschen bitten, das zu prüfen):
-Diese Session hat viel UI/Render/CSP geändert, aber nur headless verifiziert. Vor/parallel zur neuen Aufgabe einmal `npm run tauri:dev`:
-- **Editor-Shell:** alle 3 Splitter ziehen; jede Spalte (auch Editor) ein-/ausklappen; nach App-Neustart bleiben Breiten/Zustand; 14"-Fall (Editor bleibt nutzbar). Folienliste-Reorder per Drag; Klick wählt weiter aus.
-- **CSP/Font:** DevTools-Konsole frei von `Refused to …`; **alle Icons rendern als Symbole** (nicht als Wörter); eingebettetes Video/Audio lädt.
-- (Älter offen: §18/§19-GUI-Test A1–A7, Multi-Display-Zweitfenster.)
+### GUI-Verifikation
+- ✅ **Editor-Shell + CSP/Font bestätigt** (vom Menschen geprüft, funktioniert wie besprochen): Splitter/Einklappen/Persistenz aller 3 Spalten, Folienlisten-Reorder, keine CSP-Verstöße, Icons als Symbole.
+- **Noch offen (älter, sekundär):** vollständiger §18/§19-GUI-Test A1–A7 (`docs/next-steps.md`), Multi-Display-Zweitfenster. Beim Bauen neuer Vorschau-Features (Punkt 3) das jeweils im GUI gegenprüfen lassen.
 
 ### Sekundär offen (parallel/danach, nicht das Hauptziel):
 - **Restliche Performance** aus dem Audit: P2/P6 (srcDoc-In-Place-Patch statt Voll-Reload), P3/P7 (Bilder über `slideoasset://` + Handler-Cache — die CSP ist dafür schon vorbereitet), P8 (Code-Splitting), P10/P12/P13 (Sync-Debounce, Asset-Speicher, ZIP-`Stored`). Details: `docs/audit.md` Abschnitt 0 + `docs/next-steps.md` 1b.
 - **Distribution & Notarization** (`docs/next-steps.md` C).
-- **Merge-Entscheidung:** Branch `security-hardening` → main, wenn die GUI-Verifikation durch ist.
+- **Merge:** GUI-Verifikation des Gebauten ist durch → Branch `security-hardening` kann nach main gemergt werden (oder weiter darauf bauen und nach dem Editor-Cleanup mergen).
 
 ### Arbeitsweise:
 - Verifiziere: `cd src-tauri && cargo test` (falls Rust), `npm run typecheck && npx vite build` (Frontend). GUI-abhängiges teste ich (der Mensch) — sag genau, was ich prüfen soll.
