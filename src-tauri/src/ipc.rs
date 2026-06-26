@@ -1,11 +1,14 @@
 //! Lokaler IPC-Kanal zwischen der laufenden App und dem MCP-stdio-Prozess.
 //!
 //! - Die App startet einen TCP-Server auf 127.0.0.1 (zufälliger Port) und
-//!   schreibt den Port in eine Discovery-Datei.
+//!   schreibt Port + ein beim Start erzeugtes Shared-Secret-Token in eine
+//!   Discovery-Datei (mit 0600-Rechten — Audit S1).
 //! - Der MCP-Prozess (`slideo mcp`) liest die Datei und verbindet sich als
 //!   Client. Protokoll: newline-delimited JSON, eine Zeile pro Request/Response.
-//!     Request:  {"method": "...", "params": {...}}
+//!     Request:  {"method": "...", "params": {...}, "token": "..."}
 //!     Response: {"result": ...}  |  {"error": "..."}
+//!   Anfragen ohne gültiges Token werden abgewiesen — die bloße Kenntnis des Ports
+//!   reicht einem fremden lokalen Prozess nicht, um die Tools aufzurufen.
 //!
 //! Schreibende Tools mutieren den App-State und emittieren ein Tauri-Event,
 //! sodass die UI sofort live aktualisiert ("Live über lokalen Socket").
@@ -15,30 +18,86 @@ use crate::tools::{self, Effect};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader as StdBufReader, Write};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
-/// Pfad der Discovery-Datei (enthält den aktuellen Socket-Port).
+/// Obergrenze eingehender Request-Bytes pro Verbindung (DoS-Schutz, Audit S8).
+/// Eine Tool-Anfrage ist klein; 16 MiB ist großzügig und begrenzt den Speicher,
+/// falls ein lokaler Prozess eine endlose/riesige Zeile sendet.
+const MAX_REQUEST_BYTES: u64 = 16 * 1024 * 1024;
+
+/// Beim Start erzeugtes Shared-Secret (Audit S1). Liegt zusätzlich in `ipc.json`
+/// (mit 0600 geschrieben), sodass nur der MCP-Client **desselben Nutzers** Tool-
+/// Calls absetzen kann. `process_request` weist jede Anfrage ohne gültiges Token ab.
+fn server_token() -> &'static str {
+    static TOKEN: OnceLock<String> = OnceLock::new();
+    TOKEN.get_or_init(|| uuid::Uuid::new_v4().simple().to_string())
+}
+
+/// Konstant-Zeit-Vergleich (vermeidet ein Timing-Leak des Tokens).
+fn token_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// Pfad der Discovery-Datei (enthält den aktuellen Socket-Port + das Token).
 fn discovery_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("slideo").join("ipc.json"))
 }
 
-fn write_discovery(port: u16) {
-    if let Some(path) = discovery_path() {
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
+fn write_discovery(port: u16, token: &str) {
+    let Some(path) = discovery_path() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let content = json!({ "port": port, "token": token }).to_string();
+    // Restriktive Rechte (0600): kein world-readable Port/Token (Audit S1). Datei
+    // direkt mit 0600 anlegen, damit es kein kurzes world-readable Zeitfenster gibt.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+        {
+            Ok(mut f) => {
+                let _ = f.write_all(content.as_bytes());
+            }
+            Err(e) => eprintln!("[slideo] ipc.json schreiben fehlgeschlagen: {e}"),
         }
-        let _ = std::fs::write(&path, json!({ "port": port }).to_string());
+    }
+    #[cfg(not(unix))]
+    {
+        // Windows: keine POSIX-Modi; das Token bleibt die Schutzschicht. ACL-Härtung
+        // ist hier als künftiger Schritt notiert (Audit S1).
+        let _ = std::fs::write(&path, content);
     }
 }
 
-/// Liest den aktuellen Socket-Port aus der Discovery-Datei (Client-Seite).
-pub fn read_discovery_port() -> Option<u16> {
+/// Liest Port + Token aus der Discovery-Datei (Client-Seite).
+pub fn read_discovery() -> Option<(u16, String)> {
     let path = discovery_path()?;
     let content = std::fs::read_to_string(path).ok()?;
     let value: Value = serde_json::from_str(&content).ok()?;
-    value.get("port").and_then(|p| p.as_u64()).map(|p| p as u16)
+    let port = value.get("port").and_then(|p| p.as_u64())? as u16;
+    let token = value
+        .get("token")
+        .and_then(|t| t.as_str())
+        .unwrap_or("")
+        .to_string();
+    Some((port, token))
 }
 
 /// Startet den IPC-Socket-Server im Tauri-Hintergrund.
@@ -52,7 +111,7 @@ pub fn start(app: AppHandle) {
             }
         };
         if let Ok(addr) = listener.local_addr() {
-            write_discovery(addr.port());
+            write_discovery(addr.port(), server_token());
             eprintln!("[slideo] IPC-Server läuft auf 127.0.0.1:{}", addr.port());
         }
         loop {
@@ -72,7 +131,9 @@ pub fn start(app: AppHandle) {
 
 async fn handle_connection(stream: tokio::net::TcpStream, app: AppHandle) {
     let (read_half, mut write_half) = stream.into_split();
-    let mut lines = BufReader::new(read_half).lines();
+    // Eingehende Bytes pro Verbindung begrenzen (Audit S8). Der MCP-Client öffnet
+    // pro Tool-Call eine eigene Verbindung mit genau einer (kleinen) Anfrage.
+    let mut lines = BufReader::new(read_half.take(MAX_REQUEST_BYTES)).lines();
     while let Ok(Some(line)) = lines.next_line().await {
         if line.trim().is_empty() {
             continue;
@@ -93,6 +154,13 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
         Ok(v) => v,
         Err(e) => return json!({ "error": format!("Ungültiges JSON: {e}") }),
     };
+    // Authentifizierung (Audit S1): nur Anfragen mit dem beim Start erzeugten Token
+    // werden verarbeitet — verhindert, dass ein beliebiger lokaler Prozess die Tools
+    // aufruft, nur weil er den Port kennt.
+    let token = request.get("token").and_then(|t| t.as_str()).unwrap_or("");
+    if !token_eq(token, server_token()) {
+        return json!({ "error": "Nicht autorisiert (fehlendes oder ungültiges Token)." });
+    }
     let method = match request.get("method").and_then(|m| m.as_str()) {
         Some(m) => m,
         None => return json!({ "error": "Feld 'method' fehlt" }),
@@ -133,13 +201,14 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
 /// Sendet einen Request an die laufende App und gibt deren Antwort zurück.
 /// Blockierend (std::net), da der MCP-stdio-Modus ohnehin synchron läuft.
 pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
-    let port = read_discovery_port()
+    let (port, token) = read_discovery()
         .ok_or("Slideo läuft nicht (keine IPC-Discovery-Datei gefunden). Bitte die Slideo-App starten.")?;
 
     let stream = std::net::TcpStream::connect(("127.0.0.1", port))
         .map_err(|e| format!("Verbindung zur Slideo-App fehlgeschlagen: {e}. Läuft die App?"))?;
 
-    let request = json!({ "method": method, "params": params });
+    // Token mitsenden (Audit S1) — der Server weist nicht-authentifizierte Anfragen ab.
+    let request = json!({ "method": method, "params": params, "token": token });
     // Ganze Zeile in EINEM write_all senden (sonst zerlegt Display die JSON-Value
     // in viele winzige TCP-Pakete).
     let mut payload = request.to_string();
@@ -159,4 +228,27 @@ pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
         return Err(err.to_string());
     }
     Ok(response.get("result").cloned().unwrap_or(json!(null)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn token_eq_basics() {
+        assert!(token_eq("abc", "abc"));
+        assert!(!token_eq("abc", "abd"));
+        assert!(!token_eq("abc", "ab"), "verschiedene Länge");
+        assert!(!token_eq("", "x"));
+        assert!(token_eq("", ""));
+    }
+
+    #[test]
+    fn server_token_is_stable_and_hex() {
+        let a = server_token();
+        let b = server_token();
+        assert_eq!(a, b, "Token ist prozessweit stabil (OnceLock)");
+        assert_eq!(a.len(), 32, "uuid simple = 32 Hex-Zeichen");
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+    }
 }

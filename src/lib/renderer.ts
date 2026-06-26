@@ -1196,6 +1196,32 @@ export interface RenderOptions {
   directEdit?: boolean
 }
 
+/**
+ * Restriktive CSP für die **In-App**-Folien-Iframes (Audit S3). Erlaubt die bewusst
+ * inline laufenden Styles/Scripts der Folien (HTML-Zonen führen gewollt JS aus) sowie
+ * Bild-/Medien-/Font-Quellen, unterbindet aber jeglichen Netzwerkverkehr
+ * (`connect-src 'none'`, `default-src 'none'`) → eine bösartige HTML-Zone kann das Deck
+ * nicht per fetch/Image/WebSocket exfiltrieren. Wird NUR in-app injiziert; der
+ * Standalone-Export ([renderStandalonePage]) bleibt bewusst offen, damit geteilte Decks
+ * externe Einbettungen weiter laden können.
+ */
+const SLIDE_CSP_META =
+  '<meta http-equiv="Content-Security-Policy" content="' +
+  "default-src 'none'; " +
+  // slideoasset: ist das macOS-Schema; http://slideoasset.localhost die Windows-Form
+  // (assetUrlBase() in tauri.ts) — beide müssen erlaubt sein, sonst brechen
+  // gestreamte Videos/Audios in-app auf Windows (Audit-Review M1).
+  'img-src data: blob: slideoasset: http://slideoasset.localhost; ' +
+  'media-src data: blob: slideoasset: http://slideoasset.localhost; ' +
+  'font-src data: slideoasset: http://slideoasset.localhost; ' +
+  "style-src 'unsafe-inline'; " +
+  "script-src 'unsafe-inline'; " +
+  "connect-src 'none'; " +
+  "object-src 'none'; " +
+  "base-uri 'none'; " +
+  "form-action 'none'" +
+  '" />'
+
 /** Rendert die komplette Präsentation als eine self-contained HTML-Page. */
 export function renderFullPage(presentation: Presentation, options: RenderOptions = {}): string {
   const {
@@ -1244,6 +1270,7 @@ html, body { height: 100%; overflow-x: hidden; }`
 <html lang="de">
 <head>
 <meta charset="utf-8" />
+${standalone ? '' : SLIDE_CSP_META}
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeAttr(presentation.meta.title)}</title>
 <style>
@@ -1325,7 +1352,7 @@ export function renderSingleZonePage(
   assets?: AssetMap,
 ): string {
   return `<!doctype html>
-<html lang="de"><head><meta charset="utf-8" /><style>
+<html lang="de"><head><meta charset="utf-8" />${SLIDE_CSP_META}<style>
 ${fontFaceCss(presentation, assets)}
 :root {
 ${tokensToCssString(presentation.tokens)}

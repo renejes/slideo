@@ -1158,3 +1158,40 @@ Folien als eine überfüllte; nur rein dekorative Formen dürfen über den Rand 
 ([tools.rs](../src-tauri/src/tools.rs) `server_instructions`/`build_guide`). Da der MCP-Server kein Layout misst,
 ist das eine **Anweisung** (sehr wirksam), keine harte Garantie; eine optionale Layout-Validierung (Headless-Browser,
 Element-Grenzen vs. 1280×720) bleibt ein möglicher Folgeschritt.
+
+## 22. Security-Härtung (Audit 2026-06-26)
+
+Ein Performance- & Security-Audit der Gesamt-App (Multi-Agent, adversarial gegengeprüft) ergab eine **solide
+Kern-Isolation** (untrusted Inhalt rendert in `<iframe sandbox="allow-scripts">` **ohne** `allow-same-origin` →
+opaker Origin, kein Tauri-Zugriff; kein Zip-Slip; Generatoren escaped/allowlisted) und **kein high/critical-Risiko**.
+Vollreport + Bedrohungsmodell: [audit.md](audit.md). Umgesetzte Härtungen (Branch `security-hardening`):
+
+- **IPC-Steuer-Socket authentifiziert (S1/S8):** Der lokale TCP-Socket (App ↔ `slideo mcp`) verlangt jetzt ein beim
+  Start erzeugtes **Shared-Secret-Token**; `ipc.json` (Port + Token) wird mit **0600** angelegt. Anfragen ohne
+  gültiges Token werden abgewiesen → die bloße Kenntnis des Ports reicht einem fremden lokalen Prozess nicht mehr,
+  die 35 Tools aufzurufen. Eingehende Bytes pro Verbindung sind auf 16 MiB begrenzt. **Restgrenze:** ein
+  Same-UID-Prozess kann `ipc.json` lesen (gleicher Nutzer = gleiche Dateirechte) — das ist akzeptiert (er hat ohnehin
+  die Rechte des Nutzers). 0600 schützt zusätzlich auf Multi-User-Hosts ([ipc.rs](../src-tauri/src/ipc.rs)).
+- **Content-Security-Policy gesetzt (S2/S3):** Die App-CSP in [tauri.conf.json](../src-tauri/tauri.conf.json) ist von
+  `null` auf eine strikte Policy (`script-src 'self'`, kein externes Laden) umgestellt (+ lockerere `devCsp` für Vite/HMR;
+  Vite-`modulePreload.polyfill=false`, damit kein Inline-Script die CSP verletzt). Da `app.security.csp` **nicht** in
+  die opaken Folien-Iframes propagiert, injiziert der Renderer zusätzlich eine **eigene strikte CSP** in die In-App-
+  Folien (`renderFullPage` bei `!standalone`, `renderSingleZonePage`): `connect-src 'none'` + `default-src 'none'`
+  unterbinden jede Netzwerk-Exfiltration durch bösartige HTML-Zonen. **Bewusste Verhaltensänderung:** In-App-Folien
+  laden **keine externen Netzressourcen** mehr (fetch/externe Bilder/`<script src>`/externe Embeds) — passt zur
+  „läuft vollständig lokal"-Zusage. Der **Standalone-Export bleibt bewusst offen** (geteilte Decks dürfen externe
+  Ressourcen laden) ([renderer.ts](../src/lib/renderer.ts)).
+- **Robustheit (S5–S9):** Print-Iframe (nur Browser-Dev) erhält `sandbox` (Druck-Trigger ins Iframe verlagert);
+  `mcp_registration::write_json` schreibt **atomar** (temp + rename) und **bewahrt die Rechte** fremder Config-Dateien
+  (`~/.claude.json`, `claude_desktop_config.json` bleiben 0600), RMW serialisiert; `.slideo`-Reader cappt Größen/Anzahl
+  (Decompression-Bomb-Schutz, gegen tatsächlich gelesene Bytes); `open_print_view` nutzt einen zufälligen Temp-Namen.
+- **`html:true` im Editor (S4) ist sicher** by construction: ProseMirror parst Markdown→HTML im detached Dokument
+  (kein Script-Lauf), `SlideoImage` whitelistet nur `src/alt/title/width/align/float` → `<script>`/`onerror`/`<iframe>`
+  fallen aus dem Schema. Bleibt unverändert; die App-CSP ist der zusätzliche Backstop.
+- **Abhängigkeiten:** `npm audit` (Production) **clean**; `cargo audit` **0 Vulnerabilities** (nur
+  unmaintained/unsound-Warnungen, überwiegend der Linux-GTK-Stack, der auf macOS nicht kompiliert wird).
+
+**GUI-Verifikation ausstehend (Mensch):** Die beiden CSP-Schichten (S2/S3) sind laufzeitabhängig — vor Release auf
+einem echten `tauri:dev`/`tauri build` (macOS **und** Windows/WebView2) gegenprüfen: App lädt, MCP-IPC + Projector-
+Fenster laufen, Folien-Navigation/§20/Auto-Animate funktionieren, gestreamte Videos/Audios laden, **keine**
+CSP-Verstöße in der DevTools-Konsole.

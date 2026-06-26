@@ -40,5 +40,9 @@ export default defineConfig(async () => ({
     target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
     minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    // Kein modulepreload-Polyfill: moderne WebViews (WKWebView/WebView2) können das
+    // nativ. Der Polyfill wäre ein INLINE-Script und würde die strikte App-CSP
+    // (script-src 'self', Audit S2) verletzen, sobald Code-Splitting hinzukommt.
+    modulePreload: { polyfill: false },
   },
 }))

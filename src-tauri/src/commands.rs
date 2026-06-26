@@ -92,7 +92,12 @@ pub fn export_html(path: String, html: String) -> Result<(), String> {
 /// mit „Als PDF sichern" (Cmd/Strg+P). Gibt den Pfad der Temp-Datei zurück.
 #[tauri::command]
 pub fn open_print_view(html: String) -> Result<String, String> {
-    let path = std::env::temp_dir().join("slideo-export.html");
+    // Zufälliger Dateiname (Audit S9): verhindert Symlink-/Clobber-Angriffe über einen
+    // vorhersehbaren Namen in einem geteilten /tmp (Linux-Multiuser).
+    let path = std::env::temp_dir().join(format!(
+        "slideo-export-{}.html",
+        uuid::Uuid::new_v4().simple()
+    ));
     std::fs::write(&path, html).map_err(|e| format!("Schreiben fehlgeschlagen: {e}"))?;
     open_in_default_app(&path)?;
     Ok(path.to_string_lossy().to_string())

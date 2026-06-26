@@ -113,13 +113,43 @@ fn read_json(path: &Path) -> Option<Value> {
 }
 
 fn write_json(path: &Path, value: &Value) -> Result<(), String> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)
-            .map_err(|e| format!("Ordner anlegen fehlgeschlagen ({}): {e}", dir.display()))?;
-    }
+    let dir = path
+        .parent()
+        .ok_or_else(|| format!("Kein übergeordneter Ordner für {}", path.display()))?;
+    std::fs::create_dir_all(dir)
+        .map_err(|e| format!("Ordner anlegen fehlgeschlagen ({}): {e}", dir.display()))?;
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
-    std::fs::write(path, text)
-        .map_err(|e| format!("Schreiben fehlgeschlagen ({}): {e}", path.display()))
+    // Atomar schreiben (Audit S6): erst in eine Temp-Datei im SELBEN Ordner, dann per
+    // rename ersetzen. So kann ein Absturz mitten im Schreiben die (möglicherweise
+    // fremde, z.B. ~/.claude.json) Zieldatei nicht abschneiden.
+    let tmp = dir.join(format!(".slideo-{}.tmp", uuid::Uuid::new_v4().simple()));
+    std::fs::write(&tmp, text.as_bytes())
+        .map_err(|e| format!("Schreiben fehlgeschlagen ({}): {e}", tmp.display()))?;
+    // Rechte bewahren (Audit-Review M2): per rename würde die Temp-Datei (0644 bei
+    // umask 022) sonst die oft 0600-geschützten Fremd-Configs (~/.claude.json,
+    // claude_desktop_config.json) world-readable machen. Bestehende Ziel-Rechte
+    // übernehmen; existiert kein Ziel, restriktiv mit 0600 anlegen (Config-Dateien
+    // enthalten u.U. Secrets).
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(path)
+            .map(|m| m.permissions().mode() & 0o777)
+            .unwrap_or(0o600);
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(mode));
+    }
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Ersetzen fehlgeschlagen ({}): {e}", path.display())
+    })
+}
+
+/// Serialisiert die Read-Modify-Write-Vorgänge an den Config-Dateien (Audit S6):
+/// der Startup-Thread (`reconcile_on_startup`) und der Einstellungs-Command
+/// (`set_target`) dürfen sich nicht überschneiden (Lost-Update an Drittdaten).
+fn config_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
 }
 
 /// Die Server-Definition dieser App im `mcpServers`-Format (Claude Desktop/Code).
@@ -352,6 +382,8 @@ fn unregister(target: Target) -> Result<(), String> {
 /// zu entfernen — so bleibt eine bestehende, funktionierende Registrierung
 /// erhalten und der Fehler wird klar gemeldet (kein stilles Eintragen woanders).
 fn reconcile(target: Target) -> Result<(), String> {
+    // RMW der Config-Dateien serialisieren (Audit S6).
+    let _guard = config_lock().lock().unwrap_or_else(|e| e.into_inner());
     let exe = current_exe()?;
     register(target, &exe)?;
     // Erst nach erfolgreicher Registrierung die anderen aufräumen (best effort).
@@ -514,6 +546,45 @@ mod tests {
         assert!(cfg["mcpServers"]["other"].is_object(), "Fremdeintrag bleibt");
         assert!(!mcp_server_registered(&path));
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_json_preserves_existing_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("slideo-perms-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        // Fremde Config wie ~/.claude.json: existiert mit 0600.
+        std::fs::write(&path, "{}").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+        write_json(&path, &json!({ "a": 1 })).unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "Zieldatei-Rechte bleiben 0600 (Audit-Review M2)");
+        // Keine Temp-Datei zurückgelassen.
+        let tmp_left = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().contains(".tmp"));
+        assert!(!tmp_left, "keine Temp-Datei übrig");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_json_new_file_is_restrictive() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("slideo-perms-new-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("new.json");
+
+        write_json(&path, &json!({ "a": 1 })).unwrap();
+
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "neue Config wird restriktiv (0600) angelegt");
         std::fs::remove_dir_all(&dir).ok();
     }
 

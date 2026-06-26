@@ -15,15 +15,21 @@
 > auditieren, dann gezielt optimieren. (Aus Session-Feedback: „einmal Performance- und Security-Check der ganzen
 > App, dann optimieren — Workflow überarbeiten etc.")
 
-### 1a. Security-Check (Bestandsaufnahme + Härtung)
-- [ ] **Iframe-Isolation:** HTML-Zonen führen beliebiges JS aus (gewollt), aber `sandbox="allow-scripts"`, KEINE
-      Tauri-APIs im Iframe — Grenzen bestätigen.
-- [ ] **CSP bewusst setzen** (`tauri.conf.json` aktuell `null`): Data-URI, `slideoasset:`, Inline-Styles/Scripts der
-      Slides erlauben, Sonstiges einschränken (vgl. C0).
-- [ ] **Schreibpfade prüfen:** MCP-Ziel-Registrierung (`mcp_registration.rs` editiert Claude-/Meta-/Code-Config),
-      Versionshistorie (`history.rs`, `valid_id` gegen Path-Traversal — gegenprüfen), Snapshot-/Export-Dateipfade.
-- [ ] **Untrusted Input:** `.slideo`-Import (fremdes ZIP/JSON), Asset-Bytes (`slideoasset://`), MCP-Tool-Parameter.
-- [ ] **Ergebnis:** kurze Bedrohungsmodell-Notiz + priorisierte Härtungsliste vor Release.
+### 1a. Security-Check (Bestandsaufnahme + Härtung) — ✅ AUDIT + HÄRTUNG UMGESETZT (2026-06-26)
+
+> Multi-Agent-Audit (adversarial gegengeprüft) → **kein high/critical**, solide Kern-Isolation. Vollreport +
+> Bedrohungsmodell: **[audit.md](audit.md)**; Architektur in **Spec §22** / CLAUDE.md. Umgesetzt auf Branch
+> `security-hardening` (cargo test 33, typecheck, vite build grün; `cargo audit` 0 Vulns).
+
+- [x] **Iframe-Isolation** bestätigt: alle Folien-Iframes `sandbox="allow-scripts"` ohne `allow-same-origin`, keine Tauri-APIs.
+- [x] **CSP gesetzt** (S2/S3): App-CSP statt `null` **+** eigene strikte CSP in den In-App-Folien-Iframes
+      (`connect-src 'none'`, weil App-CSP nicht in opake Iframes propagiert). — **GUI-Verifikation offen** (macOS+Windows).
+- [x] **IPC-Socket authentifiziert** (S1): Shared-Secret-Token + `ipc.json` 0600 (war: unauth., world-readable Port).
+- [x] **Schreibpfade gehärtet** (S6/S9): `write_json` atomar + rechtebewahrend (kein 0600→0644 von `~/.claude.json`),
+      randomisierter print-Temp-Name; `history.rs valid_id` als sicher bestätigt.
+- [x] **Untrusted Input** (S7): `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb); kein Zip-Slip; `html:true` by-construction sicher.
+- [x] **Ergebnis:** Bedrohungsmodell-Notiz + priorisierte Härtungsliste → **[audit.md](audit.md)**.
+- [ ] **OFFEN (Mensch):** CSP-GUI-Smoke-Test auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows) — DevTools-Konsole auf CSP-Verstöße.
 
 ### 1b. Performance-Check (messen → optimieren)
 - [ ] **Bundle:** Material-Symbols-Variable-Font (~3,6 MB) auf genutzte Icons **subsetten**; `index`-Chunk (~1,3 MB)

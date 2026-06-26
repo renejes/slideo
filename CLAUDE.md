@@ -267,6 +267,24 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   `slideo_guide` ([tools.rs](src-tauri/src/tools.rs)) lehren das feste 1280×720 + **Safe-Area** (x 64–1216 / y 64–656),
   damit AI-Decks nicht überlaufen — Anweisung, keine harte Garantie (MCP-Server misst kein Layout). **Nach Änderung
   der instructions: cargo build + Claude Desktop neu starten** (sonst altes MCP-Binary).
+- **Security-Härtung (Audit 2026-06-26, Spec §22, umgesetzt auf Branch `security-hardening`):** Multi-Agent-
+  Performance-/Security-Audit der Gesamt-App (adversarial gegengeprüft) → **kein high/critical**, solide Kern-Isolation;
+  Vollreport [docs/audit.md](docs/audit.md). Gehärtet: **(S1)** der lokale IPC-Steuer-Socket (App↔`slideo mcp`) verlangt
+  jetzt ein beim Start erzeugtes **Shared-Secret-Token**, `ipc.json` wird **0600** angelegt, Anfragen ohne Token werden
+  abgewiesen, 16-MiB-Cap je Verbindung ([ipc.rs](src-tauri/src/ipc.rs)); **(S2/S3) CSP** — App-CSP (`script-src 'self'`)
+  in [tauri.conf.json](src-tauri/tauri.conf.json) statt `null` (+ `devCsp`, Vite-`modulePreload.polyfill=false`) **und**
+  eine **eigene strikte CSP** (`default-src 'none'; connect-src 'none'`) in die **In-App**-Folien-Iframes
+  ([renderer.ts](src/lib/renderer.ts) `SLIDE_CSP_META`, nur `!standalone` + `renderSingleZonePage`), weil `app.security.csp`
+  **nicht** in die opaken Iframes propagiert; **(S5–S9)** print-Iframe `sandbox`, `mcp_registration::write_json` atomar +
+  **rechtebewahrend** (kein 0600→0644-Downgrade von `~/.claude.json`), `.slideo`-Reader-Caps (Decompression-Bomb), zufälliger
+  print-Temp-Name. **(S4)** Editor-`html:true` ist by-construction sicher (ProseMirror-Schema verwirft `<script>`/`onerror`).
+  `cargo audit` **0 Vulns** (nur unmaintained-Warnungen, v.a. Linux-GTK).
+  **Bewusste Verhaltensänderung (S3):** In-App-Folien laden **keine externen Netzressourcen** mehr (fetch/externe Bilder/
+  `<script src>`/externe Embeds) — passt zur „läuft lokal"-Zusage; der **Standalone-Export bleibt offen** (geteilte Decks
+  dürfen extern laden). **Restgrenze (S1):** ein Same-UID-Prozess kann `ipc.json` lesen (akzeptiert — gleicher Nutzer hat
+  ohnehin Nutzer-Rechte). **GUI-Verifikation ausstehend:** beide CSP-Schichten sind laufzeitabhängig → vor Release auf echtem
+  `tauri:dev`/`tauri build` (macOS **und** Windows) auf CSP-Verstöße prüfen (App lädt, MCP-IPC/Projector, Nav/§20/Auto-Animate,
+  Video/Audio-Streaming). Headless grün: **cargo test 33** (+4 neue Tests), typecheck, vite build.
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest, Outline-Modus +
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
