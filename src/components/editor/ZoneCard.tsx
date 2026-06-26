@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Zone } from '@/types'
@@ -17,7 +17,7 @@ interface ZoneCardProps {
 }
 
 // Eine Card pro Zone: Drag-Handle + Toolbar + Editor (Tiptap oder CodeMirror).
-export function ZoneCard({ zone, index }: ZoneCardProps) {
+function ZoneCardBase({ zone, index }: ZoneCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: zone.id,
   })
@@ -254,3 +254,8 @@ function NotesPanel({ zone }: { zone: Zone }) {
     </div>
   )
 }
+
+// React.memo (Audit P5): `mutate` erhält die Objekt-Identität unveränderter Zonen
+// (z.id === id ? {...z} : z), daher überspringt memo das Re-Rendern aller anderen
+// ZoneCards beim Tippen in einer Folie. Props sind nur {zone, index} → Shallow-Compare reicht.
+export const ZoneCard = memo(ZoneCardBase)

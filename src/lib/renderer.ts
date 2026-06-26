@@ -1,7 +1,7 @@
 import type { Presentation, Zone, AssetMap, TransitionKind } from '@/types'
 import { markdownToHtml, splitMarkdownBlocks } from './markdown-tiptap'
 import { tokensToCssString } from './tokens'
-import { mediaKind, parseDataUri, fontFormat, extFromName } from './assets'
+import { mediaKind, fontFormat, extFromName } from './assets'
 
 // Renderer: Markdown + Tokens → in sich geschlossene HTML-Page.
 //
@@ -80,14 +80,34 @@ function scopeCss(rawCss: string, scope: string): string {
  *   statt als base64 inline eingebettet werden. Ohne `urlBase` (Browser-Dev)
  *   Fallback auf Data-URI.
  */
+/** MIME aus einem Data-URI nur über den HEADER lesen (Audit P4) — ohne die u.U.
+ *  mehrere MB große base64-Nutzlast zu materialisieren (anders als parseDataUri). */
+function mimeFromDataUri(uri: string): string {
+  if (!uri.startsWith('data:')) return ''
+  // MIME endet beim ERSTEN ';' oder ',' (je nachdem was zuerst kommt) — robust auch
+  // für "data:<mime>,<roher Inhalt mit ; darin>" (z.B. unkodiertes SVG).
+  const semi = uri.indexOf(';')
+  const comma = uri.indexOf(',')
+  let end = uri.length
+  if (semi >= 0) end = Math.min(end, semi)
+  if (comma >= 0) end = Math.min(end, comma)
+  return uri.slice(5, end)
+}
+
 function resolveAssetRefs(html: string, assets?: AssetMap, urlBase?: string): string {
   if (!assets) return html
   let out = html
   for (const [name, dataUri] of Object.entries(assets)) {
-    const kind = mediaKind(parseDataUri(dataUri).mime)
-    const replacement =
-      urlBase && (kind === 'video' || kind === 'audio') ? `${urlBase}${name}` : dataUri
-    out = out.split(`assets/${name}`).join(replacement)
+    const token = `assets/${name}`
+    // Nicht referenzierte Assets überspringen (Audit P4: kein O(Zonen×Assets)-split/join
+    // + kein base64-Decode für Assets, die in dieser Zone gar nicht vorkommen).
+    if (!out.includes(token)) continue
+    let replacement = dataUri
+    if (urlBase) {
+      const kind = mediaKind(mimeFromDataUri(dataUri)) // header-only, keine MB-base64
+      if (kind === 'video' || kind === 'audio') replacement = `${urlBase}${name}`
+    }
+    out = out.split(token).join(replacement)
   }
   return out
 }

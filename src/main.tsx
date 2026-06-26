@@ -2,8 +2,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import { ProjectorView } from './components/presentation/ProjectorView'
-// Selbst-gehostete Material Symbols (offline, kein CDN) — "Outlined"-Variante.
-import 'material-symbols/outlined.css'
+// Selbst-gehostete Material Symbols (offline, kein CDN) — auf die genutzten Icons
+// subgesetzt (~42 KB statt ~3,63 MB, Audit P1; regenerieren: npm run icons:subset).
+import './styles/material-symbols.css'
 import './index.css'
 
 // Das Presenter-Zweitfenster (Spec §19.3) lädt dieselbe App mit `?role=projector`
