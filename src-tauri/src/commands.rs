@@ -24,7 +24,7 @@ pub fn load_presentation(path: String, state: State<'_, AppState>) -> Result<Loa
 
     *state.presentation.lock().unwrap() = Some(presentation.clone());
     *state.file_path.lock().unwrap() = Some(pb);
-    *state.assets.lock().unwrap() = assets.clone();
+    state.set_assets(assets.clone()); // + Decode-Cache invalidieren (P7)
 
     Ok(LoadResult { presentation, assets })
 }
@@ -41,7 +41,7 @@ pub fn save_presentation(
     file::write_presentation(&pb, &presentation, &assets).map_err(|e| format!("{e:#}"))?;
     *state.presentation.lock().unwrap() = Some(presentation);
     *state.file_path.lock().unwrap() = Some(pb);
-    *state.assets.lock().unwrap() = assets;
+    state.set_assets(assets); // + Decode-Cache invalidieren (P7)
     Ok(())
 }
 
@@ -57,7 +57,7 @@ pub fn sync_presentation(presentation: Option<Value>, state: State<'_, AppState>
 /// Spiegelt die Asset-Map ins Backend (separat, da Assets selten/größer sind).
 #[tauri::command]
 pub fn sync_assets(assets: Vec<Asset>, state: State<'_, AppState>) {
-    *state.assets.lock().unwrap() = assets;
+    state.set_assets(assets); // + Decode-Cache invalidieren (P7)
 }
 
 /// Liefert den aktuellen Presentation-State (für das Presenter-Zweitfenster, Spec §19.3).

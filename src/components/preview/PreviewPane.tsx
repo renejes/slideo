@@ -100,6 +100,17 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         typeof d.width === 'string'
       ) {
         resizeZoneImage(d.zoneId, d.blockIndex, typeof d.imgIndex === 'number' ? d.imgIndex : 0, d.width)
+      } else if (
+        d.type === 'slideo:resize-element' &&
+        typeof d.zoneId === 'string' &&
+        Array.isArray(d.path) &&
+        typeof d.width === 'string'
+      ) {
+        // Bild-Resize in einer HTML-Zone (§20): nur die CSS-Breite am Pfad-Element setzen.
+        applyZoneElementOp(d.zoneId, d.path as number[], 'resizeWidth', {
+          width: d.width as string,
+          expectTag: tag,
+        })
       } else if (d.type === 'slideo:select-element' && typeof d.zoneId === 'string' && Array.isArray(d.path)) {
         // Klick → Quelle (Phase 0): Zone aktiv + Quell-Range im HTML-Editor markieren.
         const zoneId = d.zoneId as string

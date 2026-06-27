@@ -722,8 +722,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           zones: zones.map((z) => {
             if (z.id !== target.id) return z
             const existing = z.content_type === 'html' ? (z.html ?? '') : ''
+            // Anhängen an eine NICHT-leere HTML-Zone: wie beim Medien-Einfügen die Komponente
+            // in einen absolut positionierten, sichtbaren Container wickeln (z-index über dem
+            // Inhalt). Sonst landet sie im Fluss unter dem (meist platzfüllenden) KI-Inhalt und
+            // wird von der 1280×720-Bühne abgeschnitten. Per §20-Drag verschiebbar.
             const next =
-              placement === 'append' && existing.trim() ? `${existing}\n${html}` : html
+              placement === 'append' && existing.trim()
+                ? `${existing}\n<div style="position:absolute;left:10%;top:14%;width:80%;z-index:50">${html}</div>`
+                : html
             return { ...z, content_type: 'html', html: next }
           }),
         }
@@ -800,12 +806,20 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         zones: p.zones.map((z) => {
           if (z.id !== zoneId) return z
           if (z.content_type === 'html') {
+            // ABSOLUT & sichtbar einfügen (nicht ans Ende anhängen): KI-HTML-Folien füllen
+            // ihren Platz meist schon → ein angehängtes Block-Element landet unter dem
+            // Inhalt und wird von der 1280×720-Bühne (overflow:hidden, §21) abgeschnitten.
+            // Absolut positioniert erscheint das Medium sichtbar über dem Inhalt und ist per
+            // §20-Direktmanipulation verschieb- (Drag) und (Bild) skalierbar.
+            // z-index:50: sicher über positioniertem KI-HTML-Inhalt (der eigene z-index tragen
+            // kann); deckt sich mit den §20-Overlays (position:fixed). Per §20/Custom-CSS
+            // wieder nach hinten holbar.
             const snippet =
               kind === 'video'
-                ? `<video controls src="${ref}" style="max-width:100%;border-radius:var(--border-radius)"></video>`
+                ? `<video controls src="${ref}" style="position:absolute;left:30%;top:28%;width:40%;border-radius:var(--border-radius);z-index:50"></video>`
                 : kind === 'audio'
-                  ? `<audio controls src="${ref}" style="width:100%"></audio>`
-                  : `<img src="${ref}" alt="" />`
+                  ? `<audio controls src="${ref}" style="position:absolute;left:25%;top:84%;width:50%;z-index:50"></audio>`
+                  : `<img src="${ref}" alt="" style="position:absolute;left:30%;top:28%;width:40%;height:auto;border-radius:var(--border-radius);z-index:50" />`
             const html = z.html?.trim() ? `${z.html}\n${snippet}` : snippet
             return { ...z, html }
           }

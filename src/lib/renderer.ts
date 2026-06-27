@@ -75,10 +75,12 @@ function scopeCss(rawCss: string, scope: string): string {
 
 /**
  * Ersetzt `assets/<name>`-Referenzen durch eine ladbare Quelle.
- * - Bilder → Data-URI (inline, klein, zuverlässig).
- * - Video/Audio → Custom-Protocol-URL (`urlBase`), damit große Medien gestreamt
- *   statt als base64 inline eingebettet werden. Ohne `urlBase` (Browser-Dev)
- *   Fallback auf Data-URI.
+ * - In-App (mit `urlBase`): Bild/Video/Audio → Custom-Protocol-URL (`slideoasset://`),
+ *   damit Medien nicht als (u.U. mehrere MB große) base64-Data-URI ins `srcDoc` inline
+ *   müssen — kleineres Dokument, schnelleres (Re-)Parsen + gecachtes Decode im Handler
+ *   (Audit P3/P7). Die Slide-CSP erlaubt `slideoasset:`/`http://slideoasset.localhost`.
+ * - Ohne `urlBase` (Standalone-Export, Print, Browser-Dev): Fallback auf Data-URI inline
+ *   (self-contained, kein Protokoll-Handler verfügbar).
  */
 /** MIME aus einem Data-URI nur über den HEADER lesen (Audit P4) — ohne die u.U.
  *  mehrere MB große base64-Nutzlast zu materialisieren (anders als parseDataUri). */
@@ -105,7 +107,9 @@ function resolveAssetRefs(html: string, assets?: AssetMap, urlBase?: string): st
     let replacement = dataUri
     if (urlBase) {
       const kind = mediaKind(mimeFromDataUri(dataUri)) // header-only, keine MB-base64
-      if (kind === 'video' || kind === 'audio') replacement = `${urlBase}${name}`
+      // Bekannte Medien (Bild/Video/Audio) in-app über das Protocol streamen; alles
+      // andere bleibt sicherheitshalber inline (defensiv gegen unbekannte Asset-Typen).
+      if (kind === 'image' || kind === 'video' || kind === 'audio') replacement = `${urlBase}${name}`
     }
     out = out.split(token).join(replacement)
   }
@@ -532,6 +536,59 @@ function editScript(directEdit: boolean): string {
   var DIRECT = ${directEdit ? 'true' : 'false'};
   function zoneOf(el) { return el && el.closest ? el.closest('.slideo-zone') : null; }
   function inHtmlZone(el) { return !!(el && el.closest && el.closest('.slideo-zone-html')); }
+  function contentOf(el) { return el && el.closest ? el.closest('.slideo-content') : null; }
+  // Element-Kind-Index-Pfad ab (exkl.) .slideo-content — die §20-Adresse eines HTML-Zonen-
+  // Elements. Geteilt (shared scope), weil neben der Direktmanipulation auch der Bild-Resize
+  // den Pfad braucht, um die Breite an HTML-Zonen-Bilder zu schreiben.
+  function pathOf(el) {
+    var content = contentOf(el);
+    if (!content) return null;
+    var path = [], node = el;
+    while (node && node !== content) {
+      var parent = node.parentNode;
+      if (!parent) return null;
+      var idx = Array.prototype.indexOf.call(parent.children, node);
+      if (idx < 0) return null;
+      path.unshift(idx);
+      node = parent;
+    }
+    return path.length ? path : null;
+  }
+  // Erzeugt der Knoten einen Containing-Block für absolute Kinder? (position, aber auch
+  // transform/filter/perspective.) Geteilt mit dem §20-Verschieben, damit Resize und Move
+  // exakt denselben Bezugsrahmen nutzen.
+  function createsCB(n) {
+    var s = getComputedStyle(n);
+    return (!!s.position && s.position !== 'static')
+      || (!!s.transform && s.transform !== 'none')
+      || (!!s.filter && s.filter !== 'none')
+      || (!!s.perspective && s.perspective !== 'none');
+  }
+  // Tatsächlicher Containing-Block eines (absolut positionierten) Elements: nächster Vorfahre,
+  // der einen CB erzeugt; sonst .slideo-content (falls positioniert) bzw. die Zone. NICHT
+  // offsetParent (liefert auch statische <td> → falsche %-Breite).
+  function moveCb(el) {
+    var content = el.closest('.slideo-content'), zone = el.closest('.slideo-zone');
+    if (!content || !zone) return zone || el.parentElement;
+    var node = el.parentElement;
+    while (node && node !== content) {
+      if (createsCB(node)) return node;
+      node = node.parentElement;
+    }
+    return createsCB(content) ? content : zone;
+  }
+  // Breite des Bezugsrahmens für die %-Bild-Breite: bei absolut/fixed positionierten Bildern
+  // der TATSÄCHLICHE Containing-Block (moveCb — wie das Verschieben), sonst die .slideo-content-
+  // Box (Markdown-Fluss). Beide rects sind in der skalierten Bühne Bildschirm-px → das
+  // Verhältnis (Maus-Offset / cbWidth) ist scale-invariant (§21).
+  function cbWidthOf(img) {
+    var pos = getComputedStyle(img).position;
+    if (pos === 'absolute' || pos === 'fixed') {
+      return moveCb(img).getBoundingClientRect().width;
+    }
+    var content = img.closest('.slideo-content');
+    return (content || img.parentNode).getBoundingClientRect().width;
+  }
 
   // Cmd/Ctrl+Z im Iframe an den Parent weiterreichen — sonst greift der globale
   // Undo nicht, weil der Tastendruck im sandboxed Iframe landet (nicht im Fenster).
@@ -587,12 +644,12 @@ function editScript(directEdit: boolean): string {
   rh.className = 'slideo-resize';
   rh.style.display = 'none';
   document.body.appendChild(rh);
-  var hoverImg = null, resizeImg = null, resizeLeft = 0, resizeCW = 1;
+  var hoverImg = null, resizeImg = null, resizeLeft = 0, resizeCW = 1, resizeStartW = '';
   function isImg(el) {
-    // Resize gilt nur für Markdown-Zonen (resizeZoneImage no-opt auf HTML); in
-    // HTML-Zonen übernimmt der Direktmanipulations-Layer.
-    return el && el.tagName === 'IMG' && el.closest('.slideo-content')
-      && el.closest('.slideo-zone') && !inHtmlZone(el);
+    // Resize gilt für Bilder in Markdown- UND HTML-Zonen. Der Commit verzweigt in
+    // onResizeEnd: Markdown → slideo:resize-image (block-index), HTML → slideo:resize-element
+    // (§20-Pfad, setzt die CSS-Breite am rohen zone.html).
+    return el && el.tagName === 'IMG' && el.closest('.slideo-content') && el.closest('.slideo-zone');
   }
   function placeHandle(img) {
     var r = img.getBoundingClientRect();
@@ -611,19 +668,35 @@ function editScript(directEdit: boolean): string {
     placeHandle(resizeImg);
   }
   function onResizeEnd() {
-    if (resizeImg) {
-      document.documentElement.style.userSelect = '';
+    // Nur committen, wenn sich die Breite wirklich geändert hat. Ein bloßer Klick auf den
+    // Anfasser (oder ein Zug zurück auf die Startbreite) würde sonst eine No-op-Op posten, die
+    // das rohe zone.html via DOMParser neu serialisiert/umformatiert + einen Undo-Schritt anlegt.
+    if (resizeImg) document.documentElement.style.userSelect = ''; // immer zurücksetzen (auch No-op)
+    if (resizeImg && resizeImg.style.width !== resizeStartW) {
+      suppressClick = true; // den nachfolgenden Klick schlucken (sonst deselektiert er die §20-Auswahl)
       var z = resizeImg.closest('.slideo-zone');
-      var block = resizeImg.closest('.slideo-block');
-      if (z && block) {
-        var imgs = block.querySelectorAll('img');
-        parent.postMessage({
-          type: 'slideo:resize-image',
+      var width = resizeImg.style.width || '100%';
+      if (z && inHtmlZone(resizeImg)) {
+        // HTML-Zone: Breite über den §20-Pfad ans rohe zone.html schreiben (resizeWidth-Op).
+        var path = pathOf(resizeImg);
+        if (path) parent.postMessage({
+          type: 'slideo:resize-element',
           zoneId: z.id.replace(/^zone-/, ''),
-          blockIndex: parseInt(block.getAttribute('data-block-index'), 10),
-          imgIndex: Array.prototype.indexOf.call(imgs, resizeImg),
-          width: resizeImg.style.width || '100%'
+          path: path, width: width, tag: 'img'
         }, '*');
+      } else {
+        // Markdown-Zone: über block-index (unverändert).
+        var block = resizeImg.closest('.slideo-block');
+        if (z && block) {
+          var imgs = block.querySelectorAll('img');
+          parent.postMessage({
+            type: 'slideo:resize-image',
+            zoneId: z.id.replace(/^zone-/, ''),
+            blockIndex: parseInt(block.getAttribute('data-block-index'), 10),
+            imgIndex: Array.prototype.indexOf.call(imgs, resizeImg),
+            width: width
+          }, '*');
+        }
       }
     }
     document.removeEventListener('pointermove', onResizeMove);
@@ -635,9 +708,11 @@ function editScript(directEdit: boolean): string {
     if (!hoverImg) return;
     e.preventDefault();
     resizeImg = hoverImg;
-    var content = resizeImg.closest('.slideo-content');
+    resizeStartW = resizeImg.style.width; // Startbreite → Schwelle gegen No-op-Commits
     resizeLeft = resizeImg.getBoundingClientRect().left;
-    resizeCW = content ? content.getBoundingClientRect().width : resizeImg.parentNode.getBoundingClientRect().width;
+    // Bezugsrahmen-Breite (CB): .slideo-content im Fluss, offsetParent bei absoluten
+    // (HTML-Zonen-)Bildern → die committete %-Breite stimmt mit dem Drag überein.
+    resizeCW = cbWidthOf(resizeImg);
     if (!resizeCW) resizeCW = 1;
     document.documentElement.style.userSelect = 'none';
     document.addEventListener('pointermove', onResizeMove);
@@ -647,7 +722,9 @@ function editScript(directEdit: boolean): string {
 
   /* ---------- gemeinsamer Einstieg ---------- */
   document.addEventListener('pointermove', function (e) {
-    if (dragEl || resizeImg) return; // während eines Zugs kein Hover-Update
+    // editing/moveState sind var-hoisted aus dem DIRECT-Block (undefined wenn aus) →
+    // während eines §20-Inline-Edits/Verschiebens kein Resize-Anfasser einblenden.
+    if (dragEl || resizeImg || editing || moveState) return; // während eines Zugs kein Hover-Update
     if (e.target === rh) return;     // auf dem Anfasser bleiben
     if (isImg(e.target)) { hoverImg = e.target; placeHandle(e.target); }
     else hideHandle();
@@ -708,22 +785,7 @@ function editScript(directEdit: boolean): string {
       return true;
     }
 
-    function contentOf(el) { return el && el.closest ? el.closest('.slideo-content') : null; }
-    // Pfad vom Element hoch bis (exkl.) .slideo-content; Element-Kind-Indizes.
-    function pathOf(el) {
-      var content = contentOf(el);
-      if (!content) return null;
-      var path = [], node = el;
-      while (node && node !== content) {
-        var parent = node.parentNode;
-        if (!parent) return null;
-        var idx = Array.prototype.indexOf.call(parent.children, node);
-        if (idx < 0) return null;
-        path.unshift(idx);
-        node = parent;
-      }
-      return path.length ? path : null;
-    }
+    // contentOf/pathOf leben jetzt im geteilten Scope (oben) — auch der Bild-Resize nutzt sie.
     function elAtPath(section, path) {
       var el = section.querySelector('.slideo-content');
       if (!el) return null;
@@ -934,28 +996,7 @@ function editScript(directEdit: boolean): string {
     /* ---------- Phase 3: Verschieben + „Folie einfrieren" ---------- */
     function isAbs(n) { var p = getComputedStyle(n).position; return p === 'absolute' || p === 'fixed'; }
     function isFixedEl(n) { return getComputedStyle(n).position === 'fixed'; }
-    // Erzeugt der Knoten einen Containing-Block für absolute Kinder? (position, aber
-    // auch transform/filter/perspective — sonst läge der Bezugsrahmen falsch.)
-    function createsCB(n) {
-      var s = getComputedStyle(n);
-      return (!!s.position && s.position !== 'static')
-        || (!!s.transform && s.transform !== 'none')
-        || (!!s.filter && s.filter !== 'none')
-        || (!!s.perspective && s.perspective !== 'none');
-    }
-    // Tatsächlicher Containing-Block eines (absolut positionierten) Elements: nächster
-    // Vorfahre, der einen CB erzeugt; sonst .slideo-content (falls via custom_css
-    // positioniert) bzw. die Zone. NICHT offsetParent (liefert auch statische <td>).
-    function moveCb(el) {
-      var content = el.closest('.slideo-content'), zone = el.closest('.slideo-zone');
-      if (!content || !zone) return zone || el.parentElement;
-      var node = el.parentElement;
-      while (node && node !== content) {
-        if (createsCB(node)) return node;
-        node = node.parentElement;
-      }
-      return createsCB(content) ? content : zone;
-    }
+    // createsCB/moveCb leben jetzt im geteilten Scope (oben) — auch der Bild-Resize nutzt sie.
     // Rect → %-Position/Größe relativ zur Padding-Box von cb (+ optionales Delta).
     // getBoundingClientRect ist in der per --slideo-scale skalierten Zone
     // Bildschirm-px → durch den Scale teilen (§21). clientLeft/Top/Width/Height sind
@@ -1048,20 +1089,33 @@ function editScript(directEdit: boolean): string {
       parent.postMessage({ type: 'slideo:freeze-zone', zoneId: zone.id.replace(/^zone-/, ''), items: items, path: draggedPath }, '*');
     }
 
+    // Hover-Overlay: das teure Box-Update (getBoundingClientRect + Style-Writes) per rAF
+    // koaleszieren UND nur bei ZIEL-Wechsel ausführen (Audit P9) — die Box umrandet das
+    // ganze Element/den ganzen Block, ändert sich also nicht, während die Maus IM selben
+    // Ziel wandert. Das Ziel selbst wird pro pointermove billig bestimmt.
+    var hoverTarget = null, hoverPending = false;
+    function flushHover() {
+      hoverPending = false;
+      if (hoverTarget && document.contains(hoverTarget)) boxFor(hoverBox, hoverTarget);
+      else hoverBox.style.display = 'none';
+    }
     document.addEventListener('pointermove', function (e) {
       if (dragEl || resizeImg || editing || moveState) return;
-      if (e.target && e.target.closest && e.target.closest('.slideo-de-ui')) { hoverBox.style.display = 'none'; return; }
-      if (inHtmlZone(e.target)) {
+      var t = null;
+      if (e.target && e.target.closest && e.target.closest('.slideo-de-ui')) {
+        t = null;
+      } else if (inHtmlZone(e.target)) {
         // HTML-Zone: einzelne Elemente hervorheben.
         var content = contentOf(e.target);
-        if (!content || e.target === content || e.target === selEl) { hoverBox.style.display = 'none'; return; }
-        boxFor(hoverBox, e.target);
+        t = (!content || e.target === content || e.target === selEl) ? null : e.target;
       } else {
         // Markdown-Zone: den ganzen Block hervorheben (Block-granular).
         var block = e.target.closest && e.target.closest('.slideo-block');
-        if (!block || block === selEl) { hoverBox.style.display = 'none'; return; }
-        boxFor(hoverBox, block);
+        t = (!block || block === selEl) ? null : block;
       }
+      if (t === hoverTarget) return; // gleiches Ziel → nichts neu zu zeichnen
+      hoverTarget = t;
+      if (!hoverPending) { hoverPending = true; requestAnimationFrame(flushHover); }
     });
 
     // Klick = Auswahl (Capture, um Inhalts-Handler/Links im Edit-Modus zu schlagen).

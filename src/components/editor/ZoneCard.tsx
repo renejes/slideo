@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { Zone } from '@/types'
@@ -7,9 +7,18 @@ import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { ZoneToolbar } from './ZoneToolbar'
 import { TiptapEditor } from './TiptapEditor'
-import { HtmlEditor } from './HtmlEditor'
-import { CssEditor } from './CssEditor'
 import { Icon } from '@/components/ui/Icon'
+
+// CodeMirror-basierte Editoren lazy laden (Audit P8): CodeMirror wird nur für HTML-Zonen
+// bzw. das (standardmäßig eingeklappte) Custom-CSS-Panel gebraucht — reine Markdown-Decks
+// laden den Chunk nie. Der Tiptap-Editor bleibt eager (jede Markdown-Folie braucht ihn sofort).
+const HtmlEditor = lazy(() => import('./HtmlEditor').then((m) => ({ default: m.HtmlEditor })))
+const CssEditor = lazy(() => import('./CssEditor').then((m) => ({ default: m.CssEditor })))
+
+/** Platzhalter, solange ein lazy CodeMirror-Editor-Chunk lädt (i.d.R. ein Frame). */
+function EditorFallback() {
+  return <div className="h-24 animate-pulse rounded-lg bg-chrome-surface-2" />
+}
 
 interface ZoneCardProps {
   zone: Zone
@@ -153,12 +162,14 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
       {/* Editor-Body */}
       <div className="px-4 py-3.5">
         {isHtml ? (
-          <HtmlEditor
-            zoneId={zone.id}
-            initialHtml={zone.html ?? ''}
-            onChange={(value) => updateZoneHtml(zone.id, value)}
-            onFocus={() => setActiveZone(zone.id)}
-          />
+          <Suspense fallback={<EditorFallback />}>
+            <HtmlEditor
+              zoneId={zone.id}
+              initialHtml={zone.html ?? ''}
+              onChange={(value) => updateZoneHtml(zone.id, value)}
+              onFocus={() => setActiveZone(zone.id)}
+            />
+          </Suspense>
         ) : (
           <TiptapEditor
             initialMarkdown={zone.markdown}
@@ -208,7 +219,9 @@ function CssPanel({ zone }: { zone: Zone }) {
       </button>
       {open && (
         <div className="px-4 pb-3.5">
-          <CssEditor initialCss={cssValue} onChange={(value) => updateZoneCss(zone.id, value)} />
+          <Suspense fallback={<EditorFallback />}>
+            <CssEditor initialCss={cssValue} onChange={(value) => updateZoneCss(zone.id, value)} />
+          </Suspense>
           <p className="mt-1.5 text-[11px] text-chrome-faint">
             Selektoren beziehen sich auf diese Folie, z.B.{' '}
             <code className="font-mono">h1 {'{'} letter-spacing: -.02em {'}'}</code>. Token-Variablen

@@ -46,7 +46,9 @@ export async function startMcpBridge(): Promise<() => void> {
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => {
         void invoke('sync_presentation', { presentation: s.presentation }).then(notifyDeckChanged)
-      }, 120)
+        // 400 ms (war 120): bündelt Tipp-Bursts stärker, bevor der volle presentation.json-
+        // Sync nach Rust geht (Audit P10). MCP liest dadurch unmerklich später (Text-only).
+      }, 400)
     }
     if (s.filePath !== lastFilePath) {
       lastFilePath = s.filePath

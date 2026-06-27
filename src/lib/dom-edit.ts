@@ -18,7 +18,7 @@
 //    Dokument-Index unter gleichnamigen Elementen bestimmen, das n-te öffnende
 //    Tag-Literal im Quelltext finden (implizite Elemente haben kein Literal).
 
-export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete'
+export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete' | 'resizeWidth'
 
 /** Payload je Operation (alle Felder optional; je Op werden andere genutzt). */
 export interface OpPayload {
@@ -28,6 +28,8 @@ export interface OpPayload {
   topPct?: number
   /** editText: bearbeitetes Inline-HTML aus dem contenteditable (wird sanitisiert). */
   html?: string
+  /** resizeWidth: neue CSS-Breite (z.B. "42%" oder "300px") für ein Bild (Spec §20-Resize). */
+  width?: string
   /**
    * Optionaler Tag-Name, den das per Pfad aufgelöste Element haben MUSS, sonst
    * No-op. Schützt vor stale Pfaden, wenn ein paralleler MCP-Edit die Zone
@@ -173,6 +175,12 @@ export function applyElementOp(
       // werden NICHT editiert (kein Flatten bei stale Pfad / MCP-Umbau).
       if (!isInlineEditable(el)) return html
       ;(el as HTMLElement).innerHTML = sanitizeInline(payload?.html ?? '')
+      break
+    }
+    case 'resizeWidth': {
+      // Bild-Resize (§20): nur die CSS-Breite setzen, übrige Styles (Position!) bleiben.
+      const he = el as HTMLElement
+      if (payload?.width) he.style.width = payload.width
       break
     }
     case 'move': {

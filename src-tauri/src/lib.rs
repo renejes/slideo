@@ -39,26 +39,45 @@ pub fn run() {
                 .path()
                 .trim_start_matches('/')
                 .to_string();
-            let found = {
-                let state = ctx.app_handle().state::<AppState>();
-                let assets = state.assets.lock().unwrap();
-                assets
-                    .iter()
-                    .find(|a| a.name == name)
-                    .map(|a| (a.mime.clone(), a.data.clone()))
+            let state = ctx.app_handle().state::<AppState>();
+            // Decode-Cache (Audit P7): erst nachschlagen — vermeidet das base64-Dekodieren
+            // pro Request (großer Hebel beim wiederholten Anfragen desselben Videos). Cache
+            // wird bei jeder Asset-Änderung über AppState::set_assets geleert.
+            let cached = {
+                let cache = state.asset_cache.lock().unwrap();
+                cache.get(&name).cloned()
             };
-            match found {
-                Some((mime, data)) => {
-                    let bytes = base64::engine::general_purpose::STANDARD
-                        .decode(data.as_bytes())
-                        .unwrap_or_default();
-                    tauri::http::Response::builder()
-                        .status(200)
-                        .header(tauri::http::header::CONTENT_TYPE, mime)
-                        .header("Access-Control-Allow-Origin", "*")
-                        .body(bytes)
-                        .unwrap()
+            let entry = match cached {
+                Some(arc) => Some(arc),
+                None => {
+                    // Miss: finden + dekodieren + cachen UNTER demselben assets-Lock. Weil
+                    // set_assets den assets-Lock ZUERST nimmt (und erst danach den Cache
+                    // leert), kann zwischen diesem Read und dem Insert kein Asset-Tausch
+                    // dazwischenfunken → der Cache erhält nie veraltete Bytes (Review-Fix der
+                    // TOCTOU-Race). Lock-Reihenfolge assets→cache ist konsistent (kein
+                    // Deadlock); der Decode läuft einmalig pro Asset, danach Cache-Treffer.
+                    let assets = state.assets.lock().unwrap();
+                    assets.iter().find(|a| a.name == name).map(|a| {
+                        let bytes = base64::engine::general_purpose::STANDARD
+                            .decode(a.data.as_bytes())
+                            .unwrap_or_default();
+                        let arc = std::sync::Arc::new((a.mime.clone(), bytes));
+                        state
+                            .asset_cache
+                            .lock()
+                            .unwrap()
+                            .insert(name.clone(), arc.clone());
+                        arc
+                    })
                 }
+            };
+            match entry {
+                Some(arc) => tauri::http::Response::builder()
+                    .status(200)
+                    .header(tauri::http::header::CONTENT_TYPE, arc.0.clone())
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(arc.1.clone())
+                    .unwrap(),
                 None => tauri::http::Response::builder()
                     .status(404)
                     .body(Vec::new())
