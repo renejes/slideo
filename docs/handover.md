@@ -6,79 +6,59 @@
 
 ## PROMPT ANFANG
 
-Wir arbeiten gemeinsam an **Slideo** und machen am nächsten Meilenstein weiter. Lies dich zuerst ein, bevor du Code schreibst.
+Wir arbeiten gemeinsam an **Slideo**. Die App ist **im Prinzip funktional fertig und release-reif** — bevor wir sie tatsächlich release-ready machen, will ich zwei Dinge: **(1)** den Aufbau der Codebase verstehen und **(2)** schauen, ob wir am **Workflow** noch etwas optimieren können. Lies dich zuerst ein, bevor du Code schreibst.
 
-**Was Slideo ist:** Eine lokale, code-freie, **MCP-native** Desktop-App für Präsentationen (Tauri 2 + React/TypeScript + Vite). Eine Präsentation ist eine HTML-Page aus „Zones" (Slides). Kein AI-Layer in der App — die KI-Anbindung läuft ausschließlich über einen mitgelieferten **MCP-Server** (Claude Desktop). Läuft vollständig lokal.
+**Was Slideo ist:** Eine lokale, code-freie, **MCP-native** Desktop-App für Präsentationen (Tauri 2 + React/TypeScript + Vite). Eine Präsentation ist eine HTML-Page aus „Zones" (Slides). Kein AI-Layer in der App — die KI-Anbindung läuft ausschließlich über einen mitgelieferten **MCP-Server** (Claude Desktop). Läuft vollständig lokal. **Produktthese:** KI baut das Deck, der Mensch editiert drüber (siehe Memory `ai-edit-over-workflow-thesis`).
 
 **Projektverzeichnis:** `/Users/renejesser/Desktop/Programming - Projekte/slideo`
 
-### Das Ziel dieser Session (Hauptaufgabe)
-**Editor aufräumen + Direktmanipulation auf Markdown ausweiten** — der Plan steht in **`docs/editor-cleanup-plan.md`**. Drei Punkte, in dieser Reihenfolge:
-1. **Kontext-sensitive Editor-Tools** (klein): Layout- + Ausrichtungs-Dropdown nur noch für Markdown-Zonen zeigen (bei HTML-Zonen sind sie praktisch wirkungslos/verwirrend); Bild-„Größe" vs. Vorschau-Resize entscheiden.
-2. **Zone-Reorder konsolidieren** (klein): Umsortieren gibt es aktuell doppelt (Karten-Drag-Handle im Editor **und** neue Folienliste in der Sidebar) → Empfehlung: nur in der Folienliste, Karten-Handle entfernen.
-3. **Direktmanipulation für Markdown-Zonen** (größer, phasen): Blöcke in der Vorschau auswählen / inline bearbeiten / duplizieren / löschen (kein Verschieben — Markdown bleibt flussbasiert). Adressierung über das vorhandene `data-block-index`. Der harte Teil: editiertes Block-HTML → Markdown (Empfehlung: über Tiptap serialisieren = eine Quelle der Wahrheit).
-
-**`docs/editor-cleanup-plan.md` ist maßgeblich** für diese Aufgabe (Scope, Dateien, Phasen, Risiken, offene Entscheidungen). **Kläre die offenen Entscheidungen (Bild-„Größe" behalten/entfernen; Reorder welche Stelle) kurz mit mir, bevor du in dem jeweiligen Punkt baust.**
-
-### Vereinbarte Reihenfolge
-Die GUI-Verifikation des in der Vor-Session Gebauten (**Editor-Shell, CSP, Font/Icons**) ist **bestätigt** (funktioniert wie besprochen) — daher direkt mit dem Umbau starten. „Bauen statt erst optimieren": die offene Performance ist unsichtbarer Feinschliff für eine lokale App, der große Hebel (P1 Font, −65 % Bundle) ist schon drin.
-1. ✅ GUI-Check des Gebauten — erledigt.
-2. **Punkt 1** (kontext-sensitive Tools) → **Punkt 2** (Reorder konsolidieren) — klein, sofort, geringes Risiko.
-3. **Punkt 3** (Markdown-Direktmanipulation, Phasen 3a→3b, optional 3c) — dabei **P2/P6** (Vorschau-Voll-Reload → In-Place-Patch) **mitdenken**: beide leben in der Vorschau-/`editScript`-Pipeline. Wenn sich der Voll-Reload während der Direktmanipulation träge anfühlt, im selben Aufwasch glätten (Pipeline nur einmal anfassen, mit klarem Anlass — statt P2/P6 vorab als riskanten Refactor).
-4. **Danach:** restliche Performance-Politur (P3/P7 Bild-Protocol+Cache, P8 Code-Splitting, P10/P12/P13) + Distribution (`docs/next-steps.md` C).
+### Das Ziel dieser Session (in dieser Reihenfolge)
+1. **Codebase grafisch darstellen.** Erstelle eine Datei, die mir **visuell** zeigt, **wie die Codebase aufgebaut ist, was sie kann und an welcher Stelle** (Module/Schichten: Rust-Backend ↔ MCP ↔ Frontend-Store ↔ Renderer/Iframe ↔ Editor/Vorschau/Präsentation; Datenfluss; wo welches Feature lebt). Es gibt bereits eine (vermutlich **veraltete**) [docs/slideo_architecture.svg](slideo_architecture.svg) — prüfen, ob aktualisieren oder neu/besser machen (z.B. SVG oder Mermaid-Diagramm, gern mit kurzer Begleit-Legende). Das ist die **Hauptaufgabe** — erst gemeinsam Format/Detailgrad klären.
+2. **Workflow-Optimierung überlegen.** Mit dem Überblick aus (1): **wo lässt sich der Bedien-/Authoring-Workflow noch verbessern** (Mensch *und* KI-über-MCP)? Erst **analysieren + mit mir besprechen**, nicht sofort bauen. (Beispiele zum Nachdenken, nicht als Auftrag: Onboarding/Erststart, Komponenten-Set, Asset-Verwaltung, die noch offene Perf-Politur P2/P6 = Vorschau-In-Place-Patch.)
+3. **Wenn das passt → Slideo release-ready machen.** Distribution & Notarization (signierte/notarisierte Builds), voller GUI-Test A1–A7. Details: `docs/next-steps.md` (Abschnitt „Release-Ready" + C).
 
 ### Bitte zuerst lesen (in dieser Reihenfolge):
-1. **`docs/editor-cleanup-plan.md`** — die Aufgabe dieser Session (Code-fundiert; enthält den verifizierten Ist-Stand von Editor-Tools vs. Vorschau-Fähigkeiten).
-2. **`CLAUDE.md`** (Projektwurzel) — Konventionen, Design-System, Architektur-Entscheidungen (ist aktuell, inkl. Security-Härtung, Editor-Shell, Icon-Subset).
-3. **`docs/slideo-spec.md`** — maßgebliche Spezifikation. Relevant: §14 HTML-Zonen, §16 Layouts, §17 Custom-CSS, **§20 Direktmanipulation** (HTML), **§21 feste 16:9-Bühne**, **§22 Security-Härtung**. (Outline-Modus §19.9 wurde wieder **entfernt** — siehe Spec-Notiz.)
-4. **`docs/audit.md`** — der Performance-/Security-Audit dieser Session (Bedrohungsmodell + Befunde + Umsetzungsstand). **Wichtig:** Security ist durch; von der Performance sind nur P1/P4/P5 umgesetzt, **P2/P3/P6/P7/P8/P10/P12/P13 sind noch offen** (sekundär, siehe unten).
-5. `docs/next-steps.md` — Gesamt-To-do (GUI-Test A1–A7, restliche Performance, Distribution C).
-6. `docs/done/direct-manipulation-plan.md` — Referenz zu §20 (vollständig umgesetzt; nicht mehr bauen).
-
-> `docs/project-status.md` ist **teilweise veraltet** (vor Audit + Editor-Shell geschrieben — nennt z.B. noch 27 Tests, Outline-Modus). Im Zweifel gelten CLAUDE.md + diese Übergabe + `docs/audit.md`.
+1. **`CLAUDE.md`** (Projektwurzel) — **maßgeblich für den Ist-Stand**: alle Architektur-Entscheidungen, Konventionen, Design-System, Security-Härtung, Editor-Cleanup, Brand Kit, Markdown-Direktmanipulation, feste 16:9-Bühne, Performance. Ist aktuell.
+2. **`docs/slideo-spec.md`** — maßgebliche Spezifikation. Relevant: §14 HTML-Zonen, §16 Layouts, §17 Custom-CSS, **§20 Direktmanipulation**, **§21 feste 16:9-Bühne**, **§22 Security-Härtung**.
+3. **`docs/project-status.md`** — Stand-Dokument (was gebaut ist, wie es zusammenhängt). Auf aktuellen Stand gebracht.
+4. **`docs/next-steps.md`** — Gesamt-To-do (Release-Ready-Fokus, Workflow-Optimierung, GUI-Test A1–A7, Distribution C).
+5. **`docs/done/`** — abgeschlossene Pläne/Records (nicht mehr bauen, nur Referenz): `direct-manipulation-plan.md` (§20), `editor-cleanup-plan.md` (Editor-Cleanup + Brand Kit + Markdown-Direktmanipulation), `audit.md` (Performance-/Security-Audit, vollständig abgearbeitet bzw. dokumentiert vertagt).
+6. **Memory** (`ai-edit-over-workflow-thesis`, `scope-mcp-authoring-thesis`) — Produktrichtung.
 
 ### Wichtigster Kontext (sofort handlungsfähig):
-- **Tech:** Tauri 2 (Rust) + React 18/TS + Vite · Tiptap (Markdown-WYSIWYG) · CodeMirror (HTML/CSS) · Tailwind (nur App-Chrome, NICHT im Slide-Iframe) · Material Symbols (offline, **subgesetzt**) · Zustand-Store. Dateiformat `.slideo` = ZIP (`presentation.json` + `assets/`).
-- **Editor-Shell (NEU diese Session):** drei frei **skalierbare + einzeln einklappbare** Spalten (Folienliste · Editor · Vorschau) — [EditorShell.tsx](../src/components/ui/EditorShell.tsx) / [Splitter.tsx](../src/components/ui/Splitter.tsx) / [store/layout.ts](../src/store/layout.ts). Genau ein Bereich ist „elastisch" (Priorität Editor›Vorschau›Folienliste). **Folienliste hat Drag-Reorder** ([ZoneList.tsx](../src/components/ui/ZoneList.tsx)). **Outline-Modus wurde entfernt** (redundant). → relevant für Punkt 2 des Plans.
-- **Direktmanipulation §20 (HTML-Zonen):** Klick→Quelle, Auswählen, Inline-Text, Verschieben (abs. %), Duplizieren, Löschen, Undo. Im Iframe per Pointer-Events ([renderer.ts](../src/lib/renderer.ts) `editScript`), Ops auf rohem `zone.html` via DOMParser ([dom-edit.ts](../src/lib/dom-edit.ts)), `previewEdit`-Toggle. **Markdown-Zonen** bekommen heute in der Vorschau nur **Block-Drag + Bild-Resize** (`renderEditableBlocks` → `data-block-index`) — Punkt 3 baut darauf auf.
-- **MCP-Architektur:** Eine Binary, zwei Modi (`slideo` App, `slideo mcp` stdio). Laufende App hält den State, lokaler TCP-Socket (Port+**Token** in `<config>/slideo/ipc.json`, 0600), `slideo mcp` leitet Tool-Calls weiter (hand-gerolltes JSON-RPC). **35 MCP-Tools** + 10 Komponenten.
-- **WKWebView-Faustregel:** HTML5-DnD + `window.print()` unzuverlässig → Pointer-Events; PDF via `open_print_view`. PPTX nativ rekonstruiert (Canvas-Taint). Datei-DnD braucht `dragDropEnabled:false`.
-- **Assets:** Bilder → Data-URI inline; Video/Audio → `slideoasset://localhost/<name>` (Streaming).
+- **Tech:** Tauri 2 (Rust) + React 18/TS + Vite · Tiptap (Markdown-WYSIWYG) · CodeMirror (HTML/CSS, **lazy geladen**) · Tailwind (nur App-Chrome, NICHT im Slide-Iframe) · Material Symbols (offline, **subgesetzt**) · Zustand-Store. Dateiformat `.slideo` = ZIP (`presentation.json` + `assets/`).
+- **Editor-Shell (aktuell):** **2-spaltig** (Editor · Vorschau) — die linke Sidebar/Folienliste ist **entfallen**; Reorder + Überblick laufen über die **Editor-Karten** (Drag-Handle). Design-System lebt als **Brand-Kit-Overlay** ([DesignModal.tsx](../src/components/modals/DesignModal.tsx), Topbar-Button „Design"). [EditorShell.tsx](../src/components/ui/EditorShell.tsx) / [store/layout.ts](../src/store/layout.ts) (2 Panes, persist v2).
+- **Direktmanipulation in der Vorschau:** **HTML-Zonen** (§20) — Klick→Quelle, Auswählen, Inline-Text, Verschieben (abs. %), Duplizieren, Löschen, **Bild-Resize**; **Markdown-Zonen** (Punkt 3) — Block auswählen/duplizieren/löschen + Inline-Text-Edit einfacher Blöcke (HTML→Markdown via transienter Tiptap-Instanz). Im Iframe per Pointer-Events ([renderer.ts](../src/lib/renderer.ts) `editScript`, `selKind` 'element'|'block'), Ops via DOMParser ([dom-edit.ts](../src/lib/dom-edit.ts)) bzw. `splitMarkdownBlocks`-Reassemble, `previewEdit`-Toggle, undoable.
+- **Medien/Komponenten in HTML-Zonen** werden **absolut & sichtbar** eingefügt (nicht ans rohe Ende → sonst von der 1280×720-Bühne abgeschnitten), per §20-Drag verschiebbar.
+- **MCP-Architektur:** Eine Binary, zwei Modi (`slideo` App, `slideo mcp` stdio). Laufende App hält den State, lokaler TCP-Socket (Port+**Token** in `<config>/slideo/ipc.json`, 0600), hand-gerolltes JSON-RPC. **35 MCP-Tools** + 10 Komponenten.
+- **Assets:** in-app über `slideoasset://localhost/<name>` (Bilder, Video, Audio — gestreamt, Rust-Decode-Cache); **Standalone-Export + Print bleiben inline** (self-contained).
 
 ### KRITISCHE Stolpersteine:
-- **Icons sind subgesetzt** (Audit P1, ~42 KB): **neues Icon → Name in `scripts/icon-names.txt` eintragen + `npm run icons:subset`** ausführen. Sonst rendert das Icon als Klartext-Name (sichtbarer Hinweis). Codepoint-Rendering: [Icon.tsx](../src/components/ui/Icon.tsx) + [icon-codepoints.ts](../src/lib/icon-codepoints.ts).
-- **CSP ist jetzt gesetzt** (war `null`): App-CSP in `tauri.conf.json` (`script-src 'self'`) + eine eigene strikte CSP in den In-App-Folien-Iframes (`connect-src 'none'`, [renderer.ts](../src/lib/renderer.ts) `SLIDE_CSP_META`). **In-App-Folien laden keine externen Netzressourcen mehr** (gewollt; Standalone-Export bleibt offen). Bei neuem Frontend-Code, der etwas lädt: an die CSP denken.
+- **Icons sind subgesetzt:** **neues Icon → Name in `scripts/icon-names.txt` + `npm run icons:subset`** (sonst rendert das Icon als Klartext-Name).
+- **CSP ist gesetzt:** App-CSP (`script-src 'self'`) + strikte Folien-Iframe-CSP (`connect-src 'none'`, [renderer.ts](../src/lib/renderer.ts) `SLIDE_CSP_META`). In-App-Folien laden **keine** externen Netzressourcen (gewollt; Standalone-Export offen).
 - **Nach JEDER Backend-Änderung an MCP-Tools/Instructions:** `cargo build`/`tauri:dev` neu **UND Claude Desktop neu starten** (sonst altes MCP-Binary).
-- **Markdown ist das primäre Content-Format.** **State lebt im Zustand-Store**, nicht in lokalem React-State.
+- **WKWebView:** HTML5-DnD + `window.print()` unzuverlässig → Pointer-Events; PDF via `open_print_view`; PPTX nativ; Datei-DnD braucht `dragDropEnabled:false`. **Markdown ist primäres Content-Format; State lebt im Zustand-Store.**
 
-### Aktueller Stand (diese Session, Branch `security-hardening`, NICHT auf main gemergt):
-6 Commits, working tree clean, alles headless grün (`cargo test` **33**, `npm run typecheck`, `npx vite build`).
-- **Security-Audit + Härtung (S1–S9) umgesetzt** (Commit `bb73056`): IPC-Socket-Token + `ipc.json` 0600, App-CSP + Folien-CSP, print-Iframe sandbox, atomare+rechtebewahrende Config-Writes, `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb), randomisierter print-Temp-Name. `cargo audit` **0 Vulns**. Adversarial reviewt; 2 Review-Regressionen gefixt. Vollreport: `docs/audit.md`, Spec §22.
-- **Performance Quick Wins P1/P4/P5** (Commit `e49e6ff`): **Font-Subset 3,63 MB → 42 KB** (`dist/assets` 5,2 → 1,8 MB, alle Variations-Achsen erhalten, Codepoint-Rendering), `resolveAssetRefs` header-only + nicht-referenzierte überspringen, `React.memo(ZoneCard)`. (P11 bewusst übersprungen: Safari-Kompat.)
-- **Editor-Shell-Überarbeitung** (Commits `3cf4eaf`+`6565fa1`): skalierbare/einklappbare 3-Spalten, Folienlisten-Reorder, Outline-Modus entfernt. Review-Fixes in `8b8c346`.
-
-### GUI-Verifikation
-- ✅ **Editor-Shell + CSP/Font bestätigt** (vom Menschen geprüft, funktioniert wie besprochen): Splitter/Einklappen/Persistenz aller 3 Spalten, Folienlisten-Reorder, keine CSP-Verstöße, Icons als Symbole.
-- **Noch offen (älter, sekundär):** vollständiger §18/§19-GUI-Test A1–A7 (`docs/next-steps.md`), Multi-Display-Zweitfenster. Beim Bauen neuer Vorschau-Features (Punkt 3) das jeweils im GUI gegenprüfen lassen.
-
-### Sekundär offen (parallel/danach, nicht das Hauptziel):
-- **Restliche Performance** aus dem Audit: P2/P6 (srcDoc-In-Place-Patch statt Voll-Reload), P3/P7 (Bilder über `slideoasset://` + Handler-Cache — die CSP ist dafür schon vorbereitet), P8 (Code-Splitting), P10/P12/P13 (Sync-Debounce, Asset-Speicher, ZIP-`Stored`). Details: `docs/audit.md` Abschnitt 0 + `docs/next-steps.md` 1b.
-- **Distribution & Notarization** (`docs/next-steps.md` C).
-- **Merge:** GUI-Verifikation des Gebauten ist durch → Branch `security-hardening` kann nach main gemergt werden (oder weiter darauf bauen und nach dem Editor-Cleanup mergen).
+### Aktueller Stand (Branch `main`, alles committet + gepusht):
+**Funktional komplett + release-reif** (Phasen 1–5, Roadmap §18/§19, §20 Direktmanipulation, §21 16:9-Bühne, §22 Security-Härtung, Editor-Cleanup + Brand Kit + Markdown-Direktmanipulation, Performance-Audit-Items). **Headless grün:** `cargo test` **33**, `npm run typecheck`, `npx vite build`. Jeder größere Schritt **adversarial multi-agent-reviewt**, bestätigte Findings gefixt.
+- **GUI vom Menschen bestätigt:** Editor-Shell/CSP/Font, Brand Kit, Markdown-Direktmanipulation, Bilder/Komponenten-Einfügen + HTML-Bild-Resize.
+- **Performance:** P1/P3/P4/P5/P7/P8/P9/P10/P13 umgesetzt. **Bewusst vertagt:** P2/P6 (Vorschau-Voll-Reload → In-Place-`postMessage`-Patch — der eine größere, riskante Perf-Refactor; guter Kandidat für die Workflow-Optimierung). Übersprungen: P11/P12.
+- **Offen für echten Release:** voller GUI-Test A1–A7 (`docs/next-steps.md` A) + **Distribution/Notarization** (Abschnitt C) + die Workflow-Optimierungs-Runde (Ziel dieser Session).
 
 ### Arbeitsweise:
 - Verifiziere: `cd src-tauri && cargo test` (falls Rust), `npm run typecheck && npx vite build` (Frontend). GUI-abhängiges teste ich (der Mensch) — sag genau, was ich prüfen soll.
-- **Adversariales Multi-Agent-Review je größerem Schritt**, bestätigte Findings fixen (lief diese Session sehr gut — fing echte Bugs).
-- Architektur-Entscheidungen in `slideo-spec.md` + `CLAUDE.md` verankern. `version` bleibt "1.0" (kein Schema-Eingriff).
-- Stelle Rückfragen, bevor du größere Umbauten startest; kläre die offenen Entscheidungen im Plan vorab mit mir.
+- **Adversariales Multi-Agent-Review je größerem Schritt** (Workflow-Tool), bestätigte Findings fixen — fing diese Sessions konsequent echte Bugs.
+- Architektur-Entscheidungen in `slideo-spec.md` + `CLAUDE.md` verankern. `version` bleibt "1.0" (kein Schema-Eingriff). Memory pflegen.
+- **Stelle Rückfragen + kläre Format/Scope vorab**, bevor du größere Dinge baust (gilt hier v.a. für die Codebase-Visualisierung + die Workflow-Optimierungen).
+- **Commit/Push nur auf mein Wort.**
 
-Bitte bestätige kurz, dass du die Dokumente gelesen hast, fasse den Stand in 3–4 Sätzen zusammen, und **lass uns mit Punkt 1 aus `docs/editor-cleanup-plan.md` beginnen** (kontext-sensitive Tools — kläre vorher die Bild-„Größe"-Entscheidung mit mir). Danach Punkt 2, dann Punkt 3 (phasen).
+Bitte bestätige kurz, dass du die Dokumente gelesen hast, fasse den Stand in 3–4 Sätzen zusammen, und **lass uns mit Aufgabe 1 beginnen: die Codebase-Visualisierung** — kläre vorher kurz mit mir Format (SVG/Mermaid/…) und Detailgrad.
 
 ## PROMPT ENDE
 
 ---
 
 ### Hinweis zur Nutzung
-- **Hauptziel der nächsten Session:** die 3 Punkte aus `docs/editor-cleanup-plan.md` (Editor aufräumen + Markdown-Direktmanipulation).
-- Stand: Branch `security-hardening` (6 Commits, nicht auf main), headless grün; GUI-Verifikation (Shell + CSP/Font) steht aus.
-- `docs/done/` enthält nur vollständig abgeschlossene Pläne: `direct-manipulation-plan.md` (§20). Der Audit-Record liegt **aktiv** in `docs/audit.md` — Security komplett, **Performance erst teilweise** (P1/P4/P5 umgesetzt; P2/P3/P6/P7/P8/P10/P12/P13 offen).
+- **Hauptziel der nächsten Session:** (1) Codebase grafisch darstellen → (2) Workflow-Optimierungen überlegen/besprechen → (3) Release-Ready machen (Distribution/Notarization). Slideo ist im Prinzip fertig.
+- Stand: Branch `main`, alles committet + gepusht, headless grün (`cargo test` 33, typecheck, vite build); die zuletzt gebauten Features sind GUI-bestätigt.
+- `docs/done/` enthält die abgeschlossenen Pläne/Records: `direct-manipulation-plan.md` (§20), `editor-cleanup-plan.md` (Editor-Cleanup/Brand Kit/Markdown-Direktmanipulation), `audit.md` (Performance/Security — abgearbeitet bzw. dokumentiert vertagt). Maßgeblich für den Ist-Stand: **CLAUDE.md**.

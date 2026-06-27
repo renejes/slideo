@@ -1,5 +1,9 @@
 # Slideo — Performance- & Security-Audit
 
+> ✅ **ABGESCHLOSSEN** (in `docs/done/`) — Security S1–S9 umgesetzt; Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 umgesetzt,
+> P2/P6 bewusst vertagt, P11/P12 übersprungen (alle dokumentiert, s. Abschnitt 0). Auf `main`, headless grün.
+> Dieses Dokument ist der Audit-Record (Bedrohungsmodell + Befunde + Umsetzungsstand) — Referenz/Historie.
+>
 > Stand: 2026-06-26 · Branch `main` · lokale Tauri-2-Desktop-App (single-user, macOS-zentriert).
 > Methodik: Multi-Agent-Audit (12 Dimensionen parallel — 7 Security, 5 Performance), jedes Finding
 > adversarial gegengeprüft + Severity kalibriert, Vollständigkeits-Kritik, Dedup/Priorisierung.
@@ -36,13 +40,17 @@ auf macOS nicht kompiliert; `proc-macro-error` build-only; `unic-*` transitiv). 
 | P4 `resolveAssetRefs` header-only + nicht-referenzierte überspringen | ✅ umgesetzt |
 | P5 `React.memo(ZoneCard)` | ✅ umgesetzt |
 | P11 Undo-`structuredClone` | ⏭️ übersprungen (Safari-15.4-Kompat vs sub-ms) |
-| P2/P6 srcDoc-In-Place-Patch · P3/P7 Bild-Protocol+Cache · P8 Code-Splitting · P10/P12/P13 | ⬜ offen (GUI-abhängig / größer) |
+| P3/P7 Bild-Protocol + Rust-Decode-Cache | ✅ umgesetzt — Bilder in-app über `slideoasset://`, `AppState::set_assets` invalidiert den Cache; TOCTOU-Race (Read-then-insert) im Review gefixt. Standalone/Print inline. **GUI: Bilder in-app + Export prüfen** |
+| P8 Code-Splitting | ✅ umgesetzt — `React.lazy` für CodeMirror-Editoren; Haupt-Chunk 1,31 MB → 864 kB (CodeMirror 122 kB on-demand) |
+| P9 Hover-Overlay rAF · P10 Sync-Debounce (120→400 ms) · P13 ZIP-`Stored` für Assets | ✅ umgesetzt |
+| P2/P6 srcDoc-In-Place-Patch | ⬜ **bewusst vertagt** (großer/riskanter Refactor der §20/Punkt-3-Pipeline; P3 mildert die Reload-Kosten) |
+| P12 Asset-`Vec<u8>` intern | ⏭️ **übersprungen** (hohes Risiko/MCP-Save load-bearing, geringer Wert, Konflikt mit P7-Cache) |
 
 **Offen (Mensch / nächste Phase):**
 - **GUI-Verifikation der CSP (S2/S3) + Font (P1)** auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows/WebView2):
   App lädt, MCP-IPC + Projector-Fenster laufen, Folien-Nav/§20/Auto-Animate funktionieren, gestreamte Videos/Audios laden,
   **alle Icons rendern** (keine als Klartext-Wort), **keine** CSP-Verstöße in der DevTools-Konsole.
-- **Performance-Rest** (P2/P3/P6/P7 + Polish) ist GUI-abhängig (Vorschau-Render, Bild-Streaming) → nächste Runde nach der GUI-Verifikation.
+- **Performance:** P1/P3/P4/P5/P7/P8/P9/P10/P13 umgesetzt (headless grün, adversarial reviewt). **Offen:** P2/P6 (Vorschau In-Place-Patch — bewusst vertagt), P11/P12 (übersprungen). **GUI-abhängig zu prüfen:** P3 (Bilder laden in-app über `slideoasset://`; Export/Print weiter inline).
 
 **Akzeptierte Restrisiken (dokumentiert, kein Fix geplant):**
 - **S1 Same-UID:** ein Prozess desselben Nutzers kann `ipc.json` (0600) lesen und damit das Token — er hat ohnehin die

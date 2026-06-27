@@ -4,18 +4,24 @@
 > Begleitdokumente: [slideo-spec.md](slideo-spec.md) (maßgebliche Spec), [next-steps.md](next-steps.md) (To-dos), [handover.md](handover.md) (Übergabe an neuen Chat).
 > Version: 0.1.0
 
-> **Aktueller Stand:** MVP + komplette Roadmap **§18** und **§19 im Wesentlichen abgeschlossen** —
-> Charts, A11y, Builds **+ Auto-Animate**, Vorlagen/Marke, Suchen&Ersetzen **+ Outline-Modus + Versionshistorie**,
-> Presenter-Tools **inkl. echtem Zweitfenster**, Medien (Drag&Drop/Crop/Icon), PPTX (nativ), **Komponenten-Palette**.
-> **MCP-Parität app-weit geprüft → 35 Tools.** **§19.8 Aufnahme/Narration + Video-Export bewusst weggelassen**
-> (out of scope, siehe §19.8/Spec). **Neu: §20 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt**
-> (Klick → Quelle, Auswählen/Löschen/Duplizieren, Inline-Text-Edit, Verschieben) **+ §21 feste 16:9-Folien-Bühne +
-> Scale-to-fit** (ersetzt responsive 100vh-Zonen; behebt Out-of-bounds beim Fenster-Resize, vereinheitlicht
-> Vorschau/Präsentation/Export/Print) — **beide im GUI bestätigt**. MCP-`instructions` lehren das 1280×720-Format.
-> **Automatisiert grün** (cargo test 27, typecheck, vite build, MCP-E2E, tsx-Unit für dom-edit,
-> 11 Multi-Agent-Reviews). **Nächster Fokus: Performance- & Security-Audit der ganzen App + Optimierungs-/
-> Überarbeitungs-Runde** (+ optionale Layout-Validierung) — next-steps.md **Abschnitt 1**; parallel offen: voller
-> GUI-Test der älteren §18/§19-Features (A1–A7) + Distribution/Notarization (C).
+> **Aktueller Stand: funktional komplett & im Prinzip release-reif** (Branch `main`, alles committet + gepusht).
+> MVP + Roadmap **§18/§19** umgesetzt (Charts, A11y, Builds + Auto-Animate, Vorlagen/Marke, Suchen&Ersetzen +
+> Versionshistorie, Presenter-Tools inkl. echtem Zweitfenster, Medien, PPTX, Komponenten-Palette; **§19.8 Aufnahme/
+> Narration + Video-Export bewusst weggelassen**). **§20 Direktmanipulation** (HTML *und* Markdown-Blöcke) **+ §21 feste
+> 16:9-Bühne** **+ §22 Security-Härtung** (S1–S9). **MCP: 35 Tools.**
+>
+> **Seit diesem Stand-Dokument zusätzlich (maßgeblich: [../CLAUDE.md](../CLAUDE.md), Records in [done/](done/)):**
+> **Security-Härtung S1–S9** (IPC-Token, CSP, ZIP-Caps …); **Performance** P1/P3/P4/P5/P7/P8/P9/P10/P13 (Font-Subset,
+> Bilder in-app über `slideoasset://` + Rust-Decode-Cache, Code-Splitting, …); **Editor-Cleanup** (Shell **2-spaltig**,
+> linke **Sidebar/Folienliste entfernt** → Reorder über die Editor-Karten, **Design-System als Brand-Kit-Overlay**,
+> kontext-sensitive Toolbar, **Outline-Modus entfernt**); **Markdown-Direktmanipulation** (Block auswählen/duplizieren/
+> löschen + Inline-Text-Edit); **Medien/Komponenten** werden in HTML-Zonen **absolut & sichtbar** eingefügt + **HTML-Bild-
+> Resize**. **Automatisiert grün** (cargo test **33**, typecheck, vite build); jeder größere Schritt adversarial
+> multi-agent-reviewt; die zuletzt gebauten Features **GUI-bestätigt**.
+>
+> **Nächster Fokus (siehe [next-steps.md](next-steps.md)/[handover.md](handover.md)):** Codebase **grafisch darstellen**
+> → **Workflow-Optimierung** → **Release-Ready** (Distribution/Notarization, voller GUI-Test A1–A7). Bewusst vertagt:
+> Perf P2/P6 (Vorschau-In-Place-Patch).
 
 ---
 
@@ -41,7 +47,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - Die App mutiert ihren State und **emittiert Tauri-Events** (`mcp:presentation`, `mcp:active-slide`) → das Frontend spiegelt live in den Zustand-Store; das Frontend pusht Änderungen via `sync_presentation`/`sync_assets` zurück (kein Echo, da Sync-Commands keine Events feuern).
 - **Auto-Registrierung** in `claude_desktop_config.json` beim App-Start (idempotent, nur wenn Claude installiert).
 
-**Assets:** liegen als echte Dateien in `assets/` im ZIP. Beim Rendern: **Bilder → Data-URI** (inline), **Video/Audio → Custom-Protocol** `slideoasset://localhost/<name>` (streamt Bytes aus dem AppState; Bilder ohne Regressionsrisiko).
+**Assets:** liegen als echte Dateien in `assets/` im ZIP. Beim Rendern **in-app** (Vorschau/Präsentation/Projector): **Bild, Video, Audio → Custom-Protocol** `slideoasset://localhost/<name>` (streamt Bytes aus dem AppState, Rust-Decode-Cache; Audit P3/P7). **Standalone-Export + Print: inline Data-URI** (self-contained, kein Protokoll-Handler).
 
 ## 4. Was implementiert ist
 
@@ -85,7 +91,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - **Logo/Brand** (§19.4): `meta.logo = { asset, position }`, auf jeder Folie (auch Export/PDF); Design-Tab-Upload + Position.
 - **Starter-Templates** (§19.4): 4 Decks (Leer/Pitch/Vortrag/Editorial) mit Preset + Seed-Zonen; Auswahl im Neu-Dialog.
 - **Suchen & Ersetzen** (§19.9): deck-weites Modal + `replaceAllInDeck`; Editor-`spellcheck`.
-- **Outline-Modus** (§19.9): Ansichtswechsel „Folien ⇄ Gliederung" (`editorView` im UI-Store, Topbar-Segmented-Control). [OutlineView.tsx](../src/components/editor/OutlineView.tsx) listet alle Folien als editierbare Gliederung (Titel = erste Überschrift + Rumpf-Markdown), zerlegt/zusammengesetzt verlustfrei über [outline.ts](../src/lib/outline.ts) (CRLF→LF normalisiert). **Kein Datenmodell-Eingriff** (bearbeitet nur das Markdown); lokaler Editierzustand mit Re-Sync-Guard gegen Cursor-Sprünge. Reorder ↑/↓, Einfügen/Löschen (mit `blur` vor strukturellen Aktionen → Cmd/Z bleibt undo-fähig), „im Folien-Editor öffnen"; HTML-Folien read-only.
+- **Outline-Modus** (§19.9) — **später wieder entfernt** (redundant, seit Reorder/Einfügen/Löschen/Edit im Editor + an den Karten liegen; siehe CLAUDE.md/Editor-Cleanup). Historisch: Ansichtswechsel „Folien ⇄ Gliederung" (`editorView` im UI-Store, Topbar-Segmented-Control). `OutlineView.tsx` listete alle Folien als editierbare Gliederung (Titel = erste Überschrift + Rumpf-Markdown), zerlegt/zusammengesetzt verlustfrei über [outline.ts](../src/lib/outline.ts) (CRLF→LF normalisiert). **Kein Datenmodell-Eingriff** (bearbeitet nur das Markdown); lokaler Editierzustand mit Re-Sync-Guard gegen Cursor-Sprünge. Reorder ↑/↓, Einfügen/Löschen (mit `blur` vor strukturellen Aktionen → Cmd/Z bleibt undo-fähig), „im Folien-Editor öffnen"; HTML-Folien read-only.
 - **Versionshistorie** (§19.9): lokale `.slideo`-Snapshots unter `<config>/slideo/history/<deck-key>/` ([history.rs](../src-tauri/src/history.rs): volle `.slideo`-Kopie je Snapshot + `index.json`). **Auto-Snapshot beim Speichern** (dedupliziert) **+ manuelle Schnappschüsse**; Kappung 50 (ältere Auto zuerst, manuelle bleiben, neuer Snapshot nie gekürzt). [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx): Liste, Wiederherstellen (undoable, Dateipfad bleibt → zum Übernehmen speichern), Löschen. Commands `list_snapshots`/`create_snapshot`/`restore_snapshot`/`delete_snapshot`; IDs path-traversal-validiert, Index-Schreibzugriffe per Mutex serialisiert.
 - **Presenter-Tools** (§19.3, teilweise): **Folien-Übersicht/Sprung-Grid** ([SlideOverview.tsx](../src/components/presentation/SlideOverview.tsx), Taste `g`, statische Single-Zone-Thumbnails, Tastatur-Sprung), **Laser-/Stift-Overlay** ([AnnotationLayer.tsx](../src/components/presentation/AnnotationLayer.tsx), Canvas + Pointer-Events, Farbe aus `--color-accent`, `l`/`p`/`c`) und **Auto-Advance/Kiosk-Loop** (`a`, Sekunden-Wahl + Loop, build-bewusst). Alle als lokaler Präsentationszeit-State in [PresentationMode.tsx](../src/components/presentation/PresentationMode.tsx); **kein** Datenmodell-/Rust-Eingriff.
 - **Echtes Zweitfenster / Presenter-Modus** (§19.3): separates Tauri-Fenster `projector` ([present.rs](../src-tauri/src/present.rs)) zeigt die Folien **randlos bildschirmfüllend** auf dem im Dropdown gewählten Monitor; Hauptfenster bleibt Steuerpult (SpeakerView + Tastatur). [ProjectorView.tsx](../src/components/presentation/ProjectorView.tsx) holt das Deck aus dem `AppState` (`get_presentation`/`get_assets`), Sync über Tauri-Events (`slideo:nav`/`slideo:deck-changed`/`slideo:projector-ready`/`slideo:projector-closed`); eigene minimale [Capability](../src-tauri/capabilities/projector.json). Kein natives Vollbild (macOS-Display-Problem) → `set_position`+`set_size`. Ein-Fenster-Modus bleibt. v1: Laser/Stift im Zwei-Bildschirm-Modus aus; Live-Edits laden das Folien-Fenster kurz neu; Multi-Display-Verifikation steht aus (GUI).
@@ -130,9 +136,11 @@ src/
     editor/         # EditorCanvas, ZoneCard, ZoneToolbar, TiptapEditor, HtmlEditor, CssEditor, ImageToolbar
     presentation/   # PresentationMode (parent-autoritativ), SpeakerView
     preview/        # PreviewPane (editable: Drag/Resize)
-    tokens/         # TokenEditor (Tokens, Themes, Fonts, Logo, Kontrast, Transition)
-    modals/         # NewPresentationModal (+ Vorlagen), SettingsModal, FindReplaceModal
-    ui/             # Topbar, Sidebar, ZoneList, Modal, Icon, Toaster
+    tokens/         # TokenEditor (= „Brand Kit": Themes, Farben, Fonts+Upload, Logo, Übergang, Erweitert)
+    modals/         # NewPresentationModal (+ Vorlagen), SettingsModal, McpSetupModal, FindReplaceModal,
+                    # ComponentPaletteModal, HistoryModal, DesignModal (Brand-Kit-Overlay), CropModal
+    ui/             # Topbar, EditorShell (2-spaltig), Splitter, Modal, McpTargetCards, Icon, Toaster
+                    # (frühere Sidebar/ZoneList + OutlineView entfernt — Reorder/Überblick via Editor-Karten)
     CloseGuard.tsx
   types/index.ts    # alle TS-Typen + Defaults (Transition, RevealMode, FontFace, BrandLogo …)
 ```
@@ -140,12 +148,16 @@ src/
 ## 6. Verifikationsstatus
 
 **Automatisiert getestet (grün):**
-- `cargo test` — **27 Tests**: `.slideo`-Roundtrip inkl. Assets, voller Tool-Flow (create→zones→html→css→notes→transition→component→tokens→reorder→delete), `set_zone_style/css`, `apply_preset`, **Marke/Meta/Fonts** (`set_logo`-Asset-Validierung/Position, `clear_logo`, `register_font`-Dedup, `set_presentation_title`, `set_zone_label`), Komponenten-Generator (Token-Nutzung/Escaping/Skalierung, inkl. Charts + `icon`-Sanitization, list()/render()-Konsistenz, `with_data_id`-Injektion/Sanitization für Auto-Animate), **Versionshistorie** (Snapshot-Roundtrip, Dedupe, Prune-mit-Manuell-Schutz + Schutz des neuen Snapshots, unsichere-ID-Abwehr, Löschen), MCP-Handshake, `tools/list` (**35**), Prompts.
+- `cargo test` — **33 Tests**: `.slideo`-Roundtrip inkl. Assets, voller Tool-Flow (create→zones→html→css→notes→transition→component→tokens→reorder→delete), `set_zone_style/css`, `apply_preset`, **Marke/Meta/Fonts** (`set_logo`-Asset-Validierung/Position, `clear_logo`, `register_font`-Dedup, `set_presentation_title`, `set_zone_label`), Komponenten-Generator (Token-Nutzung/Escaping/Skalierung, inkl. Charts + `icon`-Sanitization, list()/render()-Konsistenz, `with_data_id`-Injektion/Sanitization für Auto-Animate), **Versionshistorie** (Snapshot-Roundtrip, Dedupe, Prune-mit-Manuell-Schutz + Schutz des neuen Snapshots, unsichere-ID-Abwehr, Löschen), MCP-Handshake, `tools/list` (**35**), Prompts.
 - **Standalone via `tsx` geprüft:** Bild-Positionierungs-Round-Trip (`![]()` vs. `<img>`), Markdown-Block-Splitter, editable-Block-/Resize-Rendering, Builds-Fragmente + parent-autoritative Nav, `@font-face`-Generierung, Logo-Rendering, Template-Aufbau, **Outline-Parse/Recombine-Round-Trip** (inkl. CRLF).
 - **MCP-E2E** (Python-Harness gegen Fake-Socket): echtes `slideo mcp`-Binary macht initialize → tools/list → tools/call-Forwarding korrekt.
 - `npm run typecheck` + `npx vite build` — alles grün.
 
-**NICHT verifiziert (kein GUI in der Entwicklungsumgebung) — siehe [next-steps.md](next-steps.md):**
+> **Update:** Die zuletzt gebauten Bereiche sind inzwischen **vom Menschen im GUI bestätigt** — Editor-Shell/CSP/Font,
+> **Brand Kit**, **Markdown-Direktmanipulation**, Bilder/Komponenten-Einfügen + HTML-Bild-Resize. Die folgende
+> „nicht verifiziert"-Liste betrifft v.a. die **älteren §18/§19-Features** (voller GUI-Durchlauf A1–A7 steht noch aus).
+
+**NOCH NICHT vollständig im GUI durchgeklickt (v.a. ältere §18/§19-Features) — siehe [next-steps.md](next-steps.md):**
 - Das echte Tauri-Fenster zur Laufzeit (Editor, Drag&Drop, Modals, Speaker-View-Optik).
 - Live-MCP-Eventfluss ins WebView; ob `slideoasset://` im sandboxed Iframe lädt; 3-Knopf-Schließen-Dialog; ob Claude Desktop `instructions`/`slideo_guide` einblendet.
 - **Roadmap §18:** Bild-Bubble-Toolbar, Transition-Animationen, HTML-Export, **PDF-Druck** (öffnet jetzt im Standardbrowser via `open_print_view`), Notizen, Theme-Picker, Komponenten via MCP.

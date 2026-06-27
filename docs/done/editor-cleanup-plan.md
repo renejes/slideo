@@ -1,6 +1,9 @@
 # Slideo — Implementationsplan: Editor aufräumen + Direktmanipulation für Markdown
 
-> **Status:** **Punkt 1 + 2 + 3 umgesetzt** (siehe „Umsetzungsstand" unten) — headless grün, **GUI-Check ausstehend**.
+> ✅ **ABGESCHLOSSEN** (in `docs/done/`) — Punkt 1+2+3 umgesetzt, headless grün **und GUI-bestätigt**, auf `main`.
+> Maßgeblich für den Ist-Stand: `CLAUDE.md`. Dieses Dokument ist der Implementations-Record (Referenz/Historie).
+>
+> **Status:** **Punkt 1 + 2 + 3 umgesetzt** (siehe „Umsetzungsstand" unten) — headless grün, **GUI-bestätigt**.
 > Zusätzlich das Design-Overlay zum **Brand Kit** entschlackt (Produktentscheidung, web-recherchiert; in `CLAUDE.md` +
 > Memory `ai-edit-over-workflow-thesis` verankert). Maßgeblich bleibt [slideo-spec.md](slideo-spec.md); Architektur-
 > Entscheidungen sind in `CLAUDE.md` verankert. Hintergrund: Code-Analyse der Editor-Textbereich-Tools vs. der **real

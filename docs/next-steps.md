@@ -1,16 +1,20 @@
 # Slideo — Nächste Schritte
 
-> **AKTUELLER FOKUS (nächste Session): Editor aufräumen + Direktmanipulation auf Markdown** —
-> Plan: **[editor-cleanup-plan.md](editor-cleanup-plan.md)** (Punkt 1 kontext-sensitive Tools → Punkt 2 Reorder
-> konsolidieren → Punkt 3 Markdown-Direktmanipulation). Übergabe: [handover.md](handover.md).
+> **AKTUELLER FOKUS: Slideo ist im Prinzip release-reif → Release-Ready machen.** Reihenfolge (siehe
+> [handover.md](handover.md)): **(1)** Codebase **grafisch darstellen** (wie ist sie aufgebaut, was kann sie, wo —
+> bestehende [slideo_architecture.svg](slideo_architecture.svg) prüfen/erneuern) → **(2) Workflow-Optimierung**
+> überlegen + besprechen (Mensch *und* KI-über-MCP; was lässt sich am Authoring-Fluss noch verbessern) → **(3) Release**
+> (Distribution/Notarization, Abschnitt C + voller GUI-Test A).
 >
-> **Erledigt diese Session (Branch `security-hardening`, headless grün, GUI-Verifikation offen):** Security-Audit +
-> Härtung S1–S9, Performance Quick Wins P1/P4/P5 (Font-Subset etc.), Editor-Shell (skalier-/einklappbare Spalten,
-> Folienlisten-Reorder, Outline entfernt). Audit-Record → [audit.md](audit.md). §20-Plan →
-> [done/direct-manipulation-plan.md](done/direct-manipulation-plan.md).
+> **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 33, typecheck, vite build):**
+> Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 (s.u. 1b) · **Editor-Cleanup** (2-spaltige Shell,
+> Sidebar raus, Brand-Kit-Overlay, kontext-sensitive Toolbar) · **Markdown-Direktmanipulation** (§20 auf Markdown-Blöcke
+> ausgeweitet) · sichtbares Einfügen + HTML-Bild-Resize. Records → [done/](done/) (`audit.md`, `editor-cleanup-plan.md`,
+> `direct-manipulation-plan.md`). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
 >
-> **Sekundär offen:** restliche Performance (P2/P3/P6/P7/P8/P10/P12/P13, s.u. 1b), GUI-Test (A), Distribution (C).
-> Maßgebliche Spec: [slideo-spec.md](slideo-spec.md). (`project-status.md` ist teilweise veraltet.)
+> **Offen für den Release:** Workflow-Optimierungs-Runde (Ziel der nächsten Session) · **bewusst vertagte Perf** P2/P6
+> (Vorschau-In-Place-Patch, s.u. 1b) · voller GUI-Test A1–A7 (A) · Distribution/Notarization (C).
+> Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
@@ -23,7 +27,7 @@
 ### 1a. Security-Check (Bestandsaufnahme + Härtung) — ✅ AUDIT + HÄRTUNG UMGESETZT (2026-06-26)
 
 > Multi-Agent-Audit (adversarial gegengeprüft) → **kein high/critical**, solide Kern-Isolation. Vollreport +
-> Bedrohungsmodell: **[audit.md](audit.md)**; Architektur in **Spec §22** / CLAUDE.md. Umgesetzt auf Branch
+> Bedrohungsmodell: **[audit.md](done/audit.md)**; Architektur in **Spec §22** / CLAUDE.md. Umgesetzt auf Branch
 > `security-hardening` (cargo test 33, typecheck, vite build grün; `cargo audit` 0 Vulns).
 
 - [x] **Iframe-Isolation** bestätigt: alle Folien-Iframes `sandbox="allow-scripts"` ohne `allow-same-origin`, keine Tauri-APIs.
@@ -33,18 +37,19 @@
 - [x] **Schreibpfade gehärtet** (S6/S9): `write_json` atomar + rechtebewahrend (kein 0600→0644 von `~/.claude.json`),
       randomisierter print-Temp-Name; `history.rs valid_id` als sicher bestätigt.
 - [x] **Untrusted Input** (S7): `.slideo`-Größen-/Anzahl-Caps (Decompression-Bomb); kein Zip-Slip; `html:true` by-construction sicher.
-- [x] **Ergebnis:** Bedrohungsmodell-Notiz + priorisierte Härtungsliste → **[audit.md](audit.md)**.
+- [x] **Ergebnis:** Bedrohungsmodell-Notiz + priorisierte Härtungsliste → **[audit.md](done/audit.md)**.
 - [ ] **OFFEN (Mensch):** CSP-GUI-Smoke-Test auf echtem `tauri:dev`/`tauri build` (macOS **und** Windows) — DevTools-Konsole auf CSP-Verstöße.
 
-### 1b. Performance-Check (gemessen → optimiert) — Quick Wins umgesetzt (Audit [audit.md](audit.md), Commit `e49e6ff`)
+### 1b. Performance-Check (gemessen → optimiert) — Quick Wins umgesetzt (Audit [audit.md](done/audit.md), Commit `e49e6ff`)
 - [x] **Bundle (P1):** Material-Symbols-Font auf die ~70 genutzten Icons **subgesetzt** → 3,63 MB → 42 KB (`dist/assets`
       5,2 → 1,8 MB), Codepoint-Rendering + `npm run icons:subset`. — **GUI: Icons sichtprüfen.**
 - [x] **Asset-Refs (P4):** `resolveAssetRefs` header-only MIME + nicht-referenzierte Assets überspringen.
 - [x] **React-Re-Render (P5):** `React.memo(ZoneCard)` — Tippen re-rendert nicht mehr alle Folien.
-- [ ] **`index`-Chunk (P8):** Code-Splitting (Tiptap/CodeMirror/dnd-kit lazy) — offen.
-- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — offen (GUI-abhängig).
-- [ ] **Bilder (P3/P7):** statt inline-base64 über `slideoasset://` + Protocol-Handler-Cache — offen (GUI-abhängig).
-- [ ] **Polish (P10/P12/P13):** Sync-Debounce, Asset-Speicher (`Vec<u8>`), ZIP-`Stored` für Assets — offen.
+- [x] **`index`-Chunk (P8):** Code-Splitting — CodeMirror-Editoren (`HtmlEditor`/`CssEditor`) via `React.lazy`; Haupt-Chunk 1,31 MB → 864 kB (CodeMirror 122 kB lädt nur bei HTML-Zone/CSS-Panel).
+- [x] **Bilder (P3/P7):** in-app über `slideoasset://` statt inline-base64 + Rust-Decode-Cache (`AppState::set_assets` invalidiert; TOCTOU-Race im Review gefixt). Standalone/Print bleiben inline. — **GUI: Bilder in-app + Export prüfen.**
+- [x] **Polish (P10/P13):** Sync-Debounce 120→400 ms; ZIP-`Stored` für Assets (kein Deflate auf schon-komprimierten Medien). + **P9** Hover-Overlay rAF-koalesziert.
+- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — **bewusst vertagt** (großer/riskanter Refactor der gerade umgebauten §20/Punkt-3-Pipeline; P3 nimmt den Re-Decode-Kostenanteil schon weg). Separat mit GUI-Test.
+- [ ] **P12 (`Vec<u8>` intern):** **bewusst übersprungen** — hohes Risiko (MCP-Save load-bearing), geringer Wert (Speicher), im Konflikt mit dem P7-Cache.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde
 - [x] **Editor-Shell überarbeitet** (aus GUI-Feedback): drei frei **skalierbare + einzeln einklappbare** Spalten
