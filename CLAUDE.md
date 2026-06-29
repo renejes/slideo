@@ -326,6 +326,29 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   ohnehin Nutzer-Rechte). **GUI-Verifikation ausstehend:** beide CSP-Schichten sind laufzeitabhängig → vor Release auf echtem
   `tauri:dev`/`tauri build` (macOS **und** Windows) auf CSP-Verstöße prüfen (App lädt, MCP-IPC/Projector, Nav/§20/Auto-Animate,
   Video/Audio-Streaming). Headless grün: **cargo test 33** (+4 neue Tests), typecheck, vite build.
+- **Zonen-Links / nicht-lineare Navigation (Spec §23, umgesetzt):** Folien können aufeinander verlinken
+  (Inhaltsverzeichnis → Sprung → Rücksprung). **Sprung-Attribut `data-slideo-goto`** (Wert = **Zonen-UUID**
+  umsortier-fest **oder** 1-basierte **Foliennummer**) auf jedem klickbaren Element. Alles läuft durch den **einen**
+  Navigations-Trichter `go(i, smooth)` ([renderer.ts](src/lib/renderer.ts) `navScript`), **nie** nativer `#hash`-Scroll
+  (scheitert im Deck-Modus stumm). Delegierter Klick-Handler + `resolveGoto` (UUID→Index-Map aus
+  `<section id="zone-…">`): **Standalone** ruft `go()` direkt; **in-app** postet das anzeige-only-Iframe
+  `slideo:goto-request {index}` → parent-autoritativ (PresentationMode → `doJump`, PreviewPane → `setActiveZone`,
+  ProjectorView → Tauri `slideo:projector-goto` ans Steuerfenster). `hashchange`-Shim macht schlichte
+  `href="#zone-<UUID>"`/Markdown-`#`-Links überall first-class (+ Browser-Zurück). **Zurückkommen = expliziter
+  Rücksprung-Link** (kein History-Stack — bewusst, weil dokument-artig + in App/Standalone identisch). Im
+  **Direktbearbeiten-Modus (§20)** unterdrückt `window.__sldDirectEdit` (gesetzt in `editScript`) die Sprung-Klicks
+  (dort selektiert der Klick). **Authoring:** neue **Rust-`toc`-Komponente** ([components.rs](src-tauri/src/components.rs),
+  token-gestylt, `items:[{label,target}]`, Ziel via `safe_goto` `[A-Za-z0-9-_:]`≤64 sanitisiert) → erscheint in
+  `list_components`/Palette ([component-forms.ts](src/lib/component-forms.ts)); MCP-`instructions`+`slideo_guide`
+  lehren es (Punkt 11). **Mensch zusätzlich per Direktmanipulation (§20):** Element in HTML-Zone auswählen →
+  Toolbar-Knopf „Link" → Ziel-Folie aus Popover ([PreviewPane](src/components/preview/PreviewPane.tsx)); Element-Op
+  **`setGoto`** ([dom-edit.ts](src/lib/dom-edit.ts), `safeGoto` spiegelt Rust, Ziel = Zonen-UUID, undobar, „Link
+  entfernen") — im Direktbearbeiten-Modus selektiert ein Klick aufs verknüpfte Element es wieder (`window.__sldDirectEdit`).
+  **Komponenten 10→11**, **kein Schema-Eingriff** (`version` "1.0"). Headless grün:
+  **cargo test 34** (+1), typecheck, vite build; adversarial reviewt. **GUI-Check ausstehend** (Sprung in
+  Präsentation/Standalone/Vorschau, Rücksprung, Markdown-`#` — der `hashchange`-Pfad ist about:srcdoc-WKWebView-
+  abhängig, der `data-slideo-goto`-Pfad davon unabhängig & empfohlen; Projektor-Klick). **Nach den MCP-Instructions-
+  Änderungen: `cargo build` + Claude Desktop neu starten** (sonst altes Binary).
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
@@ -333,7 +356,8 @@ app-weit geprüft → 35 Tools; **Outline-Modus §19.9 wieder entfernt** — red
 off-thesis; Medien-Bedarf via Einbettung gedeckt; siehe [[scope-mcp-authoring-thesis]]). **Neu: §20
 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt** (Klick→Quelle, Auswählen/Löschen/Duplizieren,
 Inline-Text, Verschieben; s.o.) **+ §21 feste 16:9-Folien-Bühne + Scale-to-fit** (ersetzt responsive 100vh-Zonen;
-behebt Out-of-bounds beim Resize). GUI-Check beider steht aus.
+behebt Out-of-bounds beim Resize) **+ §23 Zonen-Links / nicht-lineare Navigation** (`data-slideo-goto` + `toc`-Komponente,
+Inhaltsverzeichnis→Sprung→Rücksprung; s.o.). GUI-Check aller drei steht aus.
 
 Offen (kein neues Feature, sondern „verifizieren & ausliefern"): **GUI-Verifikation** aller §18/§19-Features
 durch den Menschen (Checklisten next-steps.md A1–A7, inkl. Zweitfenster auf echter Multi-Display-Hardware) und

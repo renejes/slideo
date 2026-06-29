@@ -647,7 +647,12 @@ auto morpht Elemente mit gleichem data-id zwischen Folien, data-id via HTML-Zone
 set_zone_reveal(id, 'steps') für Builds (Blöcke der Folie erscheinen schrittweise).\n\
 10. Marke/Meta: set_presentation_title(title); set_zone_label(id, label) (Folien-Anzeigename); \
 set_logo(asset, position?)/clear_logo (asset = vorhandenes Bild aus list_assets); register_font(family, asset) \
-registriert ein vorhandenes Font-Asset → dann via set_token('font-heading'|'font-body', family) aktivieren."
+registriert ein vorhandenes Font-Asset → dann via set_token('font-heading'|'font-body', family) aktivieren.\n\
+11. FOLIEN-LINKS (nicht-linear): ein klickbares Element springt über das Attribut data-slideo-goto zu einer \
+anderen Folie — Wert = Zonen-ID ODER 1-basierte Foliennummer. Am schnellsten ein Inhaltsverzeichnis per \
+insert_component(zone_id, 'toc', { items: [{ label, target }] }); alternativ in einer HTML-Zone \
+<a data-slideo-goto=\"3\">Kapitel</a> oder als Markdown-Link [Kapitel](#zone-<Zonen-ID>). Ein Rücksprung-Link \
+(data-slideo-goto auf die Inhalts-Folie) bringt zurück. Funktioniert in Präsentation, Standalone-Export & Vorschau."
 }
 
 /// MCP-Prompt-Definitionen (`prompts/list`). Der "slideo_guide"-Prompt ist die
@@ -693,7 +698,10 @@ bar_chart, line_chart (Trend), donut_chart (Anteile), progress, quote, timeline,
 set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom|auto — auto = Magic-Move \
 gleicher data-id-Elemente); \
 set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
-Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden).\n\n";
+Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden). \
+FOLIEN-LINKS (nicht-linear): insert_component(zone_id, 'toc', { items: [{ label, target }] }) baut ein \
+klickbares Inhaltsverzeichnis (target = Zonen-ID oder 1-basierte Foliennummer); allgemein springt jedes \
+Element mit data-slideo-goto zur Zielfolie, ein Rücksprung-Link bringt zurück.\n\n";
 
     let principles = "FORMAT (zwingend): Jede Folie ist eine FESTE 1280×720-px-Bühne (16:9) — sie \
 wächst NICHT mit dem Inhalt, alles Überstehende wird ABGESCHNITTEN. Plane jede Folie so, dass alles \

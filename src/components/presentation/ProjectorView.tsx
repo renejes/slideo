@@ -71,6 +71,23 @@ export function ProjectorView() {
     }
   }, [load])
 
+  // Zonen-Link auf dem Projektor angeklickt: das Folien-Iframe ist anzeige-only und
+  // postet den Sprungwunsch an dieses Fenster → an das Steuerfenster weiterreichen
+  // (Steuerhoheit bleibt dort, Spec §23).
+  useEffect(() => {
+    if (!isTauri()) return
+    function onMsg(e: MessageEvent) {
+      const d = e.data || {}
+      if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
+        void import('@tauri-apps/api/event').then(({ emit }) =>
+          emit('slideo:projector-goto', { index: Math.max(0, d.index | 0) }),
+        )
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+  }, [])
+
   // Nach (Re-)Load des Iframes den letzten Stand wiederherstellen + erneut Bereitschaft melden.
   function handleLoad() {
     show(navRef.current.index, navRef.current.step, false)

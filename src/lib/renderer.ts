@@ -344,6 +344,7 @@ function navScript(
 (function () {
   var DECK = ${deck ? 'true' : 'false'};
   var AUTO = ${kind === 'auto' ? 'true' : 'false'};
+  var STANDALONE = ${standalone ? 'true' : 'false'};
   var DURATION = ${Math.max(0, Math.round(durationMs))};
   var root = document.documentElement;
   // Feste 16:9-Bühne (Spec §21): --slideo-scale skaliert die 1280×720-Zonen ins
@@ -474,6 +475,51 @@ function navScript(
       if (el) el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
     }
   }
+
+  // ---- Zonen-Links (folien-internes Springen) ----
+  // Jede .slideo-frame trägt eine <section id="zone-UUID">. Ein Element mit
+  // data-slideo-goto (oder ein #zone-UUID-Hash) springt zu der Zielfolie. Alles
+  // funnelt durch go()/den Parent — NIE nativer Hash-Scroll (der im Deck-Modus
+  // stumm scheitert). Ziel = Zonen-UUID ODER 1-basierte Foliennummer.
+  var zoneIndex = {};
+  for (var zix = 0; zix < slides.length; zix++) {
+    var sec = slides[zix].querySelector('section[id]');
+    if (sec && sec.id) zoneIndex[sec.id.replace(/^zone-/, '')] = zix;
+  }
+  function resolveGoto(t) {
+    if (t == null) return -1;
+    t = String(t).replace(/^#/, '').replace(/^zone-/, '').trim();
+    if (!t) return -1;
+    if (Object.prototype.hasOwnProperty.call(zoneIndex, t)) return zoneIndex[t];
+    if (/^[0-9]+$/.test(t)) { var n = parseInt(t, 10); if (n >= 1) return clamp(n - 1); }
+    return -1;
+  }
+  function gotoTarget(idx) {
+    if (idx < 0) return;
+    // Standalone hat keinen Parent → selbst navigieren; in-app den autoritativen
+    // Parent bitten (PresentationMode/PreviewPane setzen activeSlide/activeZone).
+    if (STANDALONE) go(idx, true);
+    else parent.postMessage({ type: 'slideo:goto-request', index: idx }, '*');
+  }
+  // Klick auf ein Sprung-Element (alle Modi). Im Direktbearbeiten-Modus NICHT
+  // navigieren (dort selektiert der Klick Elemente — window.__sldDirectEdit aus
+  // editScript). Bubble-Phase: in der Vorschau dürfen die §20-Handler zuerst greifen.
+  document.addEventListener('click', function (e) {
+    if (window.__sldDirectEdit) return;
+    var t = e.target;
+    var a = t && t.closest ? t.closest('[data-slideo-goto]') : null;
+    if (!a) return;
+    e.preventDefault();
+    gotoTarget(resolveGoto(a.getAttribute('data-slideo-goto')));
+  });
+  // Schlichte <a href="#zone-UUID"> / Markdown-#-Links: hashchange → go() (auch im
+  // Deck-Modus, plus Browser-Zurück gratis). Ziel-Elemente mit data-slideo-goto
+  // verhindern den Hash bereits per preventDefault → kein Doppelsprung.
+  window.addEventListener('hashchange', function () {
+    var idx = resolveGoto(location.hash);
+    if (idx >= 0) gotoTarget(idx);
+  });
+
   ${
     standalone
       ? `// Standalone-Export: eigene Tastatur + Klick (kein Parent-Fenster).
@@ -494,7 +540,7 @@ function navScript(
   }
   document.addEventListener('click', function (e) {
     var t = e.target;
-    if (t && t.closest && t.closest('a,button,input,textarea,select,label,video,audio,iframe,[contenteditable],[data-no-advance]')) return;
+    if (t && t.closest && t.closest('a,button,input,textarea,select,label,video,audio,iframe,[contenteditable],[data-no-advance],[data-slideo-goto]')) return;
     syncCurrent();
     go(current + (e.clientX < window.innerWidth * 0.25 ? -1 : 1), true);
   });`
@@ -534,6 +580,9 @@ function editScript(directEdit: boolean): string {
   return `
 (function () {
   var DIRECT = ${directEdit ? 'true' : 'false'};
+  // Sichtbar für das navScript: im Direktbearbeiten-Modus unterdrückt es
+  // Zonen-Link-Klicks (der Klick selektiert dort Elemente, statt zu navigieren).
+  window.__sldDirectEdit = DIRECT;
   function zoneOf(el) { return el && el.closest ? el.closest('.slideo-zone') : null; }
   function inHtmlZone(el) { return !!(el && el.closest && el.closest('.slideo-zone-html')); }
   function contentOf(el) { return el && el.closest ? el.closest('.slideo-content') : null; }
@@ -762,6 +811,8 @@ function editScript(directEdit: boolean): string {
         '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>' +
       '<button class="slideo-de-btn" data-de="text" title="Text bearbeiten (Doppelklick)">' +
         '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>' +
+      '<button class="slideo-de-btn" data-de="link" title="Mit Folie verknüpfen (Zonen-Link)">' +
+        '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>' +
       '<button class="slideo-de-btn" data-de="duplicate" title="Duplizieren">' +
         '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>' +
       '<button class="slideo-de-btn" data-de="delete" title="Löschen (Entf)">' +
@@ -834,10 +885,14 @@ function editScript(directEdit: boolean): string {
     function configToolbar(kind) {
       var up = toolbar.querySelector('[data-de="up"]');
       var text = toolbar.querySelector('[data-de="text"]');
+      var link = toolbar.querySelector('[data-de="link"]');
       // Kein „Ebene hoch" bei Blöcken; der Text-Button erscheint nur, wenn der Block ein
       // einfacher, inline-editierbarer Text-Block ist (sonst → Markdown-Editor, 3b).
       if (up) up.style.display = kind === 'block' ? 'none' : '';
       if (text) text.style.display = (kind === 'block' && !blockEditable(selEl)) ? 'none' : '';
+      // Zonen-Link (§23) nur für HTML-Zonen-Elemente (Markdown bleibt flussbasiert,
+      // kann kein data-slideo-goto tragen).
+      if (link) link.style.display = kind === 'block' ? 'none' : '';
     }
     function select(el, silent) {
       if (selEl && selEl !== el) selEl.style.cursor = '';
@@ -890,6 +945,21 @@ function editScript(directEdit: boolean): string {
       var path = pathOf(selEl);
       // tag = Erwartungswert gegen stale Pfade (paralleler MCP-Edit, Spec §20).
       if (path) parent.postMessage({ type: 'slideo:' + op + '-element', zoneId: selZone.id.replace(/^zone-/, ''), path: path, tag: selEl.tagName.toLowerCase() }, '*');
+    }
+    // Zonen-Link (§23): den Parent bitten, eine Ziel-Folie zu wählen (Folien-Auswahl-
+    // Popover lebt im Parent — das Iframe kennt die Folien-Labels nicht). current =
+    // aktueller data-slideo-goto-Wert (vorbelegt / „Link entfernen" möglich).
+    function requestLink() {
+      if (selKind !== 'element' || !selEl || !selZone) return;
+      var path = pathOf(selEl);
+      if (!path) return;
+      parent.postMessage({
+        type: 'slideo:request-link',
+        zoneId: selZone.id.replace(/^zone-/, ''),
+        path: path,
+        tag: selEl.tagName.toLowerCase(),
+        current: selEl.getAttribute('data-slideo-goto') || ''
+      }, '*');
     }
     // Löschen nur, wenn der Fokus auf der Auswahl bzw. neutralem Hintergrund liegt
     // (nicht auf einem ANDEREN interaktiven Inhaltselement → versehentliches Löschen).
@@ -1183,6 +1253,7 @@ function editScript(directEdit: boolean): string {
       var act = btn.getAttribute('data-de');
       if (act === 'up') levelUp();
       else if (act === 'text') { if (selKind === 'block') startBlockEdit(selEl); else startEdit(selEl); }
+      else if (act === 'link') requestLink();
       else if (act === 'duplicate') { if (selKind === 'block') blockOpMsg('duplicate'); else opMsg('duplicate'); }
       else if (act === 'delete') { if (selKind === 'block') blockOpMsg('delete'); else opMsg('delete'); }
     });

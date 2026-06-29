@@ -67,6 +67,7 @@ export const COMPONENT_ICONS: Record<string, string> = {
   comparison: 'compare_arrows',
   callout: 'campaign',
   icon: 'emoji_symbols',
+  toc: 'toc',
 }
 
 /** Icon-Namen der Rust-`icon`-Komponente (für das Auswahl-Feld). */
@@ -242,6 +243,24 @@ export const COMPONENT_FORMS: Record<string, ComponentForm> = {
       { key: 'size', label: 'Größe (rem)', type: 'number', default: '6' },
     ],
     numericFieldKeys: ['size'],
+  },
+
+  toc: {
+    items: {
+      label: 'Einträge',
+      addLabel: 'Eintrag',
+      fields: [
+        { key: 'label', label: 'Beschriftung', type: 'text', placeholder: 'Einleitung' },
+        // target = 1-basierte Foliennummer (einfachster Fall) ODER Zonen-ID
+        // (umsortier-fest). Das navScript löst beides zur Zielfolie auf (Spec §23).
+        { key: 'target', label: 'Ziel (Foliennummer oder Zonen-ID)', type: 'text', placeholder: '2' },
+      ],
+      seed: [
+        { label: 'Einleitung', target: '2' },
+        { label: 'Hauptteil', target: '3' },
+        { label: 'Fazit', target: '4' },
+      ],
+    },
   },
 }
 

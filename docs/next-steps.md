@@ -105,6 +105,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 ### A3. Präsentation & Speaker-View
 - [ ] Präsentieren → Pfeiltasten/Leertaste navigieren (vor UND zurück), `Esc` raus.
 - [ ] Taste `s` → Speaker-View (aktuelle + nächste Folie, Timer, Zähler, Notizen). Navigation muss in beide Richtungen funktionieren (war ein Bug, jetzt gefixt — verifizieren).
+- [ ] **Zonen-Links (§23):** `toc`-Komponente (Palette) oder HTML-Zone mit `<a data-slideo-goto="2">…</a>` einfügen → in der **Präsentation** auf einen Eintrag klicken springt zur Zielfolie; **Rücksprung-Link** zurück zum Inhalt. Auch mit aktiver **Transition** (Deck-Modus) testen. **Standalone-Export** (.html im Browser): Klick springt + Browser-Zurück. **Vorschau** (Nicht-Edit): Klick scrollt zur Zone. Markdown-`#`-Link `[x](#zone-<ID>)` testen (about:srcdoc-abhängig). Zweitfenster/Projektor: Klick auf der Beamer-Folie springt.
 
 ### A4. MCP / KI (Claude Desktop)
 - [ ] Claude Desktop neu starten → Slideo-Tools erscheinen (sollten **23** sein, inkl. `set_zone_css`, `list_assets`).

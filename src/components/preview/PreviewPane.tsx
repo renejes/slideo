@@ -35,6 +35,13 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   // Analog für Markdown-Block-Auswahl {zoneId, blockIndex} (Punkt 3). Gegenseitig
   // exklusiv mit lastSel — genau eine Auswahl ist aktiv.
   const lastSelBlock = useRef<{ zoneId: string; blockIndex: number } | null>(null)
+  // Folien-Auswahl-Popover für „Element → Folie verknüpfen" (§23). null = zu.
+  const [linkPicker, setLinkPicker] = useState<{
+    zoneId: string
+    path: number[]
+    tag?: string
+    current: string
+  } | null>(null)
 
   // Debounced Full-Page-Render (vermeidet Iframe-Reload bei jedem Tastendruck).
   // editable: Markdown-Blöcke per Drag umsortierbar (Spec §18.1 / interaktive Vorschau).
@@ -62,9 +69,31 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     if (!previewEdit) {
       lastSel.current = null
       lastSelBlock.current = null
+      setLinkPicker(null)
       iframeRef.current?.contentWindow?.postMessage({ type: 'slideo:clear-select' }, '*')
     }
   }, [previewEdit])
+
+  // Esc schließt das Folien-Auswahl-Popover (§23).
+  useEffect(() => {
+    if (!linkPicker) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setLinkPicker(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [linkPicker])
+
+  // §23: Popover schließen, wenn seine Zone verschwindet (z.B. MCP-Löschung der
+  // ganzen Folie) — sonst zeigt es auf eine nicht mehr existierende Zone.
+  useEffect(() => {
+    if (linkPicker && presentation && !presentation.zones.some((z) => z.id === linkPicker.zoneId)) {
+      setLinkPicker(null)
+    }
+  }, [presentation, linkPicker])
 
   // Nachrichten aus der Vorschau: Block-Reorder, Bild-Resize und
   // Direktmanipulation (Auswählen/Duplizieren/Löschen, Spec §20).
@@ -120,6 +149,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         reveal(zoneId, path)
       } else if (d.type === 'slideo:deselect') {
         setElemSel(null) // leert beide Refs
+        setLinkPicker(null) // §23: kein Element mehr → das Folien-Popover schließen
       } else if (d.type === 'slideo:select-block' && typeof d.zoneId === 'string' && typeof d.blockIndex === 'number') {
         // Punkt 3: ganzer Markdown-Block ausgewählt (block-granular, kein HTML-Quell-Mapping).
         setBlockSel({ zoneId: d.zoneId, blockIndex: d.blockIndex })
@@ -176,6 +206,23 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
       ) {
         // Cmd/Z aus dem Iframe (Fokus dort) → globalen Undo auslösen.
         usePresentationStore.getState().undo()
+      } else if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
+        // Zonen-Link in der Vorschau (Nicht-Edit-Modus) angeklickt → zur Zielzone
+        // scrollen (Spec §23). activeZone treibt den Vorschau-Scroll.
+        const pres = usePresentationStore.getState().presentation
+        if (pres) {
+          const sorted = [...pres.zones].sort((a, b) => a.order - b.order)
+          const z = sorted[d.index | 0]
+          if (z) setActiveZone(z.id)
+        }
+      } else if (d.type === 'slideo:request-link' && typeof d.zoneId === 'string' && Array.isArray(d.path)) {
+        // „Mit Folie verknüpfen" aus der §20-Toolbar → Folien-Auswahl-Popover öffnen.
+        setLinkPicker({
+          zoneId: d.zoneId,
+          path: d.path as number[],
+          tag,
+          current: typeof d.current === 'string' ? d.current : '',
+        })
       } else if (
         d.type === 'slideo:move-element' &&
         typeof d.zoneId === 'string' &&
@@ -231,8 +278,26 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     }
   }
 
+  // §23: gewählte Ziel-Folie auf das verknüpfte Element schreiben (oder Link lösen).
+  function chooseLink(target: string) {
+    if (!linkPicker) return
+    applyZoneElementOp(linkPicker.zoneId, linkPicker.path, 'setGoto', {
+      target,
+      expectTag: linkPicker.tag,
+    })
+    // Auswahl über den Re-Render hinweg halten (§20 Re-Select-Handshake).
+    lastSel.current = { zoneId: linkPicker.zoneId, path: linkPicker.path }
+    lastSelBlock.current = null
+    setLinkPicker(null)
+  }
+
+  const pickerZones = useMemo(
+    () => (presentation ? [...presentation.zones].sort((a, b) => a.order - b.order) : []),
+    [presentation],
+  )
+
   return (
-    <section className="flex h-full w-full flex-col border-l border-chrome-border bg-chrome-bg">
+    <section className="relative flex h-full w-full flex-col border-l border-chrome-border bg-chrome-bg">
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5 text-chrome-muted">
         <Icon name="visibility" size={15} weight={400} />
         <span className="text-[11px] font-semibold uppercase tracking-wider">Vorschau</span>
@@ -273,6 +338,56 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
           className="h-full w-full rounded-xl border border-chrome-border bg-black shadow-card"
         />
       </div>
+
+      {/* §23: Folien-Auswahl für „Element → Folie verknüpfen". Klick auf Backdrop/Esc schließt. */}
+      {linkPicker && (
+        <div
+          className="absolute inset-0 z-30 flex items-center justify-center bg-black/15 p-4"
+          onClick={() => setLinkPicker(null)}
+        >
+          <div
+            role="dialog"
+            aria-label="Mit Folie verknüpfen"
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-full w-72 flex-col overflow-hidden rounded-xl border border-chrome-border bg-chrome-surface shadow-pop"
+          >
+            <div className="flex items-center gap-1.5 border-b border-chrome-border px-3 py-2">
+              <Icon name="link" size={15} weight={400} />
+              <span className="text-[12px] font-semibold text-chrome-text">Mit Folie verknüpfen</span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-1">
+              {pickerZones.length === 0 ? (
+                <div className="px-3 py-2 text-[12px] text-chrome-muted">Keine Folien.</div>
+              ) : (
+                pickerZones.map((z, i) => {
+                  const active = linkPicker.current === z.id || linkPicker.current === String(i + 1)
+                  return (
+                    <button
+                      key={z.id}
+                      onClick={() => chooseLink(z.id)}
+                      className={
+                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] transition-colors hover:bg-chrome-surface-2 ' +
+                        (active ? 'font-medium text-chrome-accent-600' : 'text-chrome-text')
+                      }
+                    >
+                      <span className="w-6 shrink-0 text-[11px] tabular-nums text-chrome-muted">{i + 1}</span>
+                      <span className="min-w-0 flex-1 truncate">{z.label || `Folie ${i + 1}`}</span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+            {linkPicker.current && (
+              <button
+                onClick={() => chooseLink('')}
+                className="border-t border-chrome-border px-3 py-2 text-left text-[12px] text-chrome-muted transition-colors hover:text-chrome-text"
+              >
+                Link entfernen
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   )
 }

@@ -215,6 +215,21 @@ export function PresentationMode() {
     )
   }, [activeSlideIndex, step, view])
 
+  // Zonen-Link-Sprung aus dem Audience-Iframe (data-slideo-goto / #zone-Hash):
+  // das Iframe ist anzeige-only und bittet den parent-autoritativen Steuerstand,
+  // zur Zielfolie zu springen. doJump nutzt nur stabile Setter → einmal registrieren.
+  useEffect(() => {
+    function onMsg(e: MessageEvent) {
+      const d = e.data || {}
+      if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
+        doJump(Math.max(0, d.index | 0), 0)
+      }
+    }
+    window.addEventListener('message', onMsg)
+    return () => window.removeEventListener('message', onMsg)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Zweitfenster-Sync (Spec §19.3), einmalige Listener: Bereitschaft des Folien-
   // Fensters mit dem aktuellen Stand beantworten; vom Nutzer geschlossenes Fenster
   // erkennen. (Tastatur/Steuerung bleiben hier im Hauptfenster.)
@@ -232,6 +247,13 @@ export function PresentationMode() {
       unsubs.push(
         await listen('slideo:projector-closed', () => {
           if (alive) setProjectorOpen(false)
+        }),
+      )
+      // Zonen-Link auf dem Projektor angeklickt → das Folien-Fenster reicht den
+      // Sprungwunsch hierher (Steuerhoheit bleibt am Hauptfenster, Spec §23).
+      unsubs.push(
+        await listen<{ index: number }>('slideo:projector-goto', (e) => {
+          if (alive) doJump(Math.max(0, e.payload.index | 0), 0)
         }),
       )
     })()

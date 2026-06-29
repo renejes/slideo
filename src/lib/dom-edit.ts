@@ -18,7 +18,7 @@
 //    Dokument-Index unter gleichnamigen Elementen bestimmen, das n-te öffnende
 //    Tag-Literal im Quelltext finden (implizite Elemente haben kein Literal).
 
-export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete' | 'resizeWidth'
+export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete' | 'resizeWidth' | 'setGoto'
 
 /** Payload je Operation (alle Felder optional; je Op werden andere genutzt). */
 export interface OpPayload {
@@ -31,6 +31,11 @@ export interface OpPayload {
   /** resizeWidth: neue CSS-Breite (z.B. "42%" oder "300px") für ein Bild (Spec §20-Resize). */
   width?: string
   /**
+   * setGoto: Zonen-Link-Ziel (Spec §23) — Zonen-UUID oder 1-basierte Foliennummer.
+   * Leerer/fehlender Wert entfernt das `data-slideo-goto`-Attribut (Link lösen).
+   */
+  target?: string
+  /**
    * Optionaler Tag-Name, den das per Pfad aufgelöste Element haben MUSS, sonst
    * No-op. Schützt vor stale Pfaden, wenn ein paralleler MCP-Edit die Zone
    * zwischen Auswahl und Op umgebaut hat (Spec §20, Risiko §8 des Plans).
@@ -40,6 +45,15 @@ export interface OpPayload {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+/**
+ * Sanitisiert ein Zonen-Link-Ziel fürs `data-slideo-goto`-Attribut (Spec §23) —
+ * nur unverfängliche Zeichen, ≤64 (kein Attribut-Ausbruch). Spiegelt `safe_goto`
+ * der Rust-`toc`-Komponente, damit Direktmanipulation & Komponente identisch sind.
+ */
+function safeGoto(t: string): string {
+  return (t || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 64)
 }
 
 // Inline-Tags, die in einem text-editierbaren Element vorkommen dürfen (Stil/Links
@@ -181,6 +195,15 @@ export function applyElementOp(
       // Bild-Resize (§20): nur die CSS-Breite setzen, übrige Styles (Position!) bleiben.
       const he = el as HTMLElement
       if (payload?.width) he.style.width = payload.width
+      break
+    }
+    case 'setGoto': {
+      // Zonen-Link (§23): das Element zu einem Sprung-Ziel machen (oder den Link
+      // lösen). Leeres Ziel ⇒ Attribut entfernen → next===current bei „war nicht
+      // gesetzt" (Store macht daraus einen No-op, kein leerer Undo-Eintrag).
+      const target = safeGoto(payload?.target ?? '')
+      if (target) el.setAttribute('data-slideo-goto', target)
+      else el.removeAttribute('data-slideo-goto')
       break
     }
     case 'move': {

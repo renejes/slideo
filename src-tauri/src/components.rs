@@ -385,6 +385,47 @@ fn icon(params: &Value) -> Result<String, String> {
     ))
 }
 
+/// Sanitisiert ein Zonen-Link-Ziel (Zonen-UUID oder Foliennummer) für href/Attribut:
+/// nur unverfängliche Zeichen, ≤64 (kein Attribut-/Tag-Ausbruch). Leeres/ungültiges
+/// Ziel ⇒ leerer String → das Frontend (resolveGoto) macht daraus einen No-op.
+fn safe_goto(t: &str) -> String {
+    t.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ':'))
+        .take(64)
+        .collect()
+}
+
+/// Inhaltsverzeichnis mit Sprung-Links (Spec §23): klickbare Folienübersicht. Jeder
+/// Eintrag trägt `data-slideo-goto` (Zonen-ID ODER 1-basierte Foliennummer) → das
+/// navScript springt zur Zielfolie (in App, Standalone-Export & Vorschau).
+/// params: items: [{ label: string, target: string }].
+fn toc(params: &Value) -> String {
+    let fallback = vec![
+        json!({ "label": "Einleitung", "target": "2" }),
+        json!({ "label": "Hauptteil", "target": "3" }),
+        json!({ "label": "Fazit", "target": "4" }),
+    ];
+    let rows = items(params, &fallback)
+        .iter()
+        .enumerate()
+        .map(|(i, it)| {
+            let label = esc(&str_field(it, "label", ""));
+            let target = safe_goto(&str_field(it, "target", ""));
+            let num = format!("{:02}", i + 1);
+            format!(
+                "<a href=\"#zone-{target}\" data-slideo-goto=\"{target}\" \
+style=\"display:flex;align-items:baseline;gap:1.1rem;text-decoration:none;color:var(--color-text);\
+padding:.7rem .4rem;border-bottom:1px solid var(--color-surface)\">\
+<span style=\"font-family:var(--font-heading);font-weight:800;color:var(--color-accent);font-size:1.05rem;min-width:2.2rem\">{num}</span>\
+<span style=\"font-family:var(--font-body);font-size:1.3rem\">{label}</span></a>"
+            )
+        })
+        .collect::<String>();
+    format!(
+        "<nav style=\"max-width:42rem;margin:0 auto;display:flex;flex-direction:column;font-family:var(--font-body)\">{rows}</nav>"
+    )
+}
+
 // ---------- öffentliche API ----------
 
 /// Metadaten aller Komponenten (für `list_components` und die spätere UI-Palette).
@@ -419,7 +460,10 @@ pub fn list() -> Value {
           "params": "title: string, text: string" },
         { "type": "icon", "label": "Icon (Inline-SVG)",
           "description": "Token-gefärbtes Symbol (optional mit Beschriftung). Namen: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.",
-          "params": "name: string, color?: string (z.B. var(--color-accent)), size?: number (rem), label?: string" }
+          "params": "name: string, color?: string (z.B. var(--color-accent)), size?: number (rem), label?: string" },
+        { "type": "toc", "label": "Inhaltsverzeichnis (Sprung-Links)",
+          "description": "Klickbare Folienübersicht — jeder Eintrag springt zur Zielfolie (Zonen-Link, Spec §23). target = Zonen-ID ODER 1-basierte Foliennummer; ein Rücksprung-Link auf die Inhalts-Folie bringt zurück.",
+          "params": "items: [{ label: string, target: string }]  (target = Zonen-ID oder Foliennummer)" }
     ])
 }
 
@@ -470,6 +514,7 @@ pub fn render(kind: &str, params: &Value) -> Result<String, String> {
         "comparison" => comparison(params),
         "callout" => callout(params),
         "icon" => icon(params)?,
+        "toc" => toc(params),
         other => return Err(format!("Unbekannte Komponente: '{other}' (siehe list_components)")),
     };
     Ok(html)
@@ -481,7 +526,7 @@ mod tests {
 
     #[test]
     fn list_has_components() {
-        assert_eq!(list().as_array().unwrap().len(), 10);
+        assert_eq!(list().as_array().unwrap().len(), 11);
     }
 
     #[test]
@@ -549,6 +594,29 @@ mod tests {
     #[test]
     fn unknown_component_errors() {
         assert!(render("does_not_exist", &json!({})).is_err());
+    }
+
+    #[test]
+    fn toc_renders_jump_links_and_sanitizes_target() {
+        let html = render(
+            "toc",
+            &json!({ "items": [
+                { "label": "Intro", "target": "2" },
+                { "label": "Demo", "target": "ab12-cd_ef" },
+            ]}),
+        )
+        .unwrap();
+        // Sprung-Attribut trägt das Ziel (Foliennummer UND Zonen-ID).
+        assert!(html.contains("data-slideo-goto=\"2\""));
+        assert!(html.contains("data-slideo-goto=\"ab12-cd_ef\""));
+        assert!(html.contains("Intro"));
+        assert!(html.contains("var(--color-accent)")); // token-bewusst
+
+        // Attribut-Ausbruch im Ziel wird gefiltert (Anführungszeichen/Klammern raus).
+        let bad =
+            render("toc", &json!({ "items": [{ "label": "x", "target": "1\"><script>" }]})).unwrap();
+        assert!(!bad.contains("<script>"));
+        assert!(bad.contains("data-slideo-goto=\"1script\""));
     }
 
     #[test]

@@ -1195,3 +1195,44 @@ Vollreport + Bedrohungsmodell: [audit.md](audit.md). Umgesetzte Härtungen (Bran
 einem echten `tauri:dev`/`tauri build` (macOS **und** Windows/WebView2) gegenprüfen: App lädt, MCP-IPC + Projector-
 Fenster laufen, Folien-Navigation/§20/Auto-Animate funktionieren, gestreamte Videos/Audios laden, **keine**
 CSP-Verstöße in der DevTools-Konsole.
+
+## 23. Zonen-Links (nicht-lineare Navigation)
+
+Decks dürfen **nicht-linear** sein: ein Inhaltsverzeichnis auf Folie 1, dessen Einträge direkt zur jeweiligen Folie
+springen, und ein Rücksprung-Link zurück zum Verzeichnis. Mechanismus: das **Sprung-Attribut `data-slideo-goto`**.
+
+- **Adressierung.** Jede Folie rendert ohnehin als `<section id="zone-<UUID>">` (§6). Ein Element mit
+  `data-slideo-goto="<Wert>"` springt zu der Folie; `<Wert>` ist **die Zonen-UUID** (umsortier-fest) **oder** eine
+  **1-basierte Foliennummer** (am einfachsten für die KI). Das `navScript` baut beim Init eine `UUID→Index`-Map und
+  löst beides über `resolveGoto()` auf.
+- **Ein Navigations-Trichter.** Jeder Sprung läuft durch das vorhandene `go(i, smooth)` ([renderer.ts](../src/lib/renderer.ts)) —
+  **nie** nativer `#hash`-Scroll (der im Deck-/Übergangsmodus stumm scheitert, weil dort `is-active`/`is-prev` statt
+  Scroll-Snap regiert). Ein delegierter Klick-Handler liest `data-slideo-goto`, `preventDefault`, und navigiert:
+  **Standalone** ruft `go()` direkt im Iframe; **in-app** postet das (anzeige-only) Iframe `slideo:goto-request {index}`
+  an den **parent-autoritativen** Steuerstand (PresentationMode → `doJump`, PreviewPane → `setActiveZone`). Damit
+  funktioniert es einheitlich in **Präsentation, Standalone-Export und Vorschau**.
+- **Schlichte Hash-Links.** Ein `hashchange`-Shim macht zusätzlich nackte `<a href="#zone-<UUID>">` und Markdown-Links
+  `[Text](#zone-<UUID>)` first-class (auch im Deck-Modus) und liefert den **Browser-Zurück-Button** gratis.
+- **Zurückkommen** = **expliziter Rücksprung-Link** (`data-slideo-goto` auf die Inhalts-Folie). Dokument-artig,
+  in App und Standalone identisch, kein zusätzlicher History-State. (Ein automatischer Verlaufs-Stack wurde bewusst
+  **nicht** gebaut — der explizite Link ist klarer und überall gleich.)
+- **Authoring.** KI über MCP: das Attribut + eine **`toc`-Komponente** (Rust-Generator [components.rs](../src-tauri/src/components.rs),
+  token-gestylte Liste, `items: [{label, target}]`) — in `list_components`/`insert_component` **und** der Komponenten-
+  Palette. Mensch: `toc` aus der Palette, Markdown-`#`-Links, rohes `<a data-slideo-goto>` in HTML-Zonen — **oder per
+  Direktmanipulation (§20):** ein Element in einer HTML-Zone auswählen → Toolbar-Knopf „Link" → Ziel-Folie aus einem
+  Popover wählen ([PreviewPane](../src/components/preview/PreviewPane.tsx); Element-Op **`setGoto`** in
+  [dom-edit.ts](../src/lib/dom-edit.ts), Ziel = Zonen-UUID, undobar, „Link entfernen" möglich; im Direktbearbeiten-Modus
+  selektiert ein Klick aufs verknüpfte Element es wieder, statt zu springen). Die MCP-`instructions`/`slideo_guide`
+  lehren es (Punkt 11).
+- **Sicherheit/Robustheit.** Ziele werden in der `toc`-Komponente streng sanitisiert (`safe_goto`: `[A-Za-z0-9-_:]`,
+  ≤64 → kein Attribut-Ausbruch); `resolveGoto` nutzt das Ziel **nur** als geclampten Array-Index (keine Navigation zu
+  URLs). `slideo:goto-request` trägt nur einen Index und reiht sich in das bestehende Iframe→Parent-Nachrichtenmodell
+  ein (kein neuer Vertrauens-Vektor gegenüber den §20-Ops). Im **Direktbearbeiten-Modus** (§20) unterdrückt
+  `window.__sldDirectEdit` die Sprung-Klicks (dort selektiert der Klick Elemente). **Zweitfenster:** ein Klick auf dem
+  Projektor wird via Tauri-Event `slideo:projector-goto` ans Steuerfenster weitergereicht (Steuerhoheit bleibt dort).
+- **Kein Schema-Eingriff** (`version` "1.0"; rein Render-/UI-/Komponenten-Änderung).
+
+**GUI-Verifikation ausstehend (Mensch):** Inhaltsverzeichnis-Klick springt in Präsentation, Standalone-Export
+(+ Browser-Zurück) und Vorschau; Rücksprung-Link; Markdown-`#`-Link (der `hashchange`-Pfad hängt am
+about:srcdoc-Verhalten der WKWebView — der `data-slideo-goto`-Pfad ist davon **unabhängig** und der empfohlene);
+Projektor-Klick auf echter Multi-Display-Hardware.
