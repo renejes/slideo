@@ -1,0 +1,67 @@
+{
+  "types": {
+    "external": {
+      "label": "Externes System",
+      "description": "KI-Client oder Render-Ziel außerhalb des App-Codes.",
+      "color": "#94a3b8",
+      "icon": "globe",
+      "fields": [
+        {
+          "name": "kind",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "rust": {
+      "label": "Rust-Backend",
+      "description": "Rust-Modul (I/O, MCP, Fenster, Logik).",
+      "color": "#34d399",
+      "icon": "server",
+      "fields": [
+        {
+          "name": "area",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "store": {
+      "label": "State",
+      "description": "Autoritativer Zustand: Rust-AppState oder Zustand-Store.",
+      "color": "#a78bfa",
+      "icon": "database",
+      "fields": [
+        {
+          "name": "scope",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "bridge": {
+      "label": "Sync / Transport",
+      "description": "MCP/IPC/Event-Brücke, die Schichten verbindet.",
+      "color": "#fbbf24",
+      "icon": "zap"
+    },
+    "render": {
+      "label": "Renderer / Iframe",
+      "description": "Folien-Rendering + In-Iframe-Skripte.",
+      "color": "#f472b6",
+      "icon": "layers"
+    },
+    "ui": {
+      "label": "React-UI",
+      "description": "Sichtbare React-Komponente (Editor/Präsentation).",
+      "color": "#60a5fa",
+      "icon": "monitor"
+    },
+    "data": {
+      "label": "Daten / Datei",
+      "description": "Persistenz: .slideo-Datei, Historie, Dateiformat.",
+      "color": "#c084fc",
+      "icon": "file"
+    }
+  }
+}

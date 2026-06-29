@@ -1,0 +1,1060 @@
+{
+  "$schema": "https://loom-spec.dev/schema/diagram-v1.json",
+  "version": "1",
+  "id": "overview",
+  "title": "Slideo — Architektur-Übersicht",
+  "description": "Schichten + Kernmodule mit Datenfluss. KI (Claude Desktop) → MCP → Rust-AppState → Bridge → Frontend-Store → Renderer/Iframe → Editor/Vorschau/Präsentation/Projektor. Knoten ankern via code_refs an echte Dateien/Symbole.",
+  "nodes": [
+    {
+      "id": "claude-desktop",
+      "type": "external",
+      "label": "Claude Desktop (KI)",
+      "description": "MCP-Client. Baut/ändert das Deck **ausschließlich** über den MCP-Server — kein AI-Layer in der App (Spec §13).",
+      "position": {
+        "x": 40,
+        "y": 300
+      },
+      "status": "implemented",
+      "code_refs": [],
+      "properties": {
+        "kind": "MCP-Client"
+      },
+      "tags": [
+        "ai"
+      ]
+    },
+    {
+      "id": "app-entry",
+      "type": "rust",
+      "label": "App-Einstieg & Modi",
+      "description": "Eine Binary, zwei Modi: `slideo` (App) startet IPC-Socket + Registrierungs-Reconcile; `slideo mcp` (stdio-Server).",
+      "position": {
+        "x": 260,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/lib.rs",
+          "symbol": "run"
+        },
+        {
+          "path": "src-tauri/src/lib.rs",
+          "symbol": "run_mcp"
+        }
+      ],
+      "properties": {
+        "area": "entry"
+      }
+    },
+    {
+      "id": "mcp-reg",
+      "type": "rust",
+      "label": "MCP-Ziel-Registrierung",
+      "description": "Meldet Slideo bei **genau einem** Ziel an (Claude Desktop / Meta-MCP / Claude Code), idempotent beim Start.",
+      "position": {
+        "x": 260,
+        "y": 170
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/mcp_registration.rs",
+          "symbol": "reconcile_on_startup"
+        },
+        {
+          "path": "src-tauri/src/mcp_registration.rs",
+          "symbol": "set_target"
+        }
+      ],
+      "properties": {
+        "area": "mcp"
+      }
+    },
+    {
+      "id": "mcp-stdio",
+      "type": "rust",
+      "label": "MCP stdio-Server",
+      "description": "Hand-gerolltes JSON-RPC 2.0; dünner Weiterleiter vom stdio-Prozess an den lokalen App-Socket.",
+      "position": {
+        "x": 260,
+        "y": 320
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/mcp.rs",
+          "symbol": "run"
+        }
+      ],
+      "properties": {
+        "area": "mcp"
+      }
+    },
+    {
+      "id": "ipc-socket",
+      "type": "bridge",
+      "label": "IPC-Steuer-Socket",
+      "description": "Lokaler TCP-Socket (127.0.0.1), **Token-Auth** (ipc.json 0600). App hält den State, mutiert via tools.rs, **emittiert Tauri-Events**.",
+      "position": {
+        "x": 260,
+        "y": 460
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/ipc.rs",
+          "symbol": "start"
+        },
+        {
+          "path": "src-tauri/src/ipc.rs",
+          "symbol": "client_request"
+        }
+      ],
+      "properties": {
+        "area": "ipc"
+      },
+      "tags": [
+        "security"
+      ]
+    },
+    {
+      "id": "app-state",
+      "type": "store",
+      "label": "AppState (autoritativ, Rust)",
+      "description": "Hält Presentation + Assets im Rust-Prozess. Quelle für das Projektor-Fenster.",
+      "position": {
+        "x": 520,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/state.rs",
+          "symbol": "AppState"
+        }
+      ],
+      "properties": {
+        "scope": "backend"
+      }
+    },
+    {
+      "id": "mcp-tools",
+      "type": "rust",
+      "label": "MCP-Tools (35)",
+      "description": "Dispatch aller Dokument-Authoring-Tools + `instructions`/`slideo_guide`. `handle()` mutiert den State.",
+      "position": {
+        "x": 520,
+        "y": 300
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/tools.rs",
+          "symbol": "handle"
+        },
+        {
+          "path": "src-tauri/src/tools.rs",
+          "symbol": "server_instructions"
+        }
+      ],
+      "properties": {
+        "area": "mcp"
+      },
+      "tags": [
+        "mcp"
+      ]
+    },
+    {
+      "id": "components-gen",
+      "type": "rust",
+      "label": "Komponenten-Generator",
+      "description": "Token-bewusste HTML-Komponenten (**11**, inkl. `toc`/§23). Single Source in Rust.",
+      "position": {
+        "x": 520,
+        "y": 450
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/components.rs",
+          "symbol": "render"
+        },
+        {
+          "path": "src-tauri/src/components.rs",
+          "symbol": "list"
+        }
+      ],
+      "properties": {
+        "area": "components"
+      }
+    },
+    {
+      "id": "tauri-commands",
+      "type": "rust",
+      "label": "Tauri-Commands",
+      "description": "load/save/sync/get_presentation + Assets — Brücke Frontend ↔ Rust.",
+      "position": {
+        "x": 780,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/commands.rs",
+          "symbol": "save_presentation"
+        },
+        {
+          "path": "src-tauri/src/commands.rs",
+          "symbol": "sync_presentation"
+        }
+      ],
+      "properties": {
+        "area": "ipc"
+      }
+    },
+    {
+      "id": "file-io",
+      "type": "data",
+      "label": ".slideo Reader/Writer",
+      "description": "ZIP (presentation.json + assets/), `serde_json::Value` (preserve_order), Decompression-Caps.",
+      "position": {
+        "x": 780,
+        "y": 180
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/file/reader.rs",
+          "symbol": "read_presentation"
+        },
+        {
+          "path": "src-tauri/src/file/writer.rs",
+          "symbol": "write_presentation"
+        }
+      ]
+    },
+    {
+      "id": "history",
+      "type": "data",
+      "label": "Versionshistorie (§19.9)",
+      "description": "Lokale .slideo-Snapshots je Speicherort; Auto + manuell, Kappung 50.",
+      "position": {
+        "x": 780,
+        "y": 320
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/history.rs",
+          "symbol": "create"
+        },
+        {
+          "path": "src-tauri/src/history.rs",
+          "symbol": "restore"
+        }
+      ]
+    },
+    {
+      "id": "present-win",
+      "type": "rust",
+      "label": "Projektor-Fenster (§19.3)",
+      "description": "Randlos bildschirmfüllendes **zweites Tauri-Fenster** auf gewähltem Monitor.",
+      "position": {
+        "x": 780,
+        "y": 600
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src-tauri/src/present.rs",
+          "symbol": "open_presentation_window"
+        },
+        {
+          "path": "src-tauri/src/present.rs",
+          "symbol": "list_monitors"
+        }
+      ],
+      "properties": {
+        "area": "window"
+      }
+    },
+    {
+      "id": "mcp-bridge",
+      "type": "bridge",
+      "label": "MCP-Bridge",
+      "description": "Spiegelt `mcp:presentation`/`mcp:active-slide`-Events in den Store; pusht Store-Änderungen via `sync_presentation` zurück (debounced).",
+      "position": {
+        "x": 1040,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/mcp-bridge.ts",
+          "symbol": "startMcpBridge"
+        }
+      ]
+    },
+    {
+      "id": "store-presentation",
+      "type": "store",
+      "label": "Store: presentation",
+      "description": "Autoritativer Deck-State im Frontend: Zonen, Tokens, **Undo**, ALLE Mutationen (§20-Ops, insertComponent, applyExternalPresentation).",
+      "position": {
+        "x": 1040,
+        "y": 190
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/store/presentation.ts",
+          "symbol": "usePresentationStore"
+        },
+        {
+          "path": "src/store/presentation.ts",
+          "symbol": "applyZoneElementOp"
+        }
+      ],
+      "properties": {
+        "scope": "frontend"
+      },
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "id": "store-ui",
+      "type": "store",
+      "label": "Store: ui",
+      "description": "Modal-Zustand, `previewEdit`, `htmlReveal` (§20 Klick→Quelle).",
+      "position": {
+        "x": 1040,
+        "y": 350
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/store/ui.ts",
+          "symbol": "useUiStore"
+        }
+      ],
+      "properties": {
+        "scope": "frontend"
+      }
+    },
+    {
+      "id": "store-layout",
+      "type": "store",
+      "label": "Store: layout",
+      "description": "Pane-Breiten + Einklapp-Zustand (persist v2, localStorage).",
+      "position": {
+        "x": 1040,
+        "y": 470
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/store/layout.ts",
+          "symbol": "useLayoutStore"
+        }
+      ],
+      "properties": {
+        "scope": "frontend"
+      }
+    },
+    {
+      "id": "store-toast",
+      "type": "store",
+      "label": "Store: toast",
+      "description": "Toast-Benachrichtigungen.",
+      "position": {
+        "x": 1040,
+        "y": 590
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/store/toast.ts",
+          "symbol": "useToastStore"
+        },
+        {
+          "path": "src/store/toast.ts",
+          "symbol": "notify"
+        }
+      ],
+      "properties": {
+        "scope": "frontend"
+      }
+    },
+    {
+      "id": "renderer",
+      "type": "render",
+      "label": "Renderer",
+      "description": "Markdown/HTML + Tokens → **self-contained Page** (kein Tailwind im Iframe). Feste 16:9-Bühne (§21).",
+      "position": {
+        "x": 1340,
+        "y": 190
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "renderFullPage"
+        },
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "renderZoneSection"
+        }
+      ],
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "id": "nav-script",
+      "type": "render",
+      "label": "navScript (Iframe-Nav)",
+      "description": "In-Iframe-Navigation: `go()`, `slideo:goto/show`, **§23 `data-slideo-goto` + hashchange**, Auto-Animate-Morph, Scale-to-fit.",
+      "position": {
+        "x": 1600,
+        "y": 90
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "navScript"
+        }
+      ],
+      "tags": [
+        "nav"
+      ]
+    },
+    {
+      "id": "edit-script",
+      "type": "render",
+      "label": "editScript (§20)",
+      "description": "Pointer-basierte Direktmanipulation in der Vorschau: Auswählen/Verschieben/Inline-Edit/**Link**; postMessage an den Parent.",
+      "position": {
+        "x": 1600,
+        "y": 280
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "editScript"
+        }
+      ]
+    },
+    {
+      "id": "dom-edit",
+      "type": "render",
+      "label": "dom-edit (§20-Ops)",
+      "description": "Mutiert rohes `zone.html` via DOMParser: move/editText/duplicate/delete/resizeWidth/**setGoto**; Stale-Pfad-Schutz.",
+      "position": {
+        "x": 1340,
+        "y": 380
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/dom-edit.ts",
+          "symbol": "applyElementOp"
+        },
+        {
+          "path": "src/lib/dom-edit.ts",
+          "symbol": "findSourceRange"
+        }
+      ]
+    },
+    {
+      "id": "slide-iframe",
+      "type": "external",
+      "label": "Folien-Iframe (sandbox)",
+      "description": "Sandboxed Render-Ziel (`allow-scripts`, strikte CSP `connect-src none`). Führt navScript/editScript aus.",
+      "position": {
+        "x": 1600,
+        "y": 460
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "SLIDE_CSP_META"
+        }
+      ],
+      "properties": {
+        "kind": "Render-Ziel"
+      },
+      "tags": [
+        "render-target",
+        "security"
+      ]
+    },
+    {
+      "id": "standalone-export",
+      "type": "render",
+      "label": "Standalone- & Print-Export",
+      "description": "Self-contained .html (Assets inline, eigene Tastatur/Klick-Nav) + PDF-Print-Page.",
+      "position": {
+        "x": 1340,
+        "y": 560
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "renderStandalonePage"
+        },
+        {
+          "path": "src/lib/renderer.ts",
+          "symbol": "renderPrintPage"
+        }
+      ]
+    },
+    {
+      "id": "editor-shell",
+      "type": "ui",
+      "label": "EditorShell (2-spaltig)",
+      "description": "Editor · Vorschau, hand-gerollte Splitter. Sidebar entfallen; Reorder über die Editor-Karten.",
+      "position": {
+        "x": 1900,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/ui/EditorShell.tsx",
+          "symbol": "EditorShell"
+        }
+      ]
+    },
+    {
+      "id": "tiptap-editor",
+      "type": "ui",
+      "label": "Markdown-Editor (Tiptap)",
+      "description": "WYSIWYG-Markdown je Zone (**primäres Content-Format**).",
+      "position": {
+        "x": 2160,
+        "y": 40
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/editor/TiptapEditor.tsx",
+          "symbol": "TiptapEditor"
+        }
+      ]
+    },
+    {
+      "id": "preview-pane",
+      "type": "ui",
+      "label": "PreviewPane (Vorschau)",
+      "description": "Debounced Iframe-Render; empfängt §20/§23-Messages; Block-/Element-Ops, **Folien-Link-Popover** (§23).",
+      "position": {
+        "x": 1900,
+        "y": 200
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/preview/PreviewPane.tsx",
+          "symbol": "PreviewPane"
+        }
+      ],
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "id": "component-palette",
+      "type": "ui",
+      "label": "Komponenten-Palette",
+      "description": "UI-Einfügen der Rust-Komponenten via Tauri (`render_component`) + Live-Vorschau.",
+      "position": {
+        "x": 2160,
+        "y": 200
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/modals/ComponentPaletteModal.tsx",
+          "symbol": "ComponentPaletteModal"
+        }
+      ]
+    },
+    {
+      "id": "design-modal",
+      "type": "ui",
+      "label": "Design / Brand Kit",
+      "description": "Deck-weites Token-/Marken-Overlay (Themes, Farben, Fonts, Logo, Übergang).",
+      "position": {
+        "x": 2160,
+        "y": 350
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/modals/DesignModal.tsx",
+          "symbol": "DesignModal"
+        }
+      ]
+    },
+    {
+      "id": "history-modal",
+      "type": "ui",
+      "label": "Versionshistorie (UI)",
+      "description": "Snapshots auflisten/erstellen/wiederherstellen.",
+      "position": {
+        "x": 2160,
+        "y": 500
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/modals/HistoryModal.tsx",
+          "symbol": "HistoryModal"
+        }
+      ]
+    },
+    {
+      "id": "presentation-mode",
+      "type": "ui",
+      "label": "PresentationMode",
+      "description": "**Parent-autoritativ**: hält Folie+Schritt; spiegelt `slideo:show`; **§23 goto-request**-Listener; Presenter-Tools (Laser/Stift/Übersicht/Auto).",
+      "position": {
+        "x": 1900,
+        "y": 680
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/presentation/PresentationMode.tsx",
+          "symbol": "PresentationMode"
+        }
+      ],
+      "tags": [
+        "core"
+      ]
+    },
+    {
+      "id": "speaker-view",
+      "type": "ui",
+      "label": "SpeakerView",
+      "description": "Aktuelle + nächste Folie, Notizen, Timer, Zähler.",
+      "position": {
+        "x": 1900,
+        "y": 840
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/presentation/SpeakerView.tsx",
+          "symbol": "SpeakerView"
+        }
+      ]
+    },
+    {
+      "id": "slide-overview",
+      "type": "ui",
+      "label": "SlideOverview",
+      "description": "Folien-Sprung-Grid (übernimmt die Tastatur bei offener Übersicht).",
+      "position": {
+        "x": 2160,
+        "y": 840
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/presentation/SlideOverview.tsx",
+          "symbol": "SlideOverview"
+        }
+      ]
+    },
+    {
+      "id": "projector-view",
+      "type": "ui",
+      "label": "ProjectorView (Zweitfenster)",
+      "description": "Reine Anzeige im Projektor-Fenster; liest Deck aus AppState, folgt `slideo:nav`; **§23 Projektor-Klick-Weiterleitung**.",
+      "position": {
+        "x": 2160,
+        "y": 680
+      },
+      "status": "implemented",
+      "code_refs": [
+        {
+          "path": "src/components/presentation/ProjectorView.tsx",
+          "symbol": "ProjectorView"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "claude-desktop",
+      "to": "mcp-stdio",
+      "kind": "request",
+      "label": "MCP JSON-RPC (stdio)"
+    },
+    {
+      "id": "e2",
+      "from": "mcp-stdio",
+      "to": "ipc-socket",
+      "kind": "request",
+      "label": "weiterleiten an App-Socket"
+    },
+    {
+      "id": "e3",
+      "from": "ipc-socket",
+      "to": "mcp-tools",
+      "kind": "request",
+      "label": "tools::handle"
+    },
+    {
+      "id": "e4",
+      "from": "mcp-tools",
+      "to": "app-state",
+      "kind": "data-write",
+      "label": "State mutieren"
+    },
+    {
+      "id": "e5",
+      "from": "mcp-tools",
+      "to": "components-gen",
+      "kind": "dependency",
+      "label": "Komponente rendern"
+    },
+    {
+      "id": "e6",
+      "from": "ipc-socket",
+      "to": "mcp-bridge",
+      "kind": "event",
+      "label": "Tauri: mcp:presentation / mcp:active-slide"
+    },
+    {
+      "id": "e7",
+      "from": "mcp-bridge",
+      "to": "store-presentation",
+      "kind": "data-write",
+      "label": "applyExternalPresentation"
+    },
+    {
+      "id": "e8",
+      "from": "store-presentation",
+      "to": "mcp-bridge",
+      "kind": "event",
+      "label": "Store-Änderung (subscribe)"
+    },
+    {
+      "id": "e9",
+      "from": "mcp-bridge",
+      "to": "tauri-commands",
+      "kind": "request",
+      "label": "sync_presentation (debounced)"
+    },
+    {
+      "id": "e10",
+      "from": "tauri-commands",
+      "to": "app-state",
+      "kind": "data-write",
+      "label": "State spiegeln"
+    },
+    {
+      "id": "e11",
+      "from": "store-presentation",
+      "to": "tauri-commands",
+      "kind": "request",
+      "label": "save/load_presentation"
+    },
+    {
+      "id": "e12",
+      "from": "tauri-commands",
+      "to": "file-io",
+      "kind": "data-write",
+      "label": ".slideo lesen/schreiben",
+      "direction": "bidirectional"
+    },
+    {
+      "id": "e13",
+      "from": "store-presentation",
+      "to": "history",
+      "kind": "dependency",
+      "label": "Auto-Snapshot beim Speichern"
+    },
+    {
+      "id": "e14",
+      "from": "history-modal",
+      "to": "history",
+      "kind": "request",
+      "label": "Snapshot (Tauri-Command)"
+    },
+    {
+      "id": "e15",
+      "from": "app-entry",
+      "to": "ipc-socket",
+      "kind": "control",
+      "label": "Socket starten (App-Modus)"
+    },
+    {
+      "id": "e16",
+      "from": "app-entry",
+      "to": "mcp-stdio",
+      "kind": "control",
+      "label": "stdio-Modus"
+    },
+    {
+      "id": "e17",
+      "from": "app-entry",
+      "to": "mcp-reg",
+      "kind": "control",
+      "label": "reconcile_on_startup"
+    },
+    {
+      "id": "e18",
+      "from": "preview-pane",
+      "to": "renderer",
+      "kind": "request",
+      "label": "renderFullPage"
+    },
+    {
+      "id": "e19",
+      "from": "presentation-mode",
+      "to": "renderer",
+      "kind": "request",
+      "label": "renderFullPage (present)"
+    },
+    {
+      "id": "e20",
+      "from": "store-presentation",
+      "to": "renderer",
+      "kind": "data-read",
+      "label": "Deck → HTML"
+    },
+    {
+      "id": "e21",
+      "from": "renderer",
+      "to": "slide-iframe",
+      "kind": "data-write",
+      "label": "srcDoc: HTML + Skripte"
+    },
+    {
+      "id": "e22",
+      "from": "renderer",
+      "to": "nav-script",
+      "kind": "dependency",
+      "label": "injiziert"
+    },
+    {
+      "id": "e23",
+      "from": "renderer",
+      "to": "edit-script",
+      "kind": "dependency",
+      "label": "injiziert (editable)"
+    },
+    {
+      "id": "e24",
+      "from": "edit-script",
+      "to": "preview-pane",
+      "kind": "event",
+      "label": "slideo:* (select/move/edit/link)"
+    },
+    {
+      "id": "e25",
+      "from": "preview-pane",
+      "to": "store-presentation",
+      "kind": "request",
+      "label": "applyZoneElementOp / insertComponent"
+    },
+    {
+      "id": "e26",
+      "from": "store-presentation",
+      "to": "dom-edit",
+      "kind": "dependency",
+      "label": "applyElementOp"
+    },
+    {
+      "id": "e27",
+      "from": "nav-script",
+      "to": "presentation-mode",
+      "kind": "event",
+      "label": "slideo:goto-request (§23)"
+    },
+    {
+      "id": "e28",
+      "from": "nav-script",
+      "to": "preview-pane",
+      "kind": "event",
+      "label": "slideo:goto-request (Vorschau)"
+    },
+    {
+      "id": "e29",
+      "from": "editor-shell",
+      "to": "tiptap-editor",
+      "kind": "dependency",
+      "label": "enthält"
+    },
+    {
+      "id": "e30",
+      "from": "editor-shell",
+      "to": "preview-pane",
+      "kind": "dependency",
+      "label": "enthält"
+    },
+    {
+      "id": "e31",
+      "from": "tiptap-editor",
+      "to": "store-presentation",
+      "kind": "data-write",
+      "label": "Markdown aktualisieren"
+    },
+    {
+      "id": "e32",
+      "from": "component-palette",
+      "to": "components-gen",
+      "kind": "request",
+      "label": "render_component (Tauri)"
+    },
+    {
+      "id": "e33",
+      "from": "component-palette",
+      "to": "store-presentation",
+      "kind": "data-write",
+      "label": "insertComponent"
+    },
+    {
+      "id": "e34",
+      "from": "design-modal",
+      "to": "store-presentation",
+      "kind": "data-write",
+      "label": "Tokens setzen"
+    },
+    {
+      "id": "e35",
+      "from": "presentation-mode",
+      "to": "slide-iframe",
+      "kind": "control",
+      "label": "slideo:show {index, step}"
+    },
+    {
+      "id": "e36",
+      "from": "presentation-mode",
+      "to": "present-win",
+      "kind": "request",
+      "label": "open_presentation_window"
+    },
+    {
+      "id": "e37",
+      "from": "presentation-mode",
+      "to": "projector-view",
+      "kind": "event",
+      "label": "Tauri: slideo:nav"
+    },
+    {
+      "id": "e38",
+      "from": "projector-view",
+      "to": "app-state",
+      "kind": "data-read",
+      "label": "get_presentation / get_assets"
+    },
+    {
+      "id": "e39",
+      "from": "present-win",
+      "to": "projector-view",
+      "kind": "dependency",
+      "label": "hostet Fenster"
+    },
+    {
+      "id": "e40",
+      "from": "projector-view",
+      "to": "presentation-mode",
+      "kind": "event",
+      "label": "slideo:projector-goto (§23)"
+    },
+    {
+      "id": "e41",
+      "from": "presentation-mode",
+      "to": "speaker-view",
+      "kind": "dependency",
+      "label": "enthält"
+    },
+    {
+      "id": "e42",
+      "from": "presentation-mode",
+      "to": "slide-overview",
+      "kind": "dependency",
+      "label": "enthält"
+    }
+  ],
+  "groups": [
+    {
+      "id": "g-rust",
+      "label": "Rust-Backend · I/O · MCP · State",
+      "color": "#34d399",
+      "children": [
+        "app-entry",
+        "mcp-reg",
+        "mcp-stdio",
+        "ipc-socket",
+        "app-state",
+        "mcp-tools",
+        "components-gen",
+        "tauri-commands",
+        "file-io",
+        "history",
+        "present-win"
+      ]
+    },
+    {
+      "id": "g-state",
+      "label": "Frontend-Bridge & State",
+      "color": "#a78bfa",
+      "children": [
+        "mcp-bridge",
+        "store-presentation",
+        "store-ui",
+        "store-layout",
+        "store-toast"
+      ]
+    },
+    {
+      "id": "g-renderer",
+      "label": "Renderer / Iframe",
+      "color": "#f472b6",
+      "children": [
+        "renderer",
+        "nav-script",
+        "edit-script",
+        "dom-edit",
+        "slide-iframe",
+        "standalone-export"
+      ]
+    },
+    {
+      "id": "g-editor",
+      "label": "Editor-UI",
+      "color": "#60a5fa",
+      "children": [
+        "editor-shell",
+        "tiptap-editor",
+        "preview-pane",
+        "component-palette",
+        "design-modal",
+        "history-modal"
+      ]
+    },
+    {
+      "id": "g-presentation",
+      "label": "Präsentation & Projektor",
+      "color": "#f59e0b",
+      "children": [
+        "presentation-mode",
+        "speaker-view",
+        "slide-overview",
+        "projector-view"
+      ]
+    }
+  ]
+}
