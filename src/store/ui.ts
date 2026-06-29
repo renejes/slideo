@@ -1,6 +1,10 @@
 import { create } from 'zustand'
 
-export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history' | 'design' | 'help'
+export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history' | 'design' | 'help' | 'assets'
+
+/** Modus der Asset-Verwaltung: „manage" (Topbar, alle Typen verwalten) oder
+ *  „pick" (aus einer Zone heraus — Auswahl fügt ins Ziel ein). */
+export type AssetMode = 'manage' | 'pick'
 
 /**
  * „Klick → Quelle" (Spec §20): markiert eine Quell-Range im HTML-Editor der
@@ -20,6 +24,10 @@ interface UiState {
   modal: ModalKind | null
   openModal: (modal: ModalKind) => void
   closeModal: () => void
+  /** Asset-Verwaltung: Modus + (bei „pick") Ziel-Zone fürs Einfügen. */
+  assetMode: AssetMode
+  assetPickZoneId: string | null
+  openAssets: (mode: AssetMode, zoneId?: string) => void
   /** Direktbearbeiten in der Vorschau (Auswahl-Layer für HTML-Zonen, Spec §20). */
   previewEdit: boolean
   setPreviewEdit: (on: boolean) => void
@@ -34,6 +42,9 @@ export const useUiStore = create<UiState>((set) => ({
   modal: null,
   openModal: (modal) => set({ modal }),
   closeModal: () => set({ modal: null }),
+  assetMode: 'manage',
+  assetPickZoneId: null,
+  openAssets: (mode, zoneId) => set({ modal: 'assets', assetMode: mode, assetPickZoneId: zoneId ?? null }),
   previewEdit: false,
   setPreviewEdit: (previewEdit) => set({ previewEdit }),
   togglePreviewEdit: () => set((s) => ({ previewEdit: !s.previewEdit })),

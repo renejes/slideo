@@ -18,6 +18,7 @@ import { DesignModal } from '@/components/modals/DesignModal'
 import { EditorShell } from '@/components/ui/EditorShell'
 import { OnboardingNudge } from '@/components/ui/OnboardingNudge'
 import { HelpModal } from '@/components/modals/HelpModal'
+import { AssetManagerModal } from '@/components/modals/AssetManagerModal'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
 export default function App() {
@@ -125,6 +126,7 @@ export default function App() {
       {modal === 'history' && <HistoryModal />}
       {modal === 'design' && <DesignModal />}
       {modal === 'help' && <HelpModal />}
+      {modal === 'assets' && <AssetManagerModal />}
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />

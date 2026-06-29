@@ -56,6 +56,7 @@ music_note
 notes
 palette
 pause
+perm_media
 picture_as_pdf
 play_arrow
 present_to_all

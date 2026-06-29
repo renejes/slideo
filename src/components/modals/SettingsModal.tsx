@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Modal, modalGhostBtn } from '@/components/ui/Modal'
 import { Icon } from '@/components/ui/Icon'
 import { useSettingsStore } from '@/store/settings'
-import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { isTauri } from '@/lib/tauri'
 import { pickDirectory } from '@/lib/dialog'
-import { mediaKind, parseDataUri } from '@/lib/assets'
 import {
   getMcpStatus,
   setMcpTarget,
@@ -15,6 +13,7 @@ import {
   type McpTarget,
 } from '@/lib/mcp-registration'
 import { McpTargetCards, mcpTargetLabel } from '@/components/ui/McpTargetCards'
+import { AssetLibrary } from '@/components/ui/AssetLibrary'
 
 const APP_VERSION = '0.1.0'
 
@@ -72,9 +71,9 @@ export function SettingsModal() {
           <McpConnection />
         </Section>
 
-        {/* Assets */}
+        {/* Assets — geteilt mit dem Asset-Manager (Topbar) */}
         <Section title="Assets">
-          <AssetManager />
+          <AssetLibrary />
         </Section>
 
         {/* Platzhalter für künftige Bereiche */}
@@ -170,92 +169,6 @@ function McpConnection() {
           <p className="text-[12px] leading-relaxed text-chrome-warn">{status.lastError}</p>
         </div>
       )}
-    </div>
-  )
-}
-
-function AssetManager() {
-  const assets = usePresentationStore((s) => s.assets)
-  const hasPresentation = usePresentationStore((s) => s.presentation !== null)
-  const addAssetToLibrary = usePresentationStore((s) => s.addAssetToLibrary)
-  const removeAsset = usePresentationStore((s) => s.removeAsset)
-  const fileRef = useRef<HTMLInputElement>(null)
-  const entries = Object.entries(assets)
-
-  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? [])
-    e.target.value = ''
-    files.forEach((file) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (typeof reader.result === 'string') addAssetToLibrary(reader.result)
-      }
-      reader.readAsDataURL(file)
-    })
-  }
-
-  if (!hasPresentation) {
-    return <p className="py-1 text-[12px] text-chrome-muted">Erst eine Präsentation öffnen/anlegen.</p>
-  }
-
-  return (
-    <div className="flex flex-col gap-3 py-1">
-      <div className="flex items-center justify-between">
-        <p className="max-w-[22rem] text-[12px] text-chrome-muted">
-          Hinterlege Bilder, Videos oder Audio, die du (oder die KI per{' '}
-          <code className="font-mono">list_assets</code>) als{' '}
-          <code className="font-mono">assets/&lt;name&gt;</code> einbinden kannst.
-        </p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,video/*,audio/*"
-          multiple
-          onChange={onPick}
-          className="hidden"
-        />
-        <button className={modalGhostBtn} onClick={() => fileRef.current?.click()}>
-          Hinzufügen
-        </button>
-      </div>
-
-      {entries.length === 0 ? (
-        <p className="text-[12px] text-chrome-faint">Noch keine Assets.</p>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          {entries.map(([name, dataUri]) => (
-            <div
-              key={name}
-              className="group flex items-center gap-2 rounded-lg border border-chrome-border p-1.5"
-            >
-              <AssetThumb name={name} dataUri={dataUri} />
-              <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-chrome-secondary">
-                {name}
-              </code>
-              <button
-                onClick={() => removeAsset(name)}
-                className="rounded p-1 text-chrome-faint transition-colors hover:bg-chrome-danger/10 hover:text-chrome-danger"
-                title="Asset entfernen"
-                aria-label="Asset entfernen"
-              >
-                <Icon name="delete" size={15} weight={400} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AssetThumb({ name, dataUri }: { name: string; dataUri: string }) {
-  const kind = mediaKind(parseDataUri(dataUri).mime)
-  const cls = 'h-9 w-9 shrink-0 rounded object-cover'
-  if (kind === 'image') return <img src={dataUri} alt={name} className={cls} />
-  if (kind === 'video') return <video src={dataUri} muted className={cls} />
-  return (
-    <div className={`${cls} flex items-center justify-center bg-chrome-surface-2 text-chrome-muted`}>
-      <Icon name={kind === 'audio' ? 'music_note' : 'description'} size={18} weight={400} />
     </div>
   )
 }

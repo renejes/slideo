@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import type { Zone, ZoneLayout, TextAlign } from '@/types'
 import { ZONE_LAYOUTS, TEXT_ALIGNS } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
@@ -23,23 +22,11 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
   const setZoneReveal = usePresentationStore((s) => s.setZoneReveal)
   const setZoneContentType = usePresentationStore((s) => s.setZoneContentType)
   const deleteZone = usePresentationStore((s) => s.deleteZone)
-  const addMediaToZone = usePresentationStore((s) => s.addMediaToZone)
   const setActiveZone = usePresentationStore((s) => s.setActiveZone)
   const openModal = useUiStore((s) => s.openModal)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const openAssets = useUiStore((s) => s.openAssets)
 
   const isHtml = zone.content_type === 'html'
-
-  function onPickMedia(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    e.target.value = '' // erlaubt erneute Auswahl derselben Datei
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') addMediaToZone(zone.id, reader.result)
-    }
-    reader.readAsDataURL(file)
-  }
 
   async function toggleContentType() {
     if (isHtml) {
@@ -116,17 +103,13 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
           </button>
         )}
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*,video/*,audio/*"
-          onChange={onPickMedia}
-          className="hidden"
-        />
         <button
-          onClick={() => fileRef.current?.click()}
+          onClick={() => {
+            setActiveZone(zone.id)
+            openAssets('pick', zone.id)
+          }}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Medium einfügen (Bild, Video, Audio)"
+          title="Medium einfügen — öffnet die Asset-Verwaltung (importieren & auswählen)"
           aria-label="Medium einfügen"
         >
           <Icon name="image" size={17} weight={400} />

@@ -27,6 +27,7 @@ export function Topbar() {
   const exportPptx = usePresentationStore((s) => s.exportPptx)
   const setMode = usePresentationStore((s) => s.setMode)
   const openModal = useUiStore((s) => s.openModal)
+  const openAssets = useUiStore((s) => s.openAssets)
 
   const tauri = isTauri()
   const fileHint = tauri ? undefined : 'Nur in der Desktop-App verfügbar (npm run tauri:dev)'
@@ -112,6 +113,16 @@ export function Topbar() {
         >
           <Icon name="palette" size={18} />
           Design
+        </button>
+
+        <button
+          onClick={() => openAssets('manage')}
+          className={ghost}
+          disabled={!presentation}
+          title="Asset-Verwaltung — Bilder, Videos & Audio importieren und verwalten"
+        >
+          <Icon name="perm_media" size={18} />
+          Medien
         </button>
 
         <button

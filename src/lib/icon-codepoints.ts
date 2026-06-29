@@ -57,6 +57,7 @@ export const ICON_CODEPOINTS: Record<string, string> = {
   "notes": "e26c",
   "palette": "e3b7",
   "pause": "e034",
+  "perm_media": "e8a7",
   "picture_as_pdf": "e415",
   "play_arrow": "e037",
   "present_to_all": "e0df",

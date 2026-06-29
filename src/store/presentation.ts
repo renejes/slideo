@@ -137,6 +137,8 @@ interface PresentationState {
 
   // Assets
   addMediaToZone: (zoneId: string, dataUri: string) => void
+  /** Ein bereits in der Library liegendes Asset (per Name) in eine Zone einfügen. */
+  insertAssetIntoZone: (zoneId: string, assetName: string) => void
   addAssetToLibrary: (dataUri: string) => string
   removeAsset: (name: string) => void
   /** Lädt eine Schriftdatei als Asset + registriert sie als Font (Spec §19.4). */
@@ -784,18 +786,23 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     },
 
     addMediaToZone: (zoneId, dataUri) => {
-      const { mime } = parseDataUri(dataUri)
-      const kind = mediaKind(mime)
+      // Datei importieren + einfügen (genutzt vom ZoneCard-Drag&Drop). Das Einfügen
+      // teilt sich die Logik mit insertAssetIntoZone (Asset-Verwaltung „pick").
+      const name = get().addAssetToLibrary(dataUri)
+      get().insertAssetIntoZone(zoneId, name)
+    },
+
+    insertAssetIntoZone: (zoneId, assetName) => {
+      const dataUri = get().assets[assetName]
+      if (!dataUri) return
+      const kind = mediaKind(parseDataUri(dataUri).mime)
+      const ref = `assets/${assetName}`
       const zone = get().presentation?.zones.find((z) => z.id === zoneId)
       const isHtmlZone = zone?.content_type === 'html'
 
-      // 1) Asset immer in die Library aufnehmen.
-      const filename = get().addAssetToLibrary(dataUri)
-      const ref = `assets/${filename}`
-
-      // 2) Video/Audio brauchen HTML-Tags. In Markdown-Zonen würde Tiptap rohes
-      //    HTML beim Bearbeiten verwerfen → daher nur in HTML-Zonen einfügen,
-      //    sonst nur in die Library legen und den Nutzer hinweisen.
+      // Video/Audio brauchen HTML-Tags. In Markdown-Zonen würde Tiptap rohes HTML beim
+      // Bearbeiten verwerfen → nur in HTML-Zonen einfügen, sonst nur Hinweis (Asset
+      // liegt bereits in der Library).
       if ((kind === 'video' || kind === 'audio') && !isHtmlZone) {
         notify('Video/Audio gespeichert — in einer HTML-Zone einbinden (Toggle „HTML").', 'info')
         return
@@ -806,14 +813,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         zones: p.zones.map((z) => {
           if (z.id !== zoneId) return z
           if (z.content_type === 'html') {
-            // ABSOLUT & sichtbar einfügen (nicht ans Ende anhängen): KI-HTML-Folien füllen
-            // ihren Platz meist schon → ein angehängtes Block-Element landet unter dem
-            // Inhalt und wird von der 1280×720-Bühne (overflow:hidden, §21) abgeschnitten.
-            // Absolut positioniert erscheint das Medium sichtbar über dem Inhalt und ist per
-            // §20-Direktmanipulation verschieb- (Drag) und (Bild) skalierbar.
-            // z-index:50: sicher über positioniertem KI-HTML-Inhalt (der eigene z-index tragen
-            // kann); deckt sich mit den §20-Overlays (position:fixed). Per §20/Custom-CSS
-            // wieder nach hinten holbar.
+            // ABSOLUT & sichtbar einfügen (nicht ans Ende): KI-HTML-Folien füllen ihren
+            // Platz meist schon → ein angehängtes Block-Element würde von der 1280×720-
+            // Bühne (overflow:hidden, §21) abgeschnitten. Absolut positioniert erscheint
+            // das Medium sichtbar über dem Inhalt und ist per §20-Drag verschieb-/skalierbar.
             const snippet =
               kind === 'video'
                 ? `<video controls src="${ref}" style="position:absolute;left:30%;top:28%;width:40%;border-radius:var(--border-radius);z-index:50"></video>`
