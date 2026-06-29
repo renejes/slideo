@@ -351,9 +351,9 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   Änderungen: `cargo build` + Claude Desktop neu starten** (sonst altes Binary).
 - **Workflow-Optimierung (Spec §24, Branch `workflow-optimization`, umgesetzt):** Vier Bedien-/Authoring-
   Verbesserungen für Mensch + KI. **(1) Onboarding:** MCP-Setup erst nach dem ersten Deck (Kontext), EmptyState +
-  Hilfe-Modal (Topbar-`?`) + einmaliger Banner mit **„Claude-Prompt kopieren"** ([onboarding.ts](src/lib/onboarding.ts),
+  Hilfe-Modal (Topbar-`?`) + einmaliger Banner mit **„Prompt kopieren"** ([onboarding.ts](src/lib/onboarding.ts) `samplePrompt`,
   [HelpModal.tsx](src/components/modals/HelpModal.tsx), [OnboardingNudge.tsx](src/components/ui/OnboardingNudge.tsx));
-  Klartext statt Jargon. **(2) Asset-Verwaltung:** „Bild einfügen" → Asset-Manager (pick, Batch-Import) + eigener
+  Klartext statt Jargon, **KI-agnostisch** (MCP-Standard; Beispiele Claude Desktop, Codex CLI — nicht Claude-exklusiv). **(2) Asset-Verwaltung:** „Bild einfügen" → Asset-Manager (pick, Batch-Import) + eigener
   Topbar-Button „Medien" (manage) ([AssetManagerModal.tsx](src/components/modals/AssetManagerModal.tsx),
   [AssetLibrary.tsx](src/components/ui/AssetLibrary.tsx)); Store `insertAssetIntoZone` (Library-Asset ohne Re-Import),
   `addMediaToZone` delegiert. **(3) Komponenten 11→17:** `data_table`/`big_number`/`feature_grid`/`process_steps`/

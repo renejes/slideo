@@ -35,7 +35,7 @@ export default function App() {
   const openNew = () => openModal('new')
 
   // MCP-Status einmal holen (Tauri). Das Setup-Modal kommt aber NICHT auf der leeren
-  // Startseite, sondern erst, wenn ein Deck existiert (Kontext für „Claude verbinden")
+  // Startseite, sondern erst, wenn ein Deck existiert (Kontext für „KI-Agent verbinden")
   // — sonst überfällt es den Erststart ohne Bezug.
   useEffect(() => {
     if (!isTauri()) return
@@ -161,8 +161,8 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
             weight={400}
             className="-mt-0.5 mr-1 inline align-middle text-chrome-accent-600"
           />
-          Die Folien baut <span className="font-medium text-chrome-text">Claude Desktop</span> über MCP — du
-          verfeinerst sie hier.{' '}
+          Die Folien baut <span className="font-medium text-chrome-text">ein KI-Agent</span> über MCP
+          (z.B. Claude Desktop, Codex CLI) — du verfeinerst sie hier.{' '}
           <button
             onClick={onHelp}
             className="font-medium text-chrome-accent-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 rounded"

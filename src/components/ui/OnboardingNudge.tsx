@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
-import { claudePrompt, copyText } from '@/lib/onboarding'
+import { samplePrompt, copyText } from '@/lib/onboarding'
 import { Icon } from './Icon'
 
 const SEEN_KEY = 'slideo.onboardingSeen'
@@ -16,7 +16,7 @@ function alreadySeen(): boolean {
 }
 
 // Einmaliger Hinweis über der Editor-Fläche, sobald ein Deck existiert: erklärt die
-// Kern-These (Claude baut die Folien) und bietet einen fertigen Prompt zum Kopieren.
+// Kern-These (ein KI-Agent baut die Folien) und bietet einen fertigen Prompt zum Kopieren.
 // Wird nach „Verstanden" dauerhaft ausgeblendet (localStorage). Reines UI.
 export function OnboardingNudge() {
   const title = usePresentationStore((s) => s.presentation?.meta.title ?? '')
@@ -35,17 +35,18 @@ export function OnboardingNudge() {
   }
 
   async function copyPrompt() {
-    const ok = await copyText(claudePrompt(title))
-    notify(ok ? 'Prompt kopiert — in Claude Desktop einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
+    const ok = await copyText(samplePrompt(title))
+    notify(ok ? 'Prompt kopiert — in deinen KI-Agent einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
   }
 
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-chrome-border bg-chrome-accent-soft px-4 py-2">
       <Icon name="auto_awesome" size={17} weight={400} className="shrink-0 text-chrome-accent-600" />
       <p className="min-w-0 flex-1 text-[12px] leading-snug text-chrome-text">
-        <span className="font-medium">Claude baut deine Folien.</span>{' '}
+        <span className="font-medium">Dein KI-Agent baut deine Folien.</span>{' '}
         <span className="text-chrome-secondary">
-          Öffne Claude Desktop und beschreib dein Thema — oder kopier dir einen fertigen Prompt.
+          Öffne deinen MCP-Client (z.B. Claude Desktop, Codex CLI) und beschreib dein Thema — oder kopier dir einen
+          fertigen Prompt.
         </span>
       </p>
       <button

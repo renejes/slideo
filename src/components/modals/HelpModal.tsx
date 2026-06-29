@@ -2,9 +2,9 @@ import { Modal, modalPrimaryBtn } from '@/components/ui/Modal'
 import { Icon } from '@/components/ui/Icon'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
-import { claudePrompt, copyText } from '@/lib/onboarding'
+import { samplePrompt, copyText } from '@/lib/onboarding'
 
-// Onboarding-Hilfe: erklärt die Kern-These (Claude Desktop baut das Deck via MCP,
+// Onboarding-Hilfe: erklärt die Kern-These (ein KI-Agent baut das Deck via MCP,
 // der Mensch editiert drüber) in 4 Schritten + bietet einen Beispiel-Prompt zum
 // Kopieren. Reines UI; öffenbar über den „?"-Knopf in der Topbar / EmptyState.
 const STEPS: { icon: string; title: string; body: string }[] = [
@@ -15,13 +15,13 @@ const STEPS: { icon: string; title: string; body: string }[] = [
   },
   {
     icon: 'hub',
-    title: '2 · Claude verbinden',
-    body: 'Claude Desktop öffnen (separate App). Falls noch nicht aktiv: Einstellungen → KI-Verbindung (MCP).',
+    title: '2 · KI-Agent verbinden',
+    body: 'Einen MCP-Client öffnen (z.B. Claude Desktop, Codex CLI, …). Falls noch nicht aktiv: Einstellungen → KI-Verbindung (MCP).',
   },
   {
     icon: 'auto_awesome',
     title: '3 · Thema beschreiben',
-    body: 'In Claude z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Claude nutzt Slideos 35 Folien-Werkzeuge.',
+    body: 'Im KI-Agent z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Er nutzt Slideos 35 Folien-Werkzeuge.',
   },
   {
     icon: 'arrow_selector_tool',
@@ -34,13 +34,13 @@ export function HelpModal() {
   const closeModal = useUiStore((s) => s.closeModal)
 
   async function copyExample() {
-    const ok = await copyText(claudePrompt('dein Thema'))
-    notify(ok ? 'Beispiel-Prompt kopiert — in Claude Desktop einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
+    const ok = await copyText(samplePrompt('dein Thema'))
+    notify(ok ? 'Beispiel-Prompt kopiert — in deinen KI-Agent einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
   }
 
   return (
     <Modal
-      title="Wie Slideo mit Claude arbeitet"
+      title="Wie Slideo mit deinem KI-Agent arbeitet"
       onClose={closeModal}
       width="w-[34rem]"
       footer={
@@ -52,8 +52,8 @@ export function HelpModal() {
       <div className="flex flex-col gap-3">
         <p className="text-[13px] leading-relaxed text-chrome-secondary">
           Slideo läuft lokal und hat <span className="font-medium text-chrome-text">keine eigene KI</span>.
-          Die Präsentation baut <span className="font-medium text-chrome-text">Claude Desktop</span> über den
-          MCP-Server — du verfeinerst sie hier.
+          Die Präsentation baut <span className="font-medium text-chrome-text">dein KI-Agent</span> über den
+          MCP-Server (ein beliebiger MCP-Client — z.B. Claude Desktop, Codex CLI) — du verfeinerst sie hier.
         </p>
 
         <ol className="flex flex-col gap-2">

@@ -1,12 +1,12 @@
 // Onboarding-Helfer (Bereich 1 der Workflow-Optimierung).
 //
-// Slideos Kern-These: die KI (Claude Desktop) baut das Deck über den MCP-Server,
-// der Mensch editiert drüber. Damit der erste Eindruck das vermittelt, bietet das
-// Onboarding einen **fertigen Claude-Prompt** zum Kopieren — die „…und jetzt?"-Lücke
-// nach dem Anlegen eines Decks.
+// Slideos Kern-These: ein KI-Agent (ein beliebiger MCP-Client, z.B. Claude Desktop
+// oder Codex CLI) baut das Deck über den MCP-Server, der Mensch editiert drüber.
+// Damit der erste Eindruck das vermittelt, bietet das Onboarding einen **fertigen
+// Beispiel-Prompt** zum Kopieren — die „…und jetzt?"-Lücke nach dem Anlegen eines Decks.
 
-/** Fertiger Claude-Desktop-Prompt für ein frisch angelegtes Deck. */
-export function claudePrompt(title: string, templateLabel?: string): string {
+/** Fertiger Beispiel-Prompt (für jeden MCP-KI-Agenten) für ein frisches Deck. */
+export function samplePrompt(title: string, templateLabel?: string): string {
   const thema = (title || 'mein Thema').trim()
   const stil = templateLabel && templateLabel !== 'Leer' ? ` im Stil „${templateLabel}“` : ''
   return (

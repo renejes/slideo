@@ -1246,8 +1246,9 @@ Eine Runde Bedien-/Authoring-Verbesserungen für Mensch **und** KI-über-MCP. Vi
   vermittelt: Das MCP-Setup-Modal erscheint **erst nach dem ersten Deck** (mit Kontext, nicht auf dem kalten Start,
   [App.tsx](../src/App.tsx)); EmptyState + ein **Hilfe-Modal** ([HelpModal.tsx](../src/components/modals/HelpModal.tsx),
   Topbar-`?`) erklären den Ablauf in 4 Schritten; ein einmaliger **Onboarding-Banner**
-  ([OnboardingNudge.tsx](../src/components/ui/OnboardingNudge.tsx)) bietet einen **fertigen Claude-Prompt zum Kopieren**
-  ([onboarding.ts](../src/lib/onboarding.ts)); McpSetupModal/Settings auf Klartext umgestellt. Reines Frontend.
+  ([OnboardingNudge.tsx](../src/components/ui/OnboardingNudge.tsx)) bietet einen **fertigen Beispiel-Prompt zum Kopieren**
+  ([onboarding.ts](../src/lib/onboarding.ts), `samplePrompt`). Die Texte sind **KI-agnostisch** (MCP-Standard — Beispiele
+  Claude Desktop, Codex CLI, …), nicht Claude-exklusiv. McpSetupModal/Settings auf Klartext umgestellt. Reines Frontend.
 - **Asset-Verwaltung.** „Bild einfügen" (Zonen-Button) öffnet jetzt zuerst die **Asset-Verwaltung im „pick"-Modus**
   → Batch-Import → Thumbnail-Klick fügt ein; dazu ein **eigener Topbar-Button „Medien"** („manage"-Modus, alle Typen)
   ([AssetManagerModal.tsx](../src/components/modals/AssetManagerModal.tsx) + wiederverwendbare
