@@ -48,15 +48,19 @@
 - [x] **`index`-Chunk (P8):** Code-Splitting — CodeMirror-Editoren (`HtmlEditor`/`CssEditor`) via `React.lazy`; Haupt-Chunk 1,31 MB → 864 kB (CodeMirror 122 kB lädt nur bei HTML-Zone/CSS-Panel).
 - [x] **Bilder (P3/P7):** in-app über `slideoasset://` statt inline-base64 + Rust-Decode-Cache (`AppState::set_assets` invalidiert; TOCTOU-Race im Review gefixt). Standalone/Print bleiben inline. — **GUI: Bilder in-app + Export prüfen.**
 - [x] **Polish (P10/P13):** Sync-Debounce 120→400 ms; ZIP-`Stored` für Assets (kein Deflate auf schon-komprimierten Medien). + **P9** Hover-Overlay rAF-koalesziert.
-- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — **bewusst vertagt** (großer/riskanter Refactor der gerade umgebauten §20/Punkt-3-Pipeline; P3 nimmt den Re-Decode-Kostenanteil schon weg). Separat mit GUI-Test.
+- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — **bewusst vertagt** (großer/riskanter Refactor der gerade umgebauten §20/Punkt-3-Pipeline; P3 nimmt den Re-Decode-Kostenanteil schon weg). Separat mit GUI-Test. **→ Auf Anweisung NACH der Workflow-Optimierung (Spec §24) als eigener Branch; noch nicht begonnen.**
 - [ ] **P12 (`Vec<u8>` intern):** **bewusst übersprungen** — hohes Risiko (MCP-Save load-bearing), geringer Wert (Speicher), im Konflikt mit dem P7-Cache.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde
 - [x] **Editor-Shell überarbeitet** (aus GUI-Feedback): drei frei **skalierbare + einzeln einklappbare** Spalten
       (Folienliste · Editor · Vorschau, persistente Breiten/Zustände; [EditorShell.tsx](../src/components/ui/EditorShell.tsx)/[Splitter.tsx](../src/components/ui/Splitter.tsx)/[layout.ts](../src/store/layout.ts)),
       **Drag-Reorder in der Folienliste** ([ZoneList.tsx](../src/components/ui/ZoneList.tsx)), **Outline-Modus entfernt** (redundant). — **GUI-Test offen.**
-- [ ] Weiter: Onboarding/MCP-Erststart-Modal, Architektur-Schulden, Renderer/State vereinfachen, Konsistenz
-      Vorschau ↔ Präsentation ↔ Export. Bewusst Refactor + Politur statt neuer Features.
+- [x] **Workflow-Optimierung (Spec §24, Branch `workflow-optimization`):** Onboarding (Erststart-These + Claude-Prompt-
+      Helfer), Asset-Verwaltung (Manager-Modal pick/manage + Topbar-Button), Komponenten 11→17, KI-Layout-Check
+      (`check_zone_overflow`/`validate_deck`, MCP 35→37). cargo test 42 / typecheck / vite build grün, adversarial reviewt.
+      **— GUI-Test offen; MCP-Seite: `cargo build` + Claude Desktop neu starten.**
+- [ ] Weiter: Architektur-Schulden, Renderer/State vereinfachen, Konsistenz Vorschau ↔ Präsentation ↔ Export.
+      Bewusst Refactor + Politur statt neuer Features.
 
 ### 1d. Layout-Validierung (harte 1280×720-Garantie) — optional
 - [ ] §21 + MCP-`instructions` steuern AI-Decks Richtung „passt", aber der MCP-Server misst **kein** Layout. Vorschlag:

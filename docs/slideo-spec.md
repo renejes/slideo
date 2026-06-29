@@ -1236,3 +1236,40 @@ springen, und ein Rücksprung-Link zurück zum Verzeichnis. Mechanismus: das **S
 (+ Browser-Zurück) und Vorschau; Rücksprung-Link; Markdown-`#`-Link (der `hashchange`-Pfad hängt am
 about:srcdoc-Verhalten der WKWebView — der `data-slideo-goto`-Pfad ist davon **unabhängig** und der empfohlene);
 Projektor-Klick auf echter Multi-Display-Hardware.
+
+## 24. Workflow-Optimierung (Onboarding · Assets · Komponenten · KI-Layout-Check)
+
+Eine Runde Bedien-/Authoring-Verbesserungen für Mensch **und** KI-über-MCP. Vier Bereiche (Branch
+`workflow-optimization`):
+
+- **Onboarding (Erststart).** Die Kern-These „die KI baut die Folien, du editierst drüber" wird jetzt im UI
+  vermittelt: Das MCP-Setup-Modal erscheint **erst nach dem ersten Deck** (mit Kontext, nicht auf dem kalten Start,
+  [App.tsx](../src/App.tsx)); EmptyState + ein **Hilfe-Modal** ([HelpModal.tsx](../src/components/modals/HelpModal.tsx),
+  Topbar-`?`) erklären den Ablauf in 4 Schritten; ein einmaliger **Onboarding-Banner**
+  ([OnboardingNudge.tsx](../src/components/ui/OnboardingNudge.tsx)) bietet einen **fertigen Claude-Prompt zum Kopieren**
+  ([onboarding.ts](../src/lib/onboarding.ts)); McpSetupModal/Settings auf Klartext umgestellt. Reines Frontend.
+- **Asset-Verwaltung.** „Bild einfügen" (Zonen-Button) öffnet jetzt zuerst die **Asset-Verwaltung im „pick"-Modus**
+  → Batch-Import → Thumbnail-Klick fügt ein; dazu ein **eigener Topbar-Button „Medien"** („manage"-Modus, alle Typen)
+  ([AssetManagerModal.tsx](../src/components/modals/AssetManagerModal.tsx) + wiederverwendbare
+  [AssetLibrary.tsx](../src/components/ui/AssetLibrary.tsx), aus den Settings ausgelagert). Store:
+  `insertAssetIntoZone(zoneId, assetName)` fügt ein Library-Asset **ohne Re-Import** ein; `addMediaToZone`
+  (Drag&Drop) delegiert darauf. Reines Frontend, kein Schema-Eingriff.
+- **Komponenten-Set 11 → 17.** Sechs neue token-bewusste Generatoren in
+  [components.rs](../src-tauri/src/components.rs): `data_table`, `big_number`, `feature_grid`, `process_steps`,
+  `pricing`, `gallery` (Bilder via `assets/<name>`, `safe_asset`-sanitisiert). Erscheinen automatisch in
+  `list_components` (MCP) **und** der Palette; Formulare für die 3 einfachen (die 3 komplexen fügen mit Defaults ein
+  + werden per §20 verfeinert). Token-only, escaped, Fallbacks → rendern auch ohne Params.
+- **KI-Layout-Check (gegen die blinde Authoring-Schleife).** Der MCP-Server misst **kein** echtes Layout — bisher
+  erfuhr die KI nie, ob eine Folie aus der festen 1280×720-Bühne (§21) läuft. Zwei neue **read-only** MCP-Tools
+  ([tools.rs](../src-tauri/src/tools.rs), **35 → 37**): `check_zone_overflow(id)` und `validate_deck()` liefern eine
+  **reine Rust-Heuristik** (KEIN Headless-Browser, [overflow.rs](../src-tauri/src/overflow.rs)): Markdown aus
+  Zeilen/Schriftgröße geschätzt, HTML aus inline-px (left/top/width/height/font-size) gegen Bühne + Safe-Area
+  (x 64–1216 / y 64–656). Approximativ, aber handlungsleitend — die KI kann **vor** dem Festschreiben prüfen und
+  Inhalt teilen/straffen. Die `instructions`/`slideo_guide` lehren den Check (Punkt 12 / Schritt 7). **Härtungs-
+  Vermerk:** ein Panic in `tools::handle` würde die IPC-Mutexes vergiften (App-Datenebene bricht bis Neustart); der
+  konkrete Heuristik-Panic (nicht-quotiertes `style=` vor Multibyte-Zeichen) ist gefixt + Regressionstest — ein
+  generelles `catch_unwind` um `handle` ([ipc.rs](../src-tauri/src/ipc.rs)) bleibt als Defense-in-Depth offen.
+
+**Nach den MCP-Änderungen (Komponenten + Tools + instructions): `cargo build` + Claude Desktop neu starten.**
+Headless grün: **cargo test 42**, typecheck, vite build; adversarial reviewt (Komponenten/Heuristik/MCP). **GUI-Check
+ausstehend** (Onboarding-Fluss, Asset-pick/manage, neue Komponenten in der Palette, MCP-Tools in Claude Desktop).

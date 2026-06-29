@@ -349,6 +349,21 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   Präsentation/Standalone/Vorschau, Rücksprung, Markdown-`#` — der `hashchange`-Pfad ist about:srcdoc-WKWebView-
   abhängig, der `data-slideo-goto`-Pfad davon unabhängig & empfohlen; Projektor-Klick). **Nach den MCP-Instructions-
   Änderungen: `cargo build` + Claude Desktop neu starten** (sonst altes Binary).
+- **Workflow-Optimierung (Spec §24, Branch `workflow-optimization`, umgesetzt):** Vier Bedien-/Authoring-
+  Verbesserungen für Mensch + KI. **(1) Onboarding:** MCP-Setup erst nach dem ersten Deck (Kontext), EmptyState +
+  Hilfe-Modal (Topbar-`?`) + einmaliger Banner mit **„Claude-Prompt kopieren"** ([onboarding.ts](src/lib/onboarding.ts),
+  [HelpModal.tsx](src/components/modals/HelpModal.tsx), [OnboardingNudge.tsx](src/components/ui/OnboardingNudge.tsx));
+  Klartext statt Jargon. **(2) Asset-Verwaltung:** „Bild einfügen" → Asset-Manager (pick, Batch-Import) + eigener
+  Topbar-Button „Medien" (manage) ([AssetManagerModal.tsx](src/components/modals/AssetManagerModal.tsx),
+  [AssetLibrary.tsx](src/components/ui/AssetLibrary.tsx)); Store `insertAssetIntoZone` (Library-Asset ohne Re-Import),
+  `addMediaToZone` delegiert. **(3) Komponenten 11→17:** `data_table`/`big_number`/`feature_grid`/`process_steps`/
+  `pricing`/`gallery` (token-only, [components.rs](src-tauri/src/components.rs); 3 mit Palette-Formular). **(4) KI-
+  Layout-Check:** read-only MCP-Tools `check_zone_overflow(id)` + `validate_deck()` (**35→37**) mit **reiner Rust-
+  Heuristik** (kein Headless-Browser, [overflow.rs](src-tauri/src/overflow.rs)) → die KI prüft Overflow gegen die
+  1280×720-Bühne vor dem Festschreiben; instructions/guide gelehrt. **Review-Fix:** Panic in `extract_styles`
+  (nicht-quotiertes `style=` vor Multibyte) char-grenzen-sicher gemacht + Test; **offen (Defense-in-Depth):**
+  `catch_unwind` um `tools::handle` ([ipc.rs](src-tauri/src/ipc.rs)) gegen Mutex-Vergiftung. **cargo test 42**,
+  typecheck, vite build grün. **Für die MCP-Seite: `cargo build` + Claude Desktop neu starten.** GUI-Check ausstehend.
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
