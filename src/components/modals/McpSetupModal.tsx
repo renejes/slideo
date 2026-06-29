@@ -41,13 +41,13 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="MCP-Verbindung wählen"
+      title="Claude Desktop verbinden"
       onClose={onClose}
       width="w-[32rem]"
       footer={
         <>
           <button className={modalGhostBtn} onClick={onClose} disabled={submitting}>
-            Später
+            Jetzt nicht
           </button>
           <button className={modalPrimaryBtn} onClick={activate} disabled={!pick || submitting}>
             {submitting ? 'Aktiviere…' : 'Aktivieren'}
@@ -57,9 +57,10 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px] leading-relaxed text-chrome-secondary">
-          Slideo ist ein MCP-Server. Wähle, wo es sich anmeldet — Slideo trägt sich erst{' '}
-          <span className="font-medium text-chrome-text">nach deiner Auswahl</span> ein, und
-          immer nur bei genau einem Ziel.
+          Slideo stellt Claude <span className="font-medium text-chrome-text">35 Folien-Werkzeuge</span>{' '}
+          bereit — Claude baut & bearbeitet dein Deck, Slideo zeigt es live. Wähle, wo sich Slideo
+          registriert (erst <span className="font-medium text-chrome-text">nach deiner Auswahl</span>, immer
+          nur ein Ziel).
         </p>
         {status ? (
           <McpTargetCards

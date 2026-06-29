@@ -16,6 +16,8 @@ import { ComponentPaletteModal } from '@/components/modals/ComponentPaletteModal
 import { HistoryModal } from '@/components/modals/HistoryModal'
 import { DesignModal } from '@/components/modals/DesignModal'
 import { EditorShell } from '@/components/ui/EditorShell'
+import { OnboardingNudge } from '@/components/ui/OnboardingNudge'
+import { HelpModal } from '@/components/modals/HelpModal'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
 export default function App() {
@@ -26,21 +28,32 @@ export default function App() {
   const modal = useUiStore((s) => s.modal)
   const openModal = useUiStore((s) => s.openModal)
   const [showMcpSetup, setShowMcpSetup] = useState(false)
+  const [mcpUnconfigured, setMcpUnconfigured] = useState(false)
+  const [mcpPrompted, setMcpPrompted] = useState(false)
 
   const openNew = () => openModal('new')
 
-  // Erststart-Auswahl der MCP-Verbindung: zeigen, solange noch kein Ziel gewählt
-  // wurde (Backend hat dann nichts registriert — das passiert erst nach der Auswahl).
+  // MCP-Status einmal holen (Tauri). Das Setup-Modal kommt aber NICHT auf der leeren
+  // Startseite, sondern erst, wenn ein Deck existiert (Kontext für „Claude verbinden")
+  // — sonst überfällt es den Erststart ohne Bezug.
   useEffect(() => {
     if (!isTauri()) return
     let cancelled = false
     void getMcpStatus().then((s) => {
-      if (!cancelled && s && !s.configured) setShowMcpSetup(true)
+      if (!cancelled && s && !s.configured) setMcpUnconfigured(true)
     })
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Einmal nach dem ersten Deck zur MCP-Verbindung führen (falls noch nicht gewählt).
+  useEffect(() => {
+    if (mcpUnconfigured && presentation && !mcpPrompted) {
+      setShowMcpSetup(true)
+      setMcpPrompted(true)
+    }
+  }, [mcpUnconfigured, presentation, mcpPrompted])
 
   // Globale Shortcuts: Cmd/Ctrl+S speichern, Cmd/Ctrl+N neu, Cmd/Ctrl+Z rückgängig.
   useEffect(() => {
@@ -97,13 +110,21 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-chrome-bg text-chrome-text">
       <Topbar />
-      {presentation ? <EditorShell /> : <EmptyState onNew={openNew} />}
+      {presentation ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <OnboardingNudge />
+          <EditorShell />
+        </div>
+      ) : (
+        <EmptyState onNew={openNew} onHelp={() => openModal('help')} />
+      )}
       {modal === 'new' && <NewPresentationModal />}
       {modal === 'settings' && <SettingsModal />}
       {modal === 'find' && <FindReplaceModal />}
       {modal === 'components' && <ComponentPaletteModal />}
       {modal === 'history' && <HistoryModal />}
       {modal === 'design' && <DesignModal />}
+      {modal === 'help' && <HelpModal />}
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />
@@ -111,7 +132,7 @@ export default function App() {
   )
 }
 
-function EmptyState({ onNew }: { onNew: () => void }) {
+function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }) {
   const openDialog = usePresentationStore((s) => s.openPresentationDialog)
   const tauri = isTauri()
 
@@ -124,12 +145,28 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         <h1 className="mb-1.5 text-lg font-semibold tracking-tight text-chrome-text">
           Willkommen bei Slideo
         </h1>
-        <p className="mx-auto mb-7 max-w-[24rem] text-[13px] leading-relaxed text-chrome-muted">
+        <p className="mx-auto mb-3 max-w-[24rem] text-[13px] leading-relaxed text-chrome-muted">
           Erstelle eine neue Präsentation oder öffne eine bestehende{' '}
           <code className="rounded bg-chrome-surface-2 px-1 py-0.5 font-mono text-[12px] text-chrome-secondary">
             .slideo
           </code>
           -Datei.
+        </p>
+        <p className="mx-auto mb-6 max-w-[26rem] text-[12px] leading-relaxed text-chrome-secondary">
+          <Icon
+            name="auto_awesome"
+            size={13}
+            weight={400}
+            className="-mt-0.5 mr-1 inline align-middle text-chrome-accent-600"
+          />
+          Die Folien baut <span className="font-medium text-chrome-text">Claude Desktop</span> über MCP — du
+          verfeinerst sie hier.{' '}
+          <button
+            onClick={onHelp}
+            className="font-medium text-chrome-accent-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 rounded"
+          >
+            Wie funktioniert's?
+          </button>
         </p>
         <div className="flex justify-center gap-2">
           <button

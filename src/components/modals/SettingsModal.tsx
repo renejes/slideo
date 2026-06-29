@@ -68,7 +68,7 @@ export function SettingsModal() {
         </Section>
 
         {/* KI-Verbindung (MCP) */}
-        <Section title="KI-Verbindung (MCP)">
+        <Section title="KI-Verbindung — Claude Desktop">
           <McpConnection />
         </Section>
 
@@ -147,8 +147,8 @@ function McpConnection() {
   return (
     <div className="flex flex-col gap-2.5 py-1">
       <p className="text-[12px] leading-relaxed text-chrome-muted">
-        Wo soll sich Slideo als MCP-Server anmelden? Es ist immer genau{' '}
-        <span className="text-chrome-secondary">ein Ziel aktiv</span> — die anderen werden
+        Slideo stellt Claude seine Folien-Werkzeuge bereit. Wähle, wo sich Slideo registriert — es ist
+        immer genau <span className="text-chrome-secondary">ein Ziel aktiv</span>, die anderen werden
         automatisch abgemeldet.
       </p>
       <McpTargetCards

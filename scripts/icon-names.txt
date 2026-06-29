@@ -5,6 +5,7 @@ animation
 arrow_downward
 arrow_selector_tool
 arrow_upward
+auto_awesome
 bar_chart
 bolt
 bookmark_add
@@ -18,6 +19,7 @@ co_present
 code
 compare_arrows
 computer
+content_copy
 crop
 dashboard
 delete
@@ -41,6 +43,7 @@ format_paint
 format_quote
 gps_fixed
 grid_view
+help
 history
 hub
 image
