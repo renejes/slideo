@@ -426,6 +426,260 @@ padding:.7rem .4rem;border-bottom:1px solid var(--color-surface)\">\
     )
 }
 
+/// Sanitisiert einen Asset-Dateinamen für ein src-Attribut (verhindert Ausbruch):
+/// `assets/`-Präfix weg, nur unverfängliche Dateinamen-Zeichen, ≤128.
+fn safe_asset(name: &str) -> String {
+    name.trim()
+        .trim_start_matches("assets/")
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        .take(128)
+        .collect()
+}
+
+/// Datentabelle (Spec §18.7): token-gestylt, gestreifte Zeilen. Kappung auf 8 Zeilen
+/// (passt sicher in die 720px-Bühne). params: columns: string[], rows: string[][].
+fn data_table(params: &Value) -> String {
+    let cols: Vec<String> = params
+        .get("columns")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .filter(|v: &Vec<String>| !v.is_empty())
+        .unwrap_or_else(|| vec!["Merkmal".into(), "Variante A".into(), "Variante B".into()]);
+    let rows: Vec<Vec<String>> = params
+        .get("rows")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .map(|r| {
+                    r.as_array()
+                        .map(|rr| rr.iter().map(|c| c.as_str().unwrap_or("").to_string()).collect())
+                        .unwrap_or_default()
+                })
+                .collect()
+        })
+        .filter(|v: &Vec<Vec<String>>| !v.is_empty())
+        .unwrap_or_else(|| {
+            vec![
+                vec!["Geschwindigkeit".into(), "langsam".into(), "schnell".into()],
+                vec!["Aufwand".into(), "hoch".into(), "gering".into()],
+                vec!["Kosten".into(), "€€€".into(), "€".into()],
+            ]
+        });
+    let head = cols
+        .iter()
+        .map(|c| {
+            format!(
+                "<th style=\"text-align:left;padding:.65rem .9rem;font-family:var(--font-heading);font-weight:700;font-size:1.05rem;color:var(--color-text);border-bottom:2px solid var(--color-accent)\">{}</th>",
+                esc(c)
+            )
+        })
+        .collect::<String>();
+    let body = rows
+        .iter()
+        .take(8)
+        .enumerate()
+        .map(|(i, r)| {
+            let cells = (0..cols.len())
+                .map(|ci| {
+                    let v = r.get(ci).map(|s| s.as_str()).unwrap_or("");
+                    format!(
+                        "<td style=\"padding:.55rem .9rem;font-size:1rem;color:var(--color-secondary);border-bottom:1px solid var(--color-surface)\">{}</td>",
+                        esc(v)
+                    )
+                })
+                .collect::<String>();
+            let bg = if i % 2 == 1 { "background:var(--color-surface)" } else { "" };
+            format!("<tr style=\"{bg}\">{cells}</tr>")
+        })
+        .collect::<String>();
+    format!(
+        "<table style=\"width:100%;max-width:58rem;margin:0 auto;border-collapse:collapse;font-family:var(--font-body)\">\
+<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+    )
+}
+
+/// Große Kennzahl (KPI-Hero): eine herausragende Zahl + Label. params: value, label, sub?.
+fn big_number(params: &Value) -> String {
+    let value = str_field(params, "value", "+42%");
+    let label = str_field(params, "label", "Wachstum im letzten Quartal");
+    let sub = str_field(params, "sub", "");
+    let sub_html = if sub.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div style=\"margin-top:.6rem;color:var(--color-secondary);font-size:1.2rem\">{}</div>",
+            esc(&sub)
+        )
+    };
+    format!(
+        "<div style=\"text-align:center;font-family:var(--font-body)\">\
+<div style=\"font-family:var(--font-heading);font-weight:800;color:var(--color-accent);font-size:9rem;line-height:.92\">{}</div>\
+<div style=\"margin-top:.4rem;color:var(--color-text);font-size:1.6rem;font-weight:600\">{}</div>{}</div>",
+        esc(&value),
+        esc(&label),
+        sub_html
+    )
+}
+
+/// Feature-Raster: Karten mit Icon + Titel + Text. params: items: [{ icon?, title, text }].
+fn feature_grid(params: &Value) -> String {
+    let fallback = vec![
+        json!({ "icon": "bolt", "title": "Schnell", "text": "In Sekunden startklar." }),
+        json!({ "icon": "shield", "title": "Sicher", "text": "Läuft komplett lokal." }),
+        json!({ "icon": "star", "title": "Einfach", "text": "Keine Lernkurve." }),
+    ];
+    let cards = items(params, &fallback)
+        .iter()
+        .map(|it| {
+            let icon_svg = icon_path(&str_field(it, "icon", "check"))
+                .map(|body| {
+                    format!(
+                        "<svg viewBox=\"0 0 24 24\" width=\"2.3rem\" height=\"2.3rem\" style=\"color:var(--color-accent)\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">{body}</svg>"
+                    )
+                })
+                .unwrap_or_default();
+            format!(
+                "<div style=\"flex:1 1 14rem;max-width:18rem;background:var(--color-surface);border-radius:var(--border-radius);padding:1.5rem\">{}\
+<div style=\"margin-top:.7rem;font-family:var(--font-heading);font-weight:700;color:var(--color-text);font-size:1.3rem\">{}</div>\
+<div style=\"margin-top:.3rem;color:var(--color-secondary);font-size:1.02rem;line-height:1.5\">{}</div></div>",
+                icon_svg,
+                esc(&str_field(it, "title", "")),
+                esc(&str_field(it, "text", ""))
+            )
+        })
+        .collect::<String>();
+    format!(
+        "<div style=\"display:flex;gap:1.25rem;flex-wrap:wrap;justify-content:center;max-width:60rem;margin:0 auto;font-family:var(--font-body)\">{cards}</div>"
+    )
+}
+
+/// Prozess-Schritte: nummerierte Kreise mit Pfeilen (horizontal). params: items: [{ title, text }].
+fn process_steps(params: &Value) -> String {
+    let fallback = vec![
+        json!({ "title": "Entdecken", "text": "Bedarf verstehen" }),
+        json!({ "title": "Entwerfen", "text": "Lösung skizzieren" }),
+        json!({ "title": "Liefern", "text": "Umsetzen & messen" }),
+    ];
+    let data = items(params, &fallback);
+    let n = data.len();
+    let steps = data
+        .iter()
+        .enumerate()
+        .map(|(i, it)| {
+            let arrow = if i + 1 < n {
+                "<div style=\"align-self:center;color:var(--color-accent);font-size:1.9rem;flex:0 0 auto\">&#8594;</div>"
+            } else {
+                ""
+            };
+            format!(
+                "<div style=\"flex:1 1 0;text-align:center;min-width:8rem\">\
+<div style=\"width:3.1rem;height:3.1rem;margin:0 auto;border-radius:50%;background:var(--color-accent);color:var(--color-bg);font-family:var(--font-heading);font-weight:800;font-size:1.35rem;display:flex;align-items:center;justify-content:center\">{}</div>\
+<div style=\"margin-top:.6rem;font-family:var(--font-heading);font-weight:700;color:var(--color-text);font-size:1.2rem\">{}</div>\
+<div style=\"margin-top:.2rem;color:var(--color-secondary);font-size:1rem\">{}</div></div>{}",
+                i + 1,
+                esc(&str_field(it, "title", "")),
+                esc(&str_field(it, "text", "")),
+                arrow
+            )
+        })
+        .collect::<String>();
+    format!(
+        "<div style=\"display:flex;align-items:flex-start;gap:.75rem;max-width:62rem;margin:0 auto;font-family:var(--font-body)\">{steps}</div>"
+    )
+}
+
+/// Preistabelle: 2–4 Karten, eine via `featured` hervorgehoben.
+/// params: tiers: [{ name, price, period?, features: string[], featured?: bool }].
+fn pricing(params: &Value) -> String {
+    let fallback = vec![
+        json!({ "name": "Start", "price": "0€", "period": "/Monat", "features": ["1 Projekt", "Basis-Support"] }),
+        json!({ "name": "Pro", "price": "19€", "period": "/Monat", "features": ["Unbegrenzt", "Priorisierter Support", "Export"], "featured": true }),
+        json!({ "name": "Team", "price": "49€", "period": "/Monat", "features": ["Alles aus Pro", "5 Sitze", "SSO"] }),
+    ];
+    let tiers = params
+        .get("tiers")
+        .and_then(|v| v.as_array())
+        .filter(|a| !a.is_empty())
+        .cloned()
+        .unwrap_or(fallback);
+    let cards = tiers
+        .iter()
+        .take(4)
+        .map(|t| {
+            let featured = t.get("featured").and_then(|v| v.as_bool()).unwrap_or(false);
+            let features = t
+                .get("features")
+                .and_then(|v| v.as_array())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str())
+                        .map(|s| format!("<li style=\"margin:.35rem 0;color:var(--color-secondary)\">{}</li>", esc(s)))
+                        .collect::<String>()
+                })
+                .unwrap_or_default();
+            let border = if featured {
+                "border:3px solid var(--color-accent)"
+            } else {
+                "border:1px solid var(--color-surface)"
+            };
+            let badge = if featured {
+                "<div style=\"display:inline-block;margin-bottom:.5rem;background:var(--color-accent);color:var(--color-bg);font-size:.8rem;font-weight:700;padding:.15rem .7rem;border-radius:999px\">Beliebt</div>"
+            } else {
+                ""
+            };
+            format!(
+                "<div style=\"flex:1 1 12rem;max-width:15rem;background:var(--color-surface);{border};border-radius:var(--border-radius);padding:1.5rem;text-align:center\">{badge}\
+<div style=\"font-family:var(--font-heading);font-weight:700;color:var(--color-text);font-size:1.4rem\">{}</div>\
+<div style=\"margin:.4rem 0;color:var(--color-accent);font-family:var(--font-heading);font-weight:800;font-size:2.4rem\">{}<span style=\"font-size:1rem;color:var(--color-secondary);font-weight:400\">{}</span></div>\
+<ul style=\"list-style:none;padding:0;margin:.8rem 0 0;font-size:1rem\">{}</ul></div>",
+                esc(&str_field(t, "name", "")),
+                esc(&str_field(t, "price", "")),
+                esc(&str_field(t, "period", "")),
+                features
+            )
+        })
+        .collect::<String>();
+    format!(
+        "<div style=\"display:flex;gap:1.1rem;justify-content:center;flex-wrap:wrap;align-items:stretch;font-family:var(--font-body)\">{cards}</div>"
+    )
+}
+
+/// Bild-Galerie: Raster aus vorhandenen Assets (`assets/<name>`). Ohne Bilder
+/// token-getönte Platzhalter (Mensch/KI füllt später). params: images: string[], columns?: number.
+fn gallery(params: &Value) -> String {
+    let imgs: Vec<String> = params
+        .get("images")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str())
+                .map(safe_asset)
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    let cols = (num_field(params, "columns", 3.0).max(1.0).min(4.0)) as usize;
+    let tiles = if imgs.is_empty() {
+        (0..3)
+            .map(|_| {
+                "<div style=\"aspect-ratio:4/3;background:var(--color-surface);border-radius:var(--border-radius);display:flex;align-items:center;justify-content:center;color:var(--color-secondary);font-size:.9rem\">Bild</div>".to_string()
+            })
+            .collect::<String>()
+    } else {
+        imgs.iter()
+            .map(|name| {
+                format!(
+                    "<img src=\"assets/{name}\" alt=\"\" style=\"width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--border-radius);display:block\" />"
+                )
+            })
+            .collect::<String>()
+    };
+    format!(
+        "<div style=\"display:grid;grid-template-columns:repeat({cols},1fr);gap:1rem;max-width:62rem;margin:0 auto;font-family:var(--font-body)\">{tiles}</div>"
+    )
+}
+
 // ---------- öffentliche API ----------
 
 /// Metadaten aller Komponenten (für `list_components` und die spätere UI-Palette).
@@ -463,7 +717,25 @@ pub fn list() -> Value {
           "params": "name: string, color?: string (z.B. var(--color-accent)), size?: number (rem), label?: string" },
         { "type": "toc", "label": "Inhaltsverzeichnis (Sprung-Links)",
           "description": "Klickbare Folienübersicht — jeder Eintrag springt zur Zielfolie (Zonen-Link, Spec §23). target = Zonen-ID ODER 1-basierte Foliennummer; ein Rücksprung-Link auf die Inhalts-Folie bringt zurück.",
-          "params": "items: [{ label: string, target: string }]  (target = Zonen-ID oder Foliennummer)" }
+          "params": "items: [{ label: string, target: string }]  (target = Zonen-ID oder Foliennummer)" },
+        { "type": "data_table", "label": "Tabelle",
+          "description": "Datentabelle, token-gestylt, gestreifte Zeilen. Max ~8 Zeilen (sonst Überlauf der 720px-Bühne).",
+          "params": "columns: string[], rows: string[][]" },
+        { "type": "big_number", "label": "Große Kennzahl",
+          "description": "Eine herausragende Zahl (KPI-Hero) mit Label, optional Untertitel.",
+          "params": "value: string, label: string, sub?: string" },
+        { "type": "feature_grid", "label": "Feature-Raster",
+          "description": "Karten mit Icon + Titel + Text (2–3 nebeneinander). Icon-Namen wie bei 'icon'.",
+          "params": "items: [{ icon?: string, title: string, text: string }]" },
+        { "type": "process_steps", "label": "Prozess-Schritte",
+          "description": "Nummerierte Schritte mit Pfeilen (horizontal). Am besten 3–5 Schritte.",
+          "params": "items: [{ title: string, text: string }]" },
+        { "type": "pricing", "label": "Preistabelle",
+          "description": "2–4 Preis-Karten; eine via featured:true hervorgehoben.",
+          "params": "tiers: [{ name: string, price: string, period?: string, features: string[], featured?: bool }]" },
+        { "type": "gallery", "label": "Bild-Galerie",
+          "description": "Bildraster aus vorhandenen Assets (Namen aus list_assets); columns 1–4. Ohne Bilder werden Platzhalter gezeigt.",
+          "params": "images: string[] (Asset-Namen), columns?: number (1–4)" }
     ])
 }
 
@@ -515,6 +787,12 @@ pub fn render(kind: &str, params: &Value) -> Result<String, String> {
         "callout" => callout(params),
         "icon" => icon(params)?,
         "toc" => toc(params),
+        "data_table" => data_table(params),
+        "big_number" => big_number(params),
+        "feature_grid" => feature_grid(params),
+        "process_steps" => process_steps(params),
+        "pricing" => pricing(params),
+        "gallery" => gallery(params),
         other => return Err(format!("Unbekannte Komponente: '{other}' (siehe list_components)")),
     };
     Ok(html)
@@ -526,7 +804,32 @@ mod tests {
 
     #[test]
     fn list_has_components() {
-        assert_eq!(list().as_array().unwrap().len(), 11);
+        assert_eq!(list().as_array().unwrap().len(), 17);
+    }
+
+    #[test]
+    fn new_components_render_token_aware_and_escape() {
+        // data_table: token-bewusst, escaped, kappt auf 8 Zeilen.
+        let rows: Vec<Value> = (0..12).map(|i| json!([format!("Z{i}"), "<b>x</b>", "y"])).collect();
+        let table = render("data_table", &json!({ "columns": ["A", "B", "C"], "rows": rows })).unwrap();
+        assert!(table.contains("var(--color-accent)"));
+        assert!(table.contains("&lt;b&gt;x&lt;/b&gt;")); // escaped
+        assert_eq!(table.matches("<tr style").count(), 8); // Body auf 8 Zeilen gekappt
+
+        // big_number / feature_grid / process_steps / pricing: rendern token-bewusst.
+        for t in ["big_number", "feature_grid", "process_steps", "pricing"] {
+            let html = render(t, &json!({})).unwrap();
+            assert!(html.contains("var(--color-"), "{t} nutzt keine Tokens");
+            // Keine hartkodierte Hex-Farbe in einem CSS-Wert (`:#…`); HTML-Entities
+            // wie `&#8594;` (Pfeil) sind erlaubt, daher gezielt auf `:#` prüfen.
+            assert!(!html.contains(":#"), "{t} enthält hartkodierte Hex-Farbe");
+        }
+
+        // gallery: sanitisiert Asset-Namen (kein Attribut-Ausbruch), Default = Platzhalter.
+        let g = render("gallery", &json!({ "images": ["a.png", "../x\"><script>.png"] })).unwrap();
+        assert!(g.contains("assets/a.png"));
+        assert!(!g.contains("<script>"));
+        assert!(render("gallery", &json!({})).unwrap().contains("Bild")); // Platzhalter
     }
 
     #[test]

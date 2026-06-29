@@ -9,6 +9,7 @@ mod history;
 mod ipc;
 mod mcp;
 mod mcp_registration;
+mod overflow;
 mod present;
 mod presets;
 mod state;

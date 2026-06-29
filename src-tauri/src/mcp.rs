@@ -147,9 +147,11 @@ mod tests {
         let tools = resp["result"]["tools"].as_array().unwrap();
         assert_eq!(
             tools.len(),
-            35,
-            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components + Marke/Meta/Fonts (set_logo/clear_logo/register_font/set_presentation_title/set_zone_label) erwartet"
+            37,
+            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components + Marke/Meta/Fonts + Layout-Heuristik (check_zone_overflow/validate_deck) erwartet"
         );
+        assert!(tools.iter().any(|t| t["name"] == "check_zone_overflow"));
+        assert!(tools.iter().any(|t| t["name"] == "validate_deck"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_reveal"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_content"));
         assert!(tools.iter().any(|t| t["name"] == "set_zone_css"));

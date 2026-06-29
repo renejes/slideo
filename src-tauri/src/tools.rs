@@ -235,6 +235,44 @@ pub fn handle(
             let idx = zone_index(zones, &id)?;
             ok(zones[idx].clone(), Effect::None)
         }
+        // ----- Layout-Heuristik (Spec §24): read-only, misst NICHT echtes Layout -----
+        "check_zone_overflow" => {
+            let id = req_str(params, "id")?;
+            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let idx = zone_index(zones, &id)?;
+            let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
+            ok(crate::overflow::analyze(&zones[idx], &tokens), Effect::None)
+        }
+        "validate_deck" => {
+            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
+            let problems: Vec<Value> = zones
+                .iter()
+                .filter_map(|z| {
+                    let rep = crate::overflow::analyze(z, &tokens);
+                    if rep.get("fits").and_then(|f| f.as_bool()).unwrap_or(true) {
+                        None
+                    } else {
+                        Some(json!({
+                            "id": z.get("id"),
+                            "label": z.get("label"),
+                            "issues": rep.get("issues"),
+                        }))
+                    }
+                })
+                .collect();
+            ok(
+                json!({
+                    "zones_total": zones.len(),
+                    "zones_with_issues": problems.len(),
+                    "problems": problems,
+                    "note": "Heuristische Prüfung — Details je Folie via check_zone_overflow(id)."
+                }),
+                Effect::None,
+            )
+        }
         "get_all_zones" => {
             let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
             ok(p.get("zones").cloned().unwrap_or(json!([])), Effect::None)
@@ -615,10 +653,11 @@ Theme (editorial, dark-tech, warm, minimal, corporate); danach mit set_token fei
 'hero' (große Titel-Folie), 'split' (ZWEI SPALTEN – trenne die beiden Spalten im Markdown mit \
 einer eigenen Zeile '+++'; eine Spalte kann ein Bild sein, z.B. ![](assets/x.png)), 'center', \
 'top', 'full'.\n\
-4. FERTIGE KOMPONENTEN statt handgeschriebenem HTML: Für Diagramme, KPI-Karten, Zeitstrahl, \
-Vergleich, Fortschritt, Zitat, Hinweis nutze list_components + insert_component(zone_id, type, \
-params). Diese Komponenten sind bereits token-bewusst (themebar) und sehen gut aus — der \
-schnellste Weg zu hochwertigen Inhalten.\n\
+4. FERTIGE KOMPONENTEN statt handgeschriebenem HTML: Für Diagramme, KPI-Karten (big_number, \
+stat_cards), Tabellen (data_table), Feature-Raster (feature_grid), Prozess-Schritte (process_steps), \
+Preise (pricing), Bild-Galerien (gallery), Zeitstrahl, Vergleich, Fortschritt, Zitat, Hinweis nutze \
+list_components + insert_component(zone_id, type, params). Diese Komponenten sind bereits \
+token-bewusst (themebar) und sehen gut aus — der schnellste Weg zu hochwertigen Inhalten.\n\
 5. Für GESTYLTEN, aber editierbaren Text: Markdown + set_zone_css (zonen-gescoptes \
 Custom-CSS) statt HTML. So bleibt der Text im Editor lesbar/bearbeitbar UND hat volles \
 CSS-Styling. Beispiel: set_zone_css(id, 'h1 { letter-spacing: -.02em } strong { color: \
@@ -652,7 +691,11 @@ registriert ein vorhandenes Font-Asset → dann via set_token('font-heading'|'fo
 anderen Folie — Wert = Zonen-ID ODER 1-basierte Foliennummer. Am schnellsten ein Inhaltsverzeichnis per \
 insert_component(zone_id, 'toc', { items: [{ label, target }] }); alternativ in einer HTML-Zone \
 <a data-slideo-goto=\"3\">Kapitel</a> oder als Markdown-Link [Kapitel](#zone-<Zonen-ID>). Ein Rücksprung-Link \
-(data-slideo-goto auf die Inhalts-Folie) bringt zurück. Funktioniert in Präsentation, Standalone-Export & Vorschau."
+(data-slideo-goto auf die Inhalts-Folie) bringt zurück. Funktioniert in Präsentation, Standalone-Export & Vorschau.\n\
+12. LAYOUT PRÜFEN: Die Bühne ist fest 1280×720 und schneidet Überstehendes ab — der Server misst aber KEIN echtes \
+Layout. Rufe nach dem Bauen einer Folie check_zone_overflow(id) auf (Schätzung: läuft Inhalt rechts/unten aus der \
+Bühne / aus der Safe-Area?) und am Ende validate_deck() über alle Folien. Bei gemeldetem Overflow: Inhalt auf \
+mehrere Folien teilen, Schrift verkleinern oder das Layout vereinfachen."
 }
 
 /// MCP-Prompt-Definitionen (`prompts/list`). Der "slideo_guide"-Prompt ist die
@@ -692,8 +735,10 @@ Für Größe/Ausrichtung/Umfluss rohes <img> nutzen: <img src=\"assets/x.png\" s
 class=\"align-right\"> (Klassen: align-left|center|right, float-left|right).\n\
 5) Reiche Inhalte ohne HTML-Handarbeit: insert_component(zone_id, type, params) setzt fertige, \
 token-bewusste Komponenten ein — list_components zeigt Typen + Parameter: stat_cards (KPIs), \
-bar_chart, line_chart (Trend), donut_chart (Anteile), progress, quote, timeline, comparison \
-(zwei Spalten), callout, icon (Symbol). Bevorzuge diese für Daten/Diagramme/Vergleiche.\n\
+big_number (eine große Zahl), bar_chart, line_chart (Trend), donut_chart (Anteile), progress, \
+data_table (Tabelle), feature_grid (Icon-Karten), process_steps (1-2-3), pricing (Preise), \
+gallery (Bildraster aus Assets), quote, timeline, comparison (zwei Spalten), callout, icon. \
+Bevorzuge diese für Daten/Diagramme/Vergleiche/Tabellen.\n\
 6) Feinschliff: set_zone_notes(id, notes) für Sprechernotizen (nur Speaker-View); \
 set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom|auto — auto = Magic-Move \
 gleicher data-id-Elemente); \
@@ -701,7 +746,10 @@ set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im
 Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden). \
 FOLIEN-LINKS (nicht-linear): insert_component(zone_id, 'toc', { items: [{ label, target }] }) baut ein \
 klickbares Inhaltsverzeichnis (target = Zonen-ID oder 1-basierte Foliennummer); allgemein springt jedes \
-Element mit data-slideo-goto zur Zielfolie, ein Rücksprung-Link bringt zurück.\n\n";
+Element mit data-slideo-goto zur Zielfolie, ein Rücksprung-Link bringt zurück.\n\
+7) LAYOUT-CHECK (1280×720 ist fest, Überstehendes wird abgeschnitten): der Server misst kein echtes Layout — \
+rufe nach dem Bauen einer Folie check_zone_overflow(id) und am Ende validate_deck() auf (Heuristik); bei \
+gemeldetem Overflow Inhalt auf mehrere Folien teilen, Schrift verkleinern oder das Layout vereinfachen.\n\n";
 
     let principles = "FORMAT (zwingend): Jede Folie ist eine FESTE 1280×720-px-Bühne (16:9) — sie \
 wächst NICHT mit dem Inhalt, alles Überstehende wird ABGESCHNITTEN. Plane jede Folie so, dass alles \
@@ -786,6 +834,16 @@ pub fn tool_schemas() -> Value {
         {
             "name": "get_all_zones",
             "description": "Gibt alle Zones in ihrer aktuellen Reihenfolge zurück.",
+            "inputSchema": obj()
+        },
+        {
+            "name": "check_zone_overflow",
+            "description": "Heuristische Layout-Prüfung EINER Folie gegen die feste 1280×720-Bühne (Spec §21): schätzt, ob Inhalt rechts/unten aus der Bühne läuft oder die Safe-Area (x64–1216 / y64–656) überschreitet. NUR eine Schätzung (kein echtes Rendering). Nach dem Bauen einer Folie aufrufen; bei Overflow Inhalt teilen / Schrift kleiner / Layout vereinfachen.",
+            "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
+        },
+        {
+            "name": "validate_deck",
+            "description": "Heuristische Layout-Prüfung ALLER Folien auf einmal (Spec §21): listet die Folien mit geschätztem Overflow + Hinweisen. Gut als Schlusscheck nach dem Aufbau eines Decks.",
             "inputSchema": obj()
         },
         {

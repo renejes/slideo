@@ -17,6 +17,7 @@ chevron_right
 close
 co_present
 code
+collections
 compare_arrows
 computer
 content_copy
@@ -63,11 +64,14 @@ present_to_all
 repeat
 save
 search
+sell
 settings
 settings_backup_restore
 show_chart
 slideshow
 sticky_note_2
+table_chart
+tag
 terminal
 timeline
 toc

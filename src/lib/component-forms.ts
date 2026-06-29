@@ -68,6 +68,12 @@ export const COMPONENT_ICONS: Record<string, string> = {
   callout: 'campaign',
   icon: 'emoji_symbols',
   toc: 'toc',
+  data_table: 'table_chart',
+  big_number: 'tag',
+  feature_grid: 'grid_view',
+  process_steps: 'linear_scale',
+  pricing: 'sell',
+  gallery: 'collections',
 }
 
 /** Icon-Namen der Rust-`icon`-Komponente (für das Auswahl-Feld). */
@@ -262,6 +268,57 @@ export const COMPONENT_FORMS: Record<string, ComponentForm> = {
       ],
     },
   },
+
+  big_number: {
+    fields: [
+      { key: 'value', label: 'Zahl', type: 'text', default: '+42%' },
+      { key: 'label', label: 'Beschriftung', type: 'text', default: 'Wachstum im letzten Quartal' },
+      { key: 'sub', label: 'Untertitel (optional)', type: 'text', placeholder: 'seit Q1' },
+    ],
+  },
+
+  feature_grid: {
+    items: {
+      label: 'Features',
+      addLabel: 'Feature',
+      fields: [
+        {
+          key: 'icon',
+          label: 'Icon',
+          type: 'select',
+          default: 'star',
+          options: ICON_NAMES.map((n) => ({ value: n, label: n })),
+        },
+        { key: 'title', label: 'Titel', type: 'text', placeholder: 'Schnell' },
+        { key: 'text', label: 'Text', type: 'text', placeholder: 'In Sekunden startklar.' },
+      ],
+      seed: [
+        { icon: 'bolt', title: 'Schnell', text: 'In Sekunden startklar.' },
+        { icon: 'shield', title: 'Sicher', text: 'Läuft komplett lokal.' },
+        { icon: 'star', title: 'Einfach', text: 'Keine Lernkurve.' },
+      ],
+    },
+  },
+
+  process_steps: {
+    items: {
+      label: 'Schritte',
+      addLabel: 'Schritt',
+      fields: [
+        { key: 'title', label: 'Titel', type: 'text', placeholder: 'Entdecken' },
+        { key: 'text', label: 'Text', type: 'text', placeholder: 'Bedarf verstehen' },
+      ],
+      seed: [
+        { title: 'Entdecken', text: 'Bedarf verstehen' },
+        { title: 'Entwerfen', text: 'Lösung skizzieren' },
+        { title: 'Liefern', text: 'Umsetzen & messen' },
+      ],
+    },
+  },
+
+  // data_table, pricing, gallery: bewusst KEIN Palette-Formular (verschachtelte
+  // Arrays bzw. Asset-Auswahl) → die Palette fügt „mit Standardwerten" ein, der Mensch
+  // verfeinert per §20; die KI füllt sie voll über MCP insert_component.
 }
 
 /** Zustand eines Palette-Formulars. */
