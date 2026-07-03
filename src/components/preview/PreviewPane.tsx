@@ -202,6 +202,23 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         setElemSel({ zoneId: d.zoneId, path })
         reveal(d.zoneId, path)
       } else if (
+        d.type === 'slideo:split-text' &&
+        typeof d.zoneId === 'string' &&
+        Array.isArray(d.path) &&
+        typeof d.before === 'string' &&
+        typeof d.after === 'string'
+      ) {
+        // §20: Text-Element am Cursor in zwei eigenständige Blöcke teilen (Cmd/Ctrl+Enter).
+        // applyElementOp sanitisiert beide Hälften; der neue Block erbt Tag + Styling.
+        const path = d.path as number[]
+        applyZoneElementOp(d.zoneId, path, 'split', {
+          before: d.before as string,
+          after: d.after as string,
+          expectTag: tag,
+        })
+        setElemSel({ zoneId: d.zoneId, path })
+        reveal(d.zoneId, path)
+      } else if (
         d.type === 'slideo:undo'
       ) {
         // Cmd/Z aus dem Iframe (Fokus dort) → globalen Undo auslösen.

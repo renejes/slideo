@@ -1260,7 +1260,52 @@ function editScript(directEdit: boolean): string {
 
     document.addEventListener('keydown', function (e) {
       if (editing) {
-        // Im Text-Edit: Enter committet (Shift+Enter = Zeilenumbruch), Esc bricht ab.
+        // Cmd/Ctrl+Enter: Absatz am Cursor in zwei eigene Bloecke teilen (Satz
+        // extrahieren). Nur bei Element-Zonen (HTML §20); Markdown-Bloecke nicht.
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && editingKind === 'element') {
+          e.preventDefault();
+          var elS = editing;
+          var selS = window.getSelection && window.getSelection();
+          if (!selS || !selS.rangeCount) return;
+          var tail = document.createRange();
+          try {
+            tail.selectNodeContents(elS);
+            tail.setStart(selS.getRangeAt(0).endContainer, selS.getRangeAt(0).endOffset);
+          } catch (err) { return; }
+          var tmp = document.createElement('div');
+          tmp.appendChild(tail.extractContents());
+          // Nur teilen, wenn beide Seiten echten Text haben — sonst wieder zusammenfuegen.
+          if (!(elS.textContent || '').trim() || !(tmp.textContent || '').trim()) {
+            while (tmp.firstChild) elS.appendChild(tmp.firstChild);
+            return;
+          }
+          var beforeH = elS.innerHTML, afterH = tmp.innerHTML;
+          var zoneS = elS.closest('.slideo-zone-html');
+          var pathS = pathOf(elS);
+          editing = null; editingKind = null; editingBlock = null;
+          elS.removeAttribute('contenteditable'); elS.style.cursor = ''; editOrig = '';
+          if (zoneS && pathS) parent.postMessage({ type: 'slideo:split-text', zoneId: zoneS.id.replace(/^zone-/, ''), path: pathS, before: beforeH, after: afterH, tag: elS.tagName.toLowerCase() }, '*');
+          return;
+        }
+        // Im Text-Edit: Enter committet, Esc bricht ab, Shift+Enter = Zeilenumbruch.
+        if (e.key === 'Enter' && e.shiftKey) {
+          // Umbruch EIGENHAENDIG als echtes br-Element setzen. Der native
+          // WKWebView-Umbruch erzeugt einen reinen Zeilenumbruch-Textknoten bzw.
+          // div-Wrapper, den sanitizeInline (nur Inline-Whitelist) beim Commit wieder
+          // zusammenfaltet (Umbruch weg). Ein br-Element steht auf INLINE_OK und bleibt.
+          // (Kein Backslash-n / kein Backtick hier — dieses Skript ist ein Template-Literal.)
+          e.preventDefault();
+          var sel = window.getSelection && window.getSelection();
+          if (sel && sel.rangeCount) {
+            var r = sel.getRangeAt(0);
+            r.deleteContents();
+            var br = document.createElement('br');
+            r.insertNode(br);
+            r.setStartAfter(br); r.collapse(true);
+            sel.removeAllRanges(); sel.addRange(r);
+          }
+          return;
+        }
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); finishEdit(true); }
         else if (e.key === 'Escape') { e.preventDefault(); finishEdit(false); }
         return;

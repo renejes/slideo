@@ -18,7 +18,7 @@
 //    Dokument-Index unter gleichnamigen Elementen bestimmen, das n-te öffnende
 //    Tag-Literal im Quelltext finden (implizite Elemente haben kein Literal).
 
-export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete' | 'resizeWidth' | 'setGoto'
+export type ElementOp = 'move' | 'editText' | 'duplicate' | 'delete' | 'resizeWidth' | 'setGoto' | 'split'
 
 /** Payload je Operation (alle Felder optional; je Op werden andere genutzt). */
 export interface OpPayload {
@@ -28,6 +28,10 @@ export interface OpPayload {
   topPct?: number
   /** editText: bearbeitetes Inline-HTML aus dem contenteditable (wird sanitisiert). */
   html?: string
+  /** split: Inline-HTML vor dem Cursor (bleibt im Original-Element). */
+  before?: string
+  /** split: Inline-HTML nach dem Cursor (kommt in den neuen Geschwister-Block). */
+  after?: string
   /** resizeWidth: neue CSS-Breite (z.B. "42%" oder "300px") für ein Bild (Spec §20-Resize). */
   width?: string
   /**
@@ -189,6 +193,18 @@ export function applyElementOp(
       // werden NICHT editiert (kein Flatten bei stale Pfad / MCP-Umbau).
       if (!isInlineEditable(el)) return html
       ;(el as HTMLElement).innerHTML = sanitizeInline(payload?.html ?? '')
+      break
+    }
+    case 'split': {
+      // §20: ein Text-Element am Cursor in zwei eigenständige Geschwister-Blöcke
+      // teilen. Original behält den Teil davor; ein FLACHER Klon (gleicher Tag +
+      // Attribute → Klasse/Styling bleibt erhalten) bekommt den Teil danach.
+      // Beide Seiten werden auf sicheres Inline-Markup gesäubert.
+      if (!isInlineEditable(el)) return html
+      ;(el as HTMLElement).innerHTML = sanitizeInline(payload?.before ?? '')
+      const sib = el.cloneNode(false) as HTMLElement
+      sib.innerHTML = sanitizeInline(payload?.after ?? '')
+      el.parentNode?.insertBefore(sib, el.nextSibling)
       break
     }
     case 'resizeWidth': {
