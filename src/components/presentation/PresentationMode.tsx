@@ -5,11 +5,9 @@ import { splitMarkdownBlocks } from '@/lib/markdown-tiptap'
 import {
   isTauri,
   assetUrlBase,
-  listMonitors,
-  openPresentationWindow,
   openShareWindow,
+  setProjectorFullscreen,
   closePresentationWindow,
-  type MonitorInfo,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
 import { mapToAssets } from '@/lib/assets'
@@ -60,10 +58,10 @@ export function PresentationMode() {
   const [autoSeconds, setAutoSeconds] = useState(5)
   const [loop, setLoop] = useState(false)
 
-  // Zweitfenster / Presenter-Modus (Spec §19.3)
+  // Folien-Fenster (Spec §26): offen? + im randlos-Vollbild auf seinem Monitor (Beamer)
+  // vs. dekoriertem 16:9-Fenster (Remote/frei platzieren).
   const [projectorOpen, setProjectorOpen] = useState(false)
-  const [monitors, setMonitors] = useState<MonitorInfo[]>([])
-  const [showMonitorMenu, setShowMonitorMenu] = useState(false)
+  const [isProjFullscreen, setIsProjFullscreen] = useState(false)
   // Letzter Navigationsstand — für die Antwort auf die Projector-Bereitschaft.
   const navStateRef = useRef({ index: activeSlideIndex, step })
   navStateRef.current = { index: activeSlideIndex, step }
@@ -141,14 +139,6 @@ export function PresentationMode() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (overview) return
-      // Offenes Monitor-Menü fängt die Tastatur ab (Esc schließt nur das Menü).
-      if (showMonitorMenu) {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          setShowMonitorMenu(false)
-        }
-        return
-      }
       if (e.key === 'Escape') {
         e.preventDefault()
         if (tool !== 'none') setTool('none')
@@ -280,58 +270,19 @@ export function PresentationMode() {
     }
   }, [])
 
-  // Monitor-Menü: Klick außerhalb schließt es.
-  useEffect(() => {
-    if (!showMonitorMenu) return
-    function onDown(e: PointerEvent) {
-      const t = e.target as HTMLElement | null
-      if (!t?.closest('[data-monitor-menu]')) setShowMonitorMenu(false)
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    return () => document.removeEventListener('pointerdown', onDown, true)
-  }, [showMonitorMenu])
-
-  async function openMonitorMenu() {
-    if (showMonitorMenu) {
-      setShowMonitorMenu(false)
-      return
-    }
-    try {
-      setMonitors(await listMonitors())
-    } catch (e) {
-      console.error('[slideo] list_monitors fehlgeschlagen:', e)
-    }
-    setShowMonitorMenu(true)
-  }
-  async function presentOnMonitor(index: number) {
-    setShowMonitorMenu(false)
-    try {
-      // AppState frisch machen, bevor das Folien-Fenster ihn liest (Store→AppState
-      // ist sonst debounced → frisch geöffnet könnte es einen veralteten Stand sehen).
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('sync_presentation', { presentation })
-      await invoke('sync_assets', { assets: mapToAssets(assets) })
-      await openPresentationWindow(index)
-      setProjectorOpen(true)
-      setView('speaker')
-      setTool('none') // Laser/Stift sind im Zwei-Bildschirm-Modus (v1) deaktiviert
-    } catch (e) {
-      notify(`Zweites Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
-    }
-  }
-  // Ein-Monitor-Remote (Spec §26): Folien-Fenster als teilbares 16:9-Fenster öffnen und
-  // in Zoom/Meet/Teams per „Fenster teilen" freigeben; die Presenter-View bleibt privat.
+  // Folien-Fenster öffnen (Spec §26): dekoriertes 16:9-Fenster auf dem aktuellen Screen.
+  // In Zoom/Meet per „Fenster teilen" freigeben ODER auf einen zweiten Bildschirm ziehen
+  // und per „Vollbild" randlos füllen (Beamer/TV). Die Presenter-View bleibt privat.
   async function presentShareWindow() {
-    setShowMonitorMenu(false)
     try {
-      // AppState frisch machen, bevor das Folien-Fenster ihn liest (wie presentOnMonitor).
+      // AppState frisch machen, bevor das Folien-Fenster ihn liest (Store→AppState ist sonst
+      // debounced → frisch geöffnet könnte es einen veralteten Stand sehen).
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('sync_presentation', { presentation })
       await invoke('sync_assets', { assets: mapToAssets(assets) })
       await openShareWindow()
-      // Fokus zurück aufs Hauptfenster (Cockpit) → Tastatur-Navigation bleibt hier;
-      // das teilbare Folien-Fenster darf ruhig dahinter liegen (Window-Capture erfasst es
-      // trotzdem). Auf einem Bildschirm sonst müsste man erst zurückklicken.
+      // Fokus zurück aufs Hauptfenster (Cockpit) → Tastatur-Navigation bleibt hier; das
+      // Folien-Fenster darf ruhig dahinter liegen (Window-Capture erfasst es trotzdem).
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window')
         await getCurrentWindow().setFocus()
@@ -339,14 +290,33 @@ export function PresentationMode() {
         /* ignorieren */
       }
       setProjectorOpen(true)
+      setIsProjFullscreen(false)
       setView('speaker')
       setTool('none') // Laser/Stift im Zwei-Fenster-Modus (v1) deaktiviert
       notify(
-        'Folien-Fenster geöffnet. In Zoom/Meet/Teams „Bildschirm teilen“ → „Fenster“ → „Slideo — Präsentation“ wählen (nicht den ganzen Bildschirm).',
+        'Folien-Fenster geöffnet. Für Zoom/Meet: „Fenster teilen“ → „Slideo — Präsentation“. Für einen Beamer: aufs zweite Display ziehen, dann „Vollbild“.',
         'info',
       )
     } catch (e) {
       notify(`Folien-Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
+    }
+  }
+  // Vollbild-Umschalter: randlos-füllend auf dem Monitor, auf dem das Fenster GERADE liegt
+  // (Beamer/TV) ⇄ dekoriertes 16:9-Fenster (Remote/frei platzieren).
+  async function toggleProjectorFullscreen() {
+    const next = !isProjFullscreen
+    try {
+      await setProjectorFullscreen(next)
+      setIsProjFullscreen(next)
+      // Fokus zurück aufs Cockpit (Tastatur-Nav bleibt hier).
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        await getCurrentWindow().setFocus()
+      } catch {
+        /* ignorieren */
+      }
+    } catch (e) {
+      notify(`Vollbild fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
     }
   }
   async function stopProjector() {
@@ -356,6 +326,7 @@ export function PresentationMode() {
       /* ignorieren */
     }
     setProjectorOpen(false)
+    setIsProjFullscreen(false)
   }
 
   function handleLoad() {
@@ -463,66 +434,35 @@ export function PresentationMode() {
           {TAURI && (
             <>
               <Divider />
-              {/* Ein-Monitor-Remote (Spec §26): teilbares Folien-Fenster für Zoom/Meet/Teams.
-                  Braucht KEINEN zweiten Bildschirm — nur die Folie wird freigegeben. */}
-              {!projectorOpen && (
+              {/* Folien-Fenster (Spec §26): dekoriertes 16:9-Fenster — für Zoom/Meet „Fenster
+                  teilen" ODER auf einen zweiten Bildschirm ziehen + „Vollbild" (Beamer/TV).
+                  Ein Fenster für beide Fälle; kein separater Zwei-Bildschirm-Modus mehr. */}
+              {!projectorOpen ? (
                 <ControlButton
                   onClick={presentShareWindow}
-                  title="Folie teilen (Zoom/Meet/Teams — nur die Folie, Notizen bleiben privat)"
+                  title="Folie im Extra-Fenster zeigen — für Zoom/Meet teilen oder auf einen zweiten Bildschirm ziehen (Notizen bleiben privat)"
                   icon="screen_share"
                 />
-              )}
-              <div className="relative" data-monitor-menu>
-                {projectorOpen ? (
+              ) : (
+                <>
+                  <ControlButton
+                    onClick={toggleProjectorFullscreen}
+                    title={
+                      isProjFullscreen
+                        ? 'Folien-Fenster: zurück zum Fenster (für Zoom/Meet teilen)'
+                        : 'Folien-Fenster: Vollbild auf seinem Bildschirm (auf den Beamer ziehen, dann klicken)'
+                    }
+                    icon={isProjFullscreen ? 'fullscreen_exit' : 'fullscreen'}
+                    active={isProjFullscreen}
+                  />
                   <ControlButton
                     onClick={stopProjector}
                     title="Folien-Fenster schließen"
                     icon="cancel_presentation"
                     active
                   />
-                ) : (
-                  <ControlButton
-                    onClick={openMonitorMenu}
-                    title="Auf zweitem Bildschirm präsentieren"
-                    icon="present_to_all"
-                    active={showMonitorMenu}
-                    hasPopup
-                    expanded={showMonitorMenu}
-                  />
-                )}
-                {showMonitorMenu && !projectorOpen && (
-                  <div
-                    role="menu"
-                    aria-label="Präsentations-Bildschirm wählen"
-                    className="absolute bottom-full left-1/2 mb-2 w-64 -translate-x-1/2 rounded-xl border border-white/10 bg-black/85 p-1 shadow-pop backdrop-blur"
-                  >
-                    <div className="px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-white/40">
-                      Auf welchem Bildschirm?
-                    </div>
-                    {monitors.length === 0 ? (
-                      <div className="px-2 py-1.5 text-[12px] text-white/50">Keine Monitore gefunden.</div>
-                    ) : (
-                      monitors.map((m) => (
-                        <button
-                          key={m.index}
-                          role="menuitem"
-                          onClick={() => presentOnMonitor(m.index)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-white/85 transition-colors hover:bg-white/10"
-                        >
-                          <Icon name="desktop_windows" size={16} weight={400} />
-                          <span className="min-w-0 flex-1 truncate">
-                            {m.name}
-                            {m.primary ? ' · primär' : ''}
-                          </span>
-                          <span className="shrink-0 text-[11px] tabular-nums text-white/40">
-                            {m.width}×{m.height}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </>
           )}
 

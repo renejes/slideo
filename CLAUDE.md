@@ -227,9 +227,12 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   `data-id` via HTML-Zone oder `insert_component(data_id)`/Palette → Rust [`components::with_data_id`](src-tauri/src/components.rs)
   **injiziert** das Attribut ins erste Tag (kein Wrapper-`<div>` → FLIP misst die echte Box), sanitisiert
   (`[A-Za-z0-9-_:]`, ≤64). Markdown-Zonen können kein `data-id` tragen (cross-faden nur). Kein Datenmodell-Bruch.
-- **Echtes Zweitfenster / Presenter-Modus (§19.3-Rest, umgesetzt):** separates Tauri-Fenster `projector`
-  ([present.rs](src-tauri/src/present.rs)) zeigt die Folien **randlos bildschirmfüllend** auf dem im Dropdown
-  gewählten Monitor (`list_monitors`/`open_presentation_window`/`close_presentation_window`). Bewusst
+- **Echtes Zweitfenster / Presenter-Modus (§19.3-Rest, umgesetzt; ÖFFNEN/VOLLBILD später §26 vereinheitlicht —
+  Monitor-Dropdown + `list_monitors`/`open_presentation_window` **entfernt**, jetzt `open_share_window` +
+  `set_projector_fullscreen`, s. „Presenter-Fenster vereinheitlicht"; ProjectorView/Event-Sync unten gelten weiter):**
+  separates Tauri-Fenster `projector`
+  ([present.rs](src-tauri/src/present.rs)) zeigt die Folien **randlos bildschirmfüllend** auf dem gewählten Monitor.
+  Bewusst
   **kein natives Vollbild** (macOS landet sonst auf dem falschen Display) — stattdessen `set_position`+`set_size`
   auf den Monitor. Das Fenster lädt `index.html?role=projector` → [main.tsx](src/main.tsx) rendert
   [ProjectorView.tsx](src/components/presentation/ProjectorView.tsx) (nur Folien-Iframe, **kein** App/MCP-Bridge),
@@ -383,19 +386,21 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   `handleLoad`/`previewEdit`-Toggle + Overlap-Guard am Block-Drag. `logoHtml` exportiert (Patch braucht es pro Zone).
   **Kein Schema-Eingriff** (`version` "1.0"; reine Render-/UI-Mechanik). Headless grün (typecheck/build/`node --check` der
   3 Iframe-Skripte); **zwei adversariale Review-Runden** (7 Findings gefixt). **GUI-Check ausstehend** (next-steps §1b P2/P6).
-- **Remote-Präsentation auf EINEM Bildschirm (Spec §26, umgesetzt):** Der Presenter-Modus (§19.3) trennt Folie (Fenster
-  `projector`) von Notizen/Tools (Hauptfenster [SpeakerView](src/components/presentation/SpeakerView.tsx)), war aber an
-  einen zweiten Monitor gebunden. Neu: Command **`open_share_window`** ([present.rs](src-tauri/src/present.rs)) öffnet das
-  Folien-Fenster als **normales, dekoriertes, verschiebbares, betiteltes 16:9-Fenster** auf dem **aktuellen** Display →
-  in Zoom/Meet/Teams per **„Fenster teilen"** freigebbar (Window-Capture erfasst es auch verdeckt), Notizen bleiben
-  privat. **Kein WebRTC/Server** (WKWebView kann kein `getDisplayMedia`; passt zur lokal-These). **Reuse:** selbes
-  `projector`-Label + Event-Sync + [ProjectorView](src/components/presentation/ProjectorView.tsx) wie das Zweitfenster (nur
-  EIN Folien-Fenster gleichzeitig); `sharingType` bleibt Default (`.readOnly` = capturable), Titel „Slideo — Präsentation".
-  UI: Button **„Folie teilen"** (`screen_share`, ins Icon-Subset aufgenommen) in der Steuerleiste
-  ([PresentationMode.tsx](src/components/presentation/PresentationMode.tsx)); `presentShareWindow` synct erst den AppState,
-  öffnet das Fenster und **refokussiert das Hauptfenster** (Tastatur-Nav bleibt am Cockpit). v1-Grenzen wie Zweitfenster
-  (Laser/Stift aus, Live-Edit-Reload). **Kein Schema-Eingriff.** typecheck/build/`cargo check` grün, fokussiertes
-  adversariales Review clean. **GUI-bestätigt.**
+- **Presenter-Fenster vereinheitlicht (Spec §26, umgesetzt):** **EIN** Folien-Fenster (`projector`) deckt Remote **und**
+  physischen Beamer ab — der frühere separate Zwei-Bildschirm-Modus (Monitor-Dropdown + `list_monitors`/
+  `open_presentation_window`) ist **entfernt** (war redundant). **`open_share_window`** ([present.rs](src-tauri/src/present.rs))
+  öffnet ein **dekoriertes, verschiebbares, betiteltes 16:9-Fenster** auf dem aktuellen Display; **`set_projector_fullscreen(bool)`**
+  schaltet dasselbe Fenster zwischen **randlos-Vollbild auf seinem AKTUELLEN Monitor** (`win.current_monitor()`, bewusst kein
+  natives macOS-Vollbild → landet sonst auf dem falschen Display) und dem 16:9-Fenster um. Workflow: **Zoom/Meet** → dekoriert
+  lassen + „Fenster teilen" (Notizen bleiben privat, Window-Capture erfasst auch verdeckt); **Beamer** → aufs zweite Display
+  ziehen + **„Vollbild"**. **Kein WebRTC/Server** (WKWebView kann kein `getDisplayMedia`). **Reuse:** selbes `projector`-Label
+  + Event-Sync + [ProjectorView](src/components/presentation/ProjectorView.tsx) (nur EIN Fenster gleichzeitig); `sharingType`
+  Default (`.readOnly`=capturable), Titel „Slideo — Präsentation". UI ([PresentationMode.tsx](src/components/presentation/PresentationMode.tsx)):
+  Button **„Folie teilen"** (`screen_share`) öffnet (synct AppState, **refokussiert das Hauptfenster** → Tastatur-Nav am
+  Cockpit); bei offenem Fenster **Vollbild-Toggle** (`fullscreen`/`fullscreen_exit`) + Schließen. Icons `fullscreen`/
+  `fullscreen_exit` ins Subset, `present_to_all`/`desktop_windows` raus. v1: Laser/Stift im Zwei-Fenster-Modus aus,
+  Live-Edit-Reload. **Kein Schema-Eingriff.** cargo check/test 42, typecheck, build grün; fokussiertes Review clean.
+  **GUI-bestätigt** (teilen + Vollbild auf 2. Monitor + zurück, auf echter Multi-Display-Hardware).
 - **SpeakerView gestapelt + Folien-Vorschau-Rendering (WebKit-Härtung, GUI-bestätigt):** Die [SpeakerView](src/components/presentation/SpeakerView.tsx)
   ist jetzt **gestapelt** (aktuelle Folie oben groß im 16:9, darunter Timer · nächste Folie · Notizen) statt zwei Spalten.
   **Gemeinsame [SlidePreview](src/components/presentation/SlidePreview.tsx)** für ALLE Folien-Thumbnails (SpeakerView +

@@ -25,7 +25,6 @@ crop
 dashboard
 delete
 description
-desktop_windows
 donut_large
 drag_indicator
 draw
@@ -42,6 +41,8 @@ format_align_left
 format_align_right
 format_paint
 format_quote
+fullscreen
+fullscreen_exit
 gps_fixed
 grid_view
 help
@@ -60,7 +61,6 @@ pause
 perm_media
 picture_as_pdf
 play_arrow
-present_to_all
 repeat
 save
 screen_share

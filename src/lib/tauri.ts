@@ -188,32 +188,22 @@ export function deleteSnapshot(filePath: string, id: string): Promise<void> {
   return invoke<void>('delete_snapshot', { filePath, id })
 }
 
-/** Ein erkannter Monitor (für das Presenter-Routing, Spec §19.3). */
-export interface MonitorInfo {
-  index: number
-  name: string
-  width: number
-  height: number
-  primary: boolean
-}
-
-/** Listet die verfügbaren Monitore (für die Auswahl des Präsentations-Displays). */
-export function listMonitors(): Promise<MonitorInfo[]> {
-  return invoke<MonitorInfo[]>('list_monitors')
-}
-
-/** Öffnet das Folien-Fenster im Vollbild auf dem gewählten Monitor. */
-export function openPresentationWindow(monitorIndex: number): Promise<void> {
-  return invoke<void>('open_presentation_window', { monitorIndex })
-}
-
 /**
- * Öffnet das Folien-Fenster als teilbares 16:9-Fenster auf dem aktuellen Bildschirm
- * (Spec §26 — Ein-Monitor-Remote): in Zoom/Meet/Teams per „Fenster teilen" freigeben,
- * während die Presenter-View (Notizen/Tools) im Hauptfenster privat bleibt.
+ * Öffnet das Folien-Fenster als dekoriertes, teilbares 16:9-Fenster auf dem aktuellen
+ * Bildschirm (Spec §26): in Zoom/Meet/Teams per „Fenster teilen" freigeben (Notizen/Tools
+ * bleiben im Hauptfenster privat) ODER auf einen zweiten Bildschirm ziehen und per
+ * `setProjectorFullscreen(true)` auf randlos-Vollbild schalten (Beamer/TV).
  */
 export function openShareWindow(): Promise<void> {
   return invoke<void>('open_share_window')
+}
+
+/**
+ * Schaltet das Folien-Fenster zwischen randlos-Vollbild auf seinem aktuellen Monitor
+ * (Beamer/TV) und dekoriertem 16:9-Fenster (Remote/frei platzieren) um.
+ */
+export function setProjectorFullscreen(fullscreen: boolean): Promise<void> {
+  return invoke<void>('set_projector_fullscreen', { fullscreen })
 }
 
 /** Schließt das Folien-Fenster (falls offen). */

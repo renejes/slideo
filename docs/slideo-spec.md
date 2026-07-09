@@ -995,7 +995,7 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 - ✅ **Folien-Übersicht / Sprung-Grid UMGESETZT:** Taste `g` (oder Steuerleisten-Button) → Raster aller Folien über der Präsentation ([SlideOverview.tsx](../src/components/presentation/SlideOverview.tsx)); Klick/Enter springt zur Folie (Schritt 0), Pfeiltasten bewegen die Auswahl, `g`/`Esc` schließt. Thumbnails sind statische Single-Zone-Pages (`renderSingleZonePage`, kein Nav-Script) → leichtgewichtig; Iframe `pointer-events:none`, der umschließende Button fängt den Klick.
 - ✅ **Laser-/Stift-Overlay UMGESETZT:** Canvas über der Audience-Folie ([AnnotationLayer.tsx](../src/components/presentation/AnnotationLayer.tsx)), **Pointer-Events**; Laser = flüchtiger Leucht-Komet (rAF-Schweif), Stift = bleibende Striche; Farbe aus `--color-accent`. Tasten `l`/`p` (toggeln), `c` löscht; Annotationen werden bei Folienwechsel/Löschen via Remount (`key`) geleert. Overlay nur über der Audience-Folie (nicht Speaker-View).
 - ✅ **Auto-Advance / Kiosk-Loop UMGESETZT:** Taste `a` startet/stoppt; Sekunden pro Schritt wählbar (Steuerleiste, 3–20 s); am Ende → Schleife (Loop-Toggle) oder Stopp. Advanced wird über `doStep(1)` (build-bewusst), pausiert bei offener Übersicht. **v1:** globales Intervall (Präsentationszeit-State, nicht persistiert) statt per-Folie-Timings.
-- ✅ **Echtes Zweitfenster UMGESETZT (v1):** separates Tauri-Fenster „projector" zeigt die Folien **randlos bildschirmfüllend** auf dem im Dropdown gewählten Monitor; das Hauptfenster bleibt Steuerpult (SpeakerView + Tastatur). [present.rs](../src-tauri/src/present.rs) (`list_monitors`/`open_presentation_window`/`close_presentation_window`), [ProjectorView.tsx](../src/components/presentation/ProjectorView.tsx) (Folien-Iframe, Deck aus `AppState` via `get_presentation`/`get_assets`), Sync über Tauri-Events (`slideo:nav`/`slideo:deck-changed`/`slideo:projector-ready`/`slideo:projector-closed`); eigene [Capability](../src-tauri/capabilities/projector.json). Bewusst **randloses Fenster statt nativem Vollbild** (macOS-Vollbild landet sonst auf dem falschen Display). Ein-Fenster-Modus (`s`) bleibt. **v1-Grenzen:** Laser/Stift im Zwei-Bildschirm-Modus deaktiviert (Overlay läge nur über der Speaker-Ansicht); Live-Deck-Edits laden das Folien-Fenster kurz neu; Multi-Display-Vollbild/Platzierung braucht GUI-Verifikation auf echter Hardware.
+- ✅ **Echtes Zweitfenster UMGESETZT (v1; ÖFFNEN/VOLLBILD später [§26](#26-remote-präsentation-auf-einem-bildschirm-teilbares-folien-fenster) vereinheitlicht — Monitor-Dropdown + `list_monitors`/`open_presentation_window` entfernt, jetzt `open_share_window` + `set_projector_fullscreen`; ProjectorView/Event-Sync gelten weiter):** separates Tauri-Fenster „projector" zeigt die Folien **randlos bildschirmfüllend** auf dem gewählten Monitor; das Hauptfenster bleibt Steuerpult (SpeakerView + Tastatur). [present.rs](../src-tauri/src/present.rs) (`list_monitors`/`open_presentation_window`/`close_presentation_window`), [ProjectorView.tsx](../src/components/presentation/ProjectorView.tsx) (Folien-Iframe, Deck aus `AppState` via `get_presentation`/`get_assets`), Sync über Tauri-Events (`slideo:nav`/`slideo:deck-changed`/`slideo:projector-ready`/`slideo:projector-closed`); eigene [Capability](../src-tauri/capabilities/projector.json). Bewusst **randloses Fenster statt nativem Vollbild** (macOS-Vollbild landet sonst auf dem falschen Display). Ein-Fenster-Modus (`s`) bleibt. **v1-Grenzen:** Laser/Stift im Zwei-Bildschirm-Modus deaktiviert (Overlay läge nur über der Speaker-Ansicht); Live-Deck-Edits laden das Folien-Fenster kurz neu; Multi-Display-Vollbild/Platzierung braucht GUI-Verifikation auf echter Hardware.
 
 ### 19.4 Vorlagen & Marke — *medium*
 - ✅ **Custom-Fonts-Upload UMGESETZT:** Font-Datei (woff2/woff/ttf/otf) → Asset in `assets/` + `presentation.fonts` ({family, asset}); Renderer injiziert `@font-face` (Vorschau/Präsentation/Export); im Design-Tab „Schriften"-Upload + Auswahl-Datalist für die Font-Felder ([fonts in renderer.ts](../src/lib/renderer.ts), Store `addFont`). guess_mime kennt Font-Endungen.
@@ -1340,20 +1340,26 @@ liegt dahinter; im Meeting-Tool wählt man „Fenster teilen → das Folien-Fens
 **auch verdeckt**. Kein WebRTC/Server nötig (auf macOS unterstützt WKWebView ohnehin kein `getDisplayMedia`); nichts
 verlässt die Maschine außer über das ohnehin genutzte Meeting-Tool → passt zur „läuft lokal"-Zusage.
 
-**Lösung.** Neuer Command **`open_share_window`** ([present.rs](../src-tauri/src/present.rs)): öffnet das Folien-Fenster
-als **normales, dekoriertes, verschieb-/skalierbares, betiteltes 16:9-Fenster** auf dem **aktuellen** Display (statt
-randlos-Vollbild auf Monitor 2). Nutzt **dasselbe `projector`-Label** + dieselbe Event-Sync (`slideo:nav`/`projector-
-ready`/`goto`/`closed`) und dieselbe [ProjectorView](../src/components/presentation/ProjectorView.tsx) (`role=projector`)
-wie das Zweitfenster — es ist immer nur **ein** Folien-Fenster gleichzeitig offen. `sharingType` bleibt Default (macOS
-`.readOnly` = capturable) → kein natives Fenster-Handle nötig; der Titel „Slideo — Präsentation" macht es im Fenster-
-Picker eindeutig. UI: Button **„Folie teilen"** (`screen_share`) in der Steuerleiste von
-[PresentationMode](../src/components/presentation/PresentationMode.tsx), sichtbar solange kein Folien-Fenster offen ist;
-`presentShareWindow` synct erst den `AppState` (wie `presentOnMonitor`), öffnet das Fenster und **refokussiert das
-Hauptfenster** (Cockpit behält die Tastatur-Navigation, das Folien-Fenster darf dahinter liegen). Ein Toast erklärt den
-einzigen Handgriff („Fenster teilen → Slideo — Präsentation, nicht den ganzen Bildschirm"). **v1-Grenzen** (wie Zweit-
-fenster): Laser/Stift im Zwei-Fenster-Modus aus; Live-Edits laden das Folien-Fenster kurz neu. Reines Frontend + ein
-Tauri-Command, **kein Schema-Eingriff**. Ambitioniertere Wege (lokaler LAN-Viewer; echtes WebRTC-Remote) bewusst nicht
-gebaut — Bedarf ist gedeckt.
+**Lösung — EIN vereinheitlichtes Folien-Fenster.** Command **`open_share_window`** ([present.rs](../src-tauri/src/present.rs))
+öffnet das Folien-Fenster als **normales, dekoriertes, verschieb-/skalierbares, betiteltes 16:9-Fenster** auf dem
+**aktuellen** Display. Command **`set_projector_fullscreen(bool)`** schaltet dasselbe Fenster zwischen **randlos-Vollbild
+auf dem Monitor, auf dem es GERADE liegt** (`win.current_monitor()` → Position/Größe, `decorations:false`) und dem
+dekorierten 16:9-Fenster um. So deckt **ein** Fenster beide Fälle ab:
+- **Remote (Zoom/Meet):** dekoriert lassen → per „Fenster teilen" freigeben; Notizen/Tools bleiben im Hauptfenster privat.
+- **Physischer Beamer/TV:** Fenster auf das zweite Display ziehen → **„Vollbild"** → randlose Vollfläche auf genau diesem
+  Monitor (kein Fensterrahmen). Bewusst randlos-über-dem-Monitor statt nativem Vollbild (macOS-Vollbild landet sonst evtl.
+  auf dem falschen Display).
+
+Das **ersetzt den früheren separaten Zwei-Bildschirm-Modus** (Monitor-Dropdown + `list_monitors`/`open_presentation_window`
+— entfernt), der redundant war. Nutzt **dasselbe `projector`-Label** + dieselbe Event-Sync (`slideo:nav`/`projector-ready`/
+`goto`/`closed`) und dieselbe [ProjectorView](../src/components/presentation/ProjectorView.tsx) (`role=projector`); nur EIN
+Folien-Fenster gleichzeitig. `sharingType` bleibt Default (macOS `.readOnly` = capturable); der Titel „Slideo — Präsentation"
+macht es im Fenster-Picker eindeutig. UI ([PresentationMode](../src/components/presentation/PresentationMode.tsx)): Button
+**„Folie teilen"** (`screen_share`) öffnet das Fenster (synct erst den `AppState`, dann **refokussiert das Hauptfenster** →
+Cockpit behält die Tastatur-Navigation); bei offenem Fenster ein **Vollbild-Umschalter** (`fullscreen`/`fullscreen_exit`) +
+Schließen. **v1-Grenzen:** Laser/Stift im Zwei-Fenster-Modus aus; Live-Edits laden das Folien-Fenster kurz neu. Reines
+Frontend + zwei Tauri-Commands, **kein Schema-Eingriff**. Ambitioniertere Wege (lokaler LAN-Viewer; echtes WebRTC-Remote)
+bewusst nicht gebaut — Bedarf ist gedeckt.
 
 **SpeakerView + Folien-Vorschau (Teil derselben §26-Runde).** Die [SpeakerView](../src/components/presentation/SpeakerView.tsx)
 ist **gestapelt** (aktuelle Folie oben groß im 16:9, darunter Timer · nächste Folie · Notizen) statt zweispaltig. Alle
@@ -1367,6 +1373,7 @@ lässt verschachtelte Iframes leer rendern → das Übersicht-Overlay ist voll d
 Box mit nur absolut positionierten Kindern** bekommt in WebKit **keine Höhe** → der Übersicht-Kasten nutzt den
 **`padding-bottom:56.25%`-Trick**.
 
-**Verifikation:** typecheck/vite build/`cargo check` grün; fokussiertes adversariales Review (Rust-Fenster-Semantik +
+**Verifikation:** cargo check/test 42, typecheck, vite build grün; fokussiertes adversariales Review (Rust-Fenster-Semantik +
 FE-State/UX) clean. **GUI-bestätigt** (Fenster-Teilen in Zoom/Meet listet „Slideo — Präsentation", nur Folie sichtbar,
-Navigation vom Cockpit, Schließen/Erneut-Öffnen; gestapelte SpeakerView + Übersicht-Thumbnails rendern).
+Navigation vom Cockpit, Schließen/Erneut-Öffnen; **Vollbild-Toggle auf zweitem Monitor + zurück** auf echter Multi-Display-
+Hardware; gestapelte SpeakerView + Übersicht-Thumbnails rendern).

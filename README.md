@@ -93,7 +93,7 @@ Präsentation: `←/→/Leertaste` navigieren (Builds Schritt für Schritt) · `
 
 ### Weiter umgesetzt (§19.1–§19.9 + §20–§26)
 
-- ✅ **Presenter-Tools** (§19.3): Folien-Übersicht/Sprung, Laser/Stift, **echtes Zweitfenster** + **teilbares Folien-Fenster** (§26), Auto-Advance/Loop
+- ✅ **Presenter-Tools** (§19.3): Folien-Übersicht/Sprung, Laser/Stift, Auto-Advance/Loop + **ein Folien-Fenster** (§26): dekoriert-teilbar (Zoom/Meet) ODER randlos-Vollbild auf einem zweiten Monitor (Beamer)
 - ✅ **Auto-Animate/Morph** (§19.1) · **Daten-Diagramme** (§19.2) · **PPTX-Export** (§19.5) · **Versionshistorie** (§19.9)
 - ✅ **Medien** (§19.8): Drag&Drop-Bildimport, Crop · **Komponenten-Palette** im Editor (Aufnahme/Narration bewusst out-of-scope)
 - ✅ **Direktmanipulation in der Vorschau** (§20) · **feste 16:9-Bühne** (§21) · **Security-Härtung** (§22) · **Zonen-Links** (§23) · **Workflow-Optimierung** (§24) · **Vorschau-In-Place-Patch** (§25)
