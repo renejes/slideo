@@ -136,7 +136,7 @@ function fontFaceCss(presentation: Presentation, assets?: AssetMap): string {
 }
 
 /** Marken-Logo (Spec §19.4) als `<img>` mit aufgelöster Quelle, oder ''. */
-function logoHtml(presentation: Presentation, assets?: AssetMap): string {
+export function logoHtml(presentation: Presentation, assets?: AssetMap): string {
   const logo = presentation.meta.logo
   if (!logo || !assets) return ''
   const src = assets[logo.asset]
@@ -583,6 +583,16 @@ function editScript(directEdit: boolean): string {
   // Sichtbar für das navScript: im Direktbearbeiten-Modus unterdrückt es
   // Zonen-Link-Klicks (der Klick selektiert dort Elemente, statt zu navigieren).
   window.__sldDirectEdit = DIRECT;
+  // Vorschau-„busy" (Spec §25 / P2·P6): meldet dem Parent, dass gerade eine Iframe-
+  // Interaktion läuft (Block-Drag, Bild-Resize, §20-Verschieben, Inline-Text-Edit) →
+  // der Parent schiebt In-Place-Patches auf, bis busy:false. Sonst könnte ein Patch die
+  // Section unter dem gezogenen/bearbeiteten Element austauschen (Freeze schreibt
+  // zone.html MITTEN im Drag). Zusätzlich window.__sldBusy für lokale Guards.
+  function sldBusy(b) { window.__sldBusy = !!b; parent.postMessage({ type: 'slideo:preview-busy', busy: !!b }, '*'); }
+  // Pointer-Capture auf das Wurzel-Element: so wird pointerup/-cancel dem Iframe auch
+  // dann zugestellt, wenn die Maus außerhalb (über dem Editor / am Fensterrand) losgelassen
+  // wird → der End-Handler feuert IMMER (sonst bliebe busy hängen und die Vorschau fröre ein).
+  function sldCapture(e) { try { document.documentElement.setPointerCapture(e.pointerId); } catch (_) {} }
   function zoneOf(el) { return el && el.closest ? el.closest('.slideo-zone') : null; }
   function inHtmlZone(el) { return !!(el && el.closest && el.closest('.slideo-zone-html')); }
   function contentOf(el) { return el && el.closest ? el.closest('.slideo-content') : null; }
@@ -686,6 +696,7 @@ function editScript(directEdit: boolean): string {
     document.removeEventListener('pointerup', onDragEnd);
     document.removeEventListener('pointercancel', onDragEnd);
     dragEl = null; dragZone = null;
+    sldBusy(false);
   }
 
   /* ---------- Bild-Resize ---------- */
@@ -752,6 +763,7 @@ function editScript(directEdit: boolean): string {
     document.removeEventListener('pointerup', onResizeEnd);
     document.removeEventListener('pointercancel', onResizeEnd);
     resizeImg = null;
+    sldBusy(false);
   }
   rh.addEventListener('pointerdown', function (e) {
     if (!hoverImg) return;
@@ -764,6 +776,8 @@ function editScript(directEdit: boolean): string {
     resizeCW = cbWidthOf(resizeImg);
     if (!resizeCW) resizeCW = 1;
     document.documentElement.style.userSelect = 'none';
+    sldBusy(true);
+    sldCapture(e); // pointerup auch bei Loslassen außerhalb des Iframes zustellen
     document.addEventListener('pointermove', onResizeMove);
     document.addEventListener('pointerup', onResizeEnd);
     document.addEventListener('pointercancel', onResizeEnd);
@@ -781,6 +795,10 @@ function editScript(directEdit: boolean): string {
   document.addEventListener('pointerdown', function (e) {
     var handle = e.target.closest && e.target.closest('.slideo-drag');
     if (!handle) return;
+    // Nicht über eine bereits laufende DIRECT-Interaktion legen (editing/moveState var-hoisted
+    // aus dem DIRECT-Block; resizeImg aus dem Bild-Resize) — sonst postete das Drag-Ende ein
+    // busy:false, während der Inline-Edit noch läuft → Patch detacht den contenteditable-Knoten.
+    if (editing || moveState || resizeImg) return;
     var block = handle.closest('.slideo-block');
     if (!block) return;
     e.preventDefault();
@@ -788,9 +806,19 @@ function editScript(directEdit: boolean): string {
     dragZone = zoneOf(block);
     block.classList.add('slideo-dragging');
     document.documentElement.style.userSelect = 'none';
+    sldBusy(true);
+    sldCapture(e); // pointerup auch bei Loslassen außerhalb des Iframes zustellen
     document.addEventListener('pointermove', onDragMove);
     document.addEventListener('pointerup', onDragEnd);
     document.addEventListener('pointercancel', onDragEnd);
+  });
+
+  // Fenster-Fokusverlust (Cmd-Tab / Fensterwechsel) mitten im Drag → aktive Block-/Bild-
+  // Interaktion sauber beenden (busy:false), sonst könnte sie ungepaart hängen bleiben
+  // (Analog zur Splitter-blur-Bereinigung; Pointer-Capture deckt den Gleiches-Fenster-Fall).
+  window.addEventListener('blur', function () {
+    if (dragEl) onDragEnd();
+    if (resizeImg) onResizeEnd();
   });
 
   /* ---------- Direktmanipulation (Spec §20), nur im Direktbearbeiten-Modus ---------- */
@@ -977,6 +1005,7 @@ function editScript(directEdit: boolean): string {
       // einen Block-Container (Karte/Komponente) plattmachen.
       if (!el || editing || !isInlineEditable(el)) return;
       editing = el; editingKind = 'element'; editingBlock = null;
+      sldBusy(true);
       editOrig = el.innerHTML; // Snapshot für Abbruch
       selBox.style.display = 'none'; toolbar.style.display = 'none'; hoverBox.style.display = 'none';
       el.setAttribute('contenteditable', 'true');
@@ -1011,6 +1040,7 @@ function editScript(directEdit: boolean): string {
       var el = blockEditable(block);
       if (!el || editing) return;
       editing = el; editingKind = 'block'; editingBlock = block;
+      sldBusy(true);
       editOrig = el.innerHTML;
       selBox.style.display = 'none'; toolbar.style.display = 'none'; hoverBox.style.display = 'none';
       el.setAttribute('contenteditable', 'true');
@@ -1025,6 +1055,11 @@ function editScript(directEdit: boolean): string {
     }
     function finishEdit(commit) {
       if (!editing) return;
+      // busy erst NACH der etwaigen edit-text/edit-block-text-Nachricht freigeben →
+      // Parent schreibt zuerst den Store, danach reconciled er einmal (Patch + Re-Select).
+      try { finishEditBody(commit); } finally { sldBusy(false); }
+    }
+    function finishEditBody(commit) {
       var el = editing, kind = editingKind, block = editingBlock;
       editing = null; editingKind = null; editingBlock = null; // zuerst, damit der Blur-Handler nicht doppelt feuert
       el.removeAttribute('contenteditable');
@@ -1097,6 +1132,11 @@ function editScript(directEdit: boolean): string {
       boxFor(selBox, moveState.el);
     }
     function onMoveEnd(e) {
+      // busy erst NACH etwaigen Op-Nachrichten (freeze-zone/move-element) freigeben, damit
+      // der Parent zuerst den Store schreibt und danach EINMAL reconciled (Patch + Re-Select).
+      try { onMoveEndBody(e); } finally { sldBusy(false); }
+    }
+    function onMoveEndBody(e) {
       document.removeEventListener('pointermove', onMoveDrag);
       document.removeEventListener('pointerup', onMoveEnd);
       document.removeEventListener('pointercancel', onMoveEnd);
@@ -1236,6 +1276,8 @@ function editScript(directEdit: boolean): string {
       // losgelassen wird (Bezugsrahmen wird beim pointerup frisch bestimmt).
       moveState = { el: selEl, zone: zone,
         startX: e.clientX, startY: e.clientY, moved: false, rect: selEl.getBoundingClientRect() };
+      sldBusy(true);
+      sldCapture(e); // pointerup auch bei Loslassen außerhalb des Iframes zustellen
       document.addEventListener('pointermove', onMoveDrag);
       document.addEventListener('pointerup', onMoveEnd);
       document.addEventListener('pointercancel', onMoveEnd);
@@ -1285,6 +1327,7 @@ function editScript(directEdit: boolean): string {
           editing = null; editingKind = null; editingBlock = null;
           elS.removeAttribute('contenteditable'); elS.style.cursor = ''; editOrig = '';
           if (zoneS && pathS) parent.postMessage({ type: 'slideo:split-text', zoneId: zoneS.id.replace(/^zone-/, ''), path: pathS, before: beforeH, after: afterH, tag: elS.tagName.toLowerCase() }, '*');
+          sldBusy(false);
           return;
         }
         // Im Text-Edit: Enter committet, Esc bricht ab, Shift+Enter = Zeilenumbruch.
@@ -1331,6 +1374,14 @@ function editScript(directEdit: boolean): string {
     window.addEventListener('scroll', reposition, true);
     window.addEventListener('resize', reposition);
 
+    // Fenster-Fokusverlust mitten in Verschieben/Inline-Edit → sauber beenden (busy:false),
+    // damit die Interaktion nie ungepaart hängt (onMoveEnd ohne pointerup-Event = Abbruch;
+    // finishEdit committet — durch den editing-Guard idempotent mit dem focusout-Handler).
+    window.addEventListener('blur', function () {
+      if (moveState) onMoveEnd();
+      else if (editing) finishEdit(true);
+    });
+
     // Re-Select nach dem Re-Render: der Parent schickt die zuletzt gewählte
     // (ggf. angepasste) Adresse zurück → Auswahl wiederherstellen (still).
     window.addEventListener('message', function (e) {
@@ -1348,6 +1399,57 @@ function editScript(directEdit: boolean): string {
       }
     });
   }
+})();
+`.trim()
+}
+
+/**
+ * Patch-Script (nur Vorschau, Spec §25 / P2·P6): hält das Iframe am Leben und wendet
+ * In-Place-Änderungen per postMessage an — statt bei jeder Änderung das ganze Iframe
+ * neu zu laden (srcDoc). Zwei Nachrichten:
+ *   - `slideo:patch-tokens {tokens}` → nur die `:root`-CSS-Variablen neu setzen
+ *     (Inline überschreibt den <style>-Block; gleiche Mechanik wie --slideo-scale).
+ *   - `slideo:patch-zone {zoneId, frameHtml}` → NUR die betroffene `.slideo-frame`
+ *     aktualisieren. Der **Frame-Knoten bleibt erhalten** (nur sein innerHTML wird
+ *     ersetzt) → navScripts `slides`-Array und der §23-`zoneIndex` (beide index- statt
+ *     knotenbasiert, Section-id unverändert) bleiben gültig; Scroll/Auswahl der ANDEREN
+ *     Zonen überleben. Die §20-Re-Auswahl der gepatchten Zone macht der Parent per
+ *     vorhandenem `slideo:reselect`/`slideo:reselect-block`-Handshake.
+ * Läuft als eigenständige IIFE (kein Zugriff auf navScript/editScript-Closures nötig).
+ */
+function patchScript(): string {
+  return `
+(function () {
+  var root = document.documentElement;
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.type === 'slideo:patch-tokens' && d.tokens && typeof d.tokens === 'object') {
+      // Additiv setzen genügt: ein ENTFERNTER Token-Key würde per Inline-Style nicht sicher
+      // gelöscht (der :root-Wert aus dem letzten Voll-Render bliebe) → solche Fälle klassifiziert
+      // der Parent bewusst als Voll-Reload (preview-diff), erreichen diesen Pfad also nicht.
+      for (var k in d.tokens) {
+        if (Object.prototype.hasOwnProperty.call(d.tokens, k)) {
+          root.style.setProperty('--' + k, String(d.tokens[k]));
+        }
+      }
+      // Token-Änderung kann die Folie neu umbrechen (font-size-base/spacing-base/border-radius)
+      // → die §20-Auswahl-Overlays neu vermessen lassen (editScript hört auf 'resize').
+      window.dispatchEvent(new Event('resize'));
+    } else if (d.type === 'slideo:patch-zone' && typeof d.zoneId === 'string' && typeof d.frameHtml === 'string') {
+      var section = document.getElementById('zone-' + d.zoneId);
+      if (!section) return; // Section fehlt → struktureller Mismatch; der Parent lädt dann voll neu
+      var frame = section.closest ? section.closest('.slideo-frame') : null;
+      if (!frame) return;
+      // Neues Frame-HTML parsen und NUR den Inhalt in den bestehenden Frame-Knoten
+      // übernehmen (Knoten-Identität bleibt → slides/zoneIndex bleiben gültig). Zonen-
+      // HTML enthält keine <script> (die sind page-level) → innerHTML ist im WKWebView ok.
+      var tpl = document.createElement('template');
+      tpl.innerHTML = d.frameHtml;
+      var newFrame = tpl.content.querySelector('.slideo-frame');
+      if (!newFrame) return;
+      frame.innerHTML = newFrame.innerHTML;
+    }
+  });
 })();
 `.trim()
 }
@@ -1578,7 +1680,9 @@ html, body { height: 100%; overflow-x: hidden; }`
   // Im Editier-Modus zusätzlich das Drag-Reorder-/Direktmanipulations-Script.
   const script =
     `<script>${navScript(standalone, deck, duration, kind, present ? 'both' : 'width')}</script>` +
-    (editable ? `<script>${editScript(directEdit)}</script>` : '')
+    (editable
+      ? `<script>${editScript(directEdit)}</script>` + `<script>${patchScript()}</script>`
+      : '')
 
   return `<!doctype html>
 <html lang="de">

@@ -48,7 +48,21 @@
 - [x] **`index`-Chunk (P8):** Code-Splitting — CodeMirror-Editoren (`HtmlEditor`/`CssEditor`) via `React.lazy`; Haupt-Chunk 1,31 MB → 864 kB (CodeMirror 122 kB lädt nur bei HTML-Zone/CSS-Panel).
 - [x] **Bilder (P3/P7):** in-app über `slideoasset://` statt inline-base64 + Rust-Decode-Cache (`AppState::set_assets` invalidiert; TOCTOU-Race im Review gefixt). Standalone/Print bleiben inline. — **GUI: Bilder in-app + Export prüfen.**
 - [x] **Polish (P10/P13):** Sync-Debounce 120→400 ms; ZIP-`Stored` für Assets (kein Deflate auf schon-komprimierten Medien). + **P9** Hover-Overlay rAF-koalesziert.
-- [ ] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — **bewusst vertagt** (großer/riskanter Refactor der gerade umgebauten §20/Punkt-3-Pipeline; P3 nimmt den Re-Decode-Kostenanteil schon weg). Separat mit GUI-Test. **→ Auf Anweisung NACH der Workflow-Optimierung (Spec §24) als eigener Branch; noch nicht begonnen.**
+- [x] **Vorschau-Re-Render (P2/P6):** `srcDoc`-Voll-Reload → In-Place-`postMessage`-Patch — **UMGESETZT** (Spec §25).
+      Klassifikator [preview-diff.ts](../src/lib/preview-diff.ts) → `patch-tokens`/`patch-zone` (Frame-Knoten bleibt,
+      nur `innerHTML`-Swap → nav/§23 gültig) statt Reload; Voll-Reload bleibt Fallback (Nonce erzwingt `onLoad`).
+      Laufende §20-Interaktion via `slideo:preview-busy` geschützt (Pointer-Capture + blur + busyRef-Reset). Headless grün
+      (typecheck/build/`node --check` der 3 Iframe-Skripte); 2 adversariale Review-Runden (7 Findings gefixt).
+      **— GUI-Test offen (Checkliste unten P2/P6-GUI).**
+  - **P2/P6-GUI-Checkliste** (im `tauri:dev`, HTML- **und** Markdown-Zonen):
+    - [ ] **Tippen** im Markdown-Editor → Vorschau aktualisiert die betroffene Folie **ohne Reload/Flackern**; Scroll bleibt.
+    - [ ] **Design** (Token/Farbe/Schrift/Größe schieben) → sofort, kein Flackern; §20-Auswahl-Overlay bleibt am Element.
+    - [ ] **§20 Direktbearbeiten:** Auswahl/Inline-Edit/Duplizieren/Löschen/**Verschieben+Freeze** — überleben einen
+          Inhalts-Patch; kein Zerreißen mitten im Drag. Maus **außerhalb** der Vorschau loslassen → kein Einfrieren.
+    - [ ] **Struktur:** Folie hinzufügen/löschen/umsortieren, `content_type` toggeln → sauberer Voll-Reload.
+    - [ ] **§23-Links** (TOC-Sprung/Rücksprung) + Bild/Video weiter korrekt nach Patches; Präsentation/Standalone unverändert.
+    - [ ] **Reset:** „Zurücksetzen"/`reset_tokens` mit zuvor gesetztem Custom-Token → Vorschau zeigt keinen stale Wert.
+    - [ ] **MCP** (Claude Desktop) editiert eine Folie live → nur diese patcht; kein Ganzseiten-Reload.
 - [ ] **P12 (`Vec<u8>` intern):** **bewusst übersprungen** — hohes Risiko (MCP-Save load-bearing), geringer Wert (Speicher), im Konflikt mit dem P7-Cache.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde

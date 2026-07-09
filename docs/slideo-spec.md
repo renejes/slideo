@@ -1274,3 +1274,52 @@ Eine Runde Bedien-/Authoring-Verbesserungen für Mensch **und** KI-über-MCP. Vi
 **Nach den MCP-Änderungen (Komponenten + Tools + instructions): `cargo build` + Claude Desktop neu starten.**
 Headless grün: **cargo test 42**, typecheck, vite build; adversarial reviewt (Komponenten/Heuristik/MCP). **GUI-Check
 ausstehend** (Onboarding-Fluss, Asset-pick/manage, neue Komponenten in der Palette, MCP-Tools in Claude Desktop).
+
+## 25. Vorschau In-Place-Patch (P2/P6 — `srcDoc`-Reload → `postMessage`)
+
+**Problem.** Die Vorschau ([PreviewPane.tsx](../src/components/preview/PreviewPane.tsx)) rendert bislang bei **jeder**
+Änderung (debounced) die **ganze** Präsentation via `renderFullPage` und setzt das Ergebnis als **`srcDoc`** → **kompletter
+Iframe-Reload**: Flackern, alle Folien-Skripte (nav/edit) laufen neu, Scroll- und §20-Auswahl-Zustand gehen verloren.
+Beim Tippen und beim Design-Justieren spürbar.
+
+**Lösung.** Änderungen werden gegen den zuletzt gerenderten Stand **klassifiziert** und die günstigste **sichere**
+Strategie gewählt; der **Voll-Reload bleibt immer der Fallback**. Reine Render-/UI-Mechanik — **kein Schema-Eingriff**
+(`version` bleibt "1.0").
+
+- **Klassifikator** ([preview-diff.ts](../src/lib/preview-diff.ts), rein, testbar): `classifyPreviewChange(prev, next, prevAssets, nextAssets, prevEdit, nextEdit)` → 
+  - **`full`** (Iframe-Reload): erster Render, `previewEdit`-Toggle (ändert die injizierten Skripte), geänderte
+    **Assets**/`fonts`/`meta.logo` (betreffen `<head>` bzw. jede Folie), strukturell (Zonenzahl bzw. -Reihenfolge/-IDs
+    geändert), **entfernter Token-Key** (Inline-Patch kann eine CSS-Variable nicht sicher löschen).
+  - **`patch`**: `tokens` geändert (Wert/Hinzufügen) → `slideo:patch-tokens`; je Zone mit geändertem
+    `markdown`/`html`/`custom_css`/`style`/`content_type` → `slideo:patch-zone`. (`reveal`/`notes`/`label` wirken in der
+    Vorschau nicht → ignoriert.)
+  - **`none`**: nichts render-relevant (z.B. nur `meta.modified`) → nur Vergleichs-Snapshot nachziehen.
+- **Patch-Handler im Iframe** (`patchScript`, [renderer.ts](../src/lib/renderer.ts), eigene IIFE, **nur bei `editable`**
+  = nur die Vorschau): `patch-tokens` setzt die `:root`-Variablen per `root.style.setProperty` (Inline schlägt den
+  `<style>`-Block, gleiche Mechanik wie `--slideo-scale`) und stößt ein `resize` an (→ §20-Overlays neu vermessen);
+  `patch-zone` findet `#zone-<uuid>`, **behält den `.slideo-frame`-Knoten** und tauscht nur dessen `innerHTML` →
+  navScripts `slides[]`-Array und der §23-`zoneIndex` (beide **index**- statt knotenbasiert, Section-id unverändert)
+  **bleiben gültig**; Scroll/Auswahl der ANDEREN Zonen überleben. Die §20-Auswahl der gepatchten Zone stellt der Parent
+  über den bestehenden `slideo:reselect`/`slideo:reselect-block`-Handshake wieder her.
+- **State-Machine im Parent** (`syncPreview`, refs `lastRendered`/`lastAssets`/`lastEdit`/`readyRef`/`busyRef`/
+  `deferredRef`/`reloadSeq`): Voll-Reloads hängen eine **monotone Nonce** in den `<head>` (`<!--sld:N-->`) → das `srcDoc`
+  unterscheidet sich garantiert, `onLoad` feuert zuverlässig, `readyRef` bleibt nie hängen. Während des (Re)Loads
+  (`!readyRef`) oder einer laufenden Iframe-Interaktion (`busyRef`) werden Patches **aufgeschoben** und beim nächsten
+  sicheren Moment (`onLoad` bzw. `busy:false`) **einmal** nachgezogen. **Invariante:** nach jedem `syncPreview` ist das
+  Iframe-DOM visuell äquivalent zu `renderFullPage(current)`.
+- **Drag-/Edit-Schutz (kritisch).** Ein Patch darf einen laufenden §20-Drag/Freeze **nicht zerreißen** (Freeze schreibt
+  `zone.html` mitten im Drag → löst sonst sofort einen Patch aus). Das `editScript` meldet **jede** Interaktion
+  (Block-Reorder, Bild-Resize, §20-Verschieben, Inline-Text-Edit) per `slideo:preview-busy {busy}`; der Parent
+  unterdrückt Patches, solange busy. `busy:false` feuert **nach** der jeweiligen Op-Nachricht (freeze/move/edit) über ein
+  `try/finally`, damit der Store zuerst geschrieben und dann **einmal** reconciled wird. Robustheit gegen ein hängendes
+  `busy` (→ Vorschau fröre ein): **`setPointerCapture`** an allen Drags (pointerup wird dem Iframe auch außerhalb
+  zugestellt), Fenster-**`blur`**-Fallbacks, `busyRef`-Reset in `handleLoad` **und** beim `previewEdit`-Toggle; der
+  Block-Drag ist gegen Überlappung mit aktivem Edit/Move/Resize geguardet.
+- **Wechselwirkungen bewusst geprüft:** §20 (dokument-delegierte Handler überleben den innerHTML-Austausch; gepatchte
+  Zone wird reselektiert), §21 (Scale-to-fit unberührt — Folie bleibt 1280×720), §23 (`zoneIndex` index-basiert →
+  gültig), CSP (Patch ist reine DOM-Mutation, kein Netz). `content_type`-Toggle ist ein Zonen-Patch (renderZoneSection
+  rendert beide Typen; editScript adaptiert über live `closest('.slideo-zone-html')`).
+
+**Verifikation:** headless `typecheck` + `vite build` + `node --check` der drei emittierten Iframe-Skripte (nav/edit/patch)
+grün; **zwei adversariale Multi-Agent-Review-Runden** (6 Dimensionen → 5 bestätigte Findings gefixt; fokussiertes
+Fix-Re-Review → 2 weitere gefixt). **GUI-Check ausstehend** (Checkliste [next-steps.md](next-steps.md) §1b P2/P6).

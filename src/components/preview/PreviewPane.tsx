@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AssetMap, Presentation } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
-import { renderFullPage } from '@/lib/renderer'
+import { logoHtml, renderFullPage, renderZoneSection } from '@/lib/renderer'
+import { classifyPreviewChange } from '@/lib/preview-diff'
 import { findSourceRange } from '@/lib/dom-edit'
 import { htmlBlockToMarkdown } from '@/lib/tiptap-markdown'
 import { isTauri, assetUrlBase } from '@/lib/tauri'
@@ -35,6 +37,24 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   // Analog für Markdown-Block-Auswahl {zoneId, blockIndex} (Punkt 3). Gegenseitig
   // exklusiv mit lastSel — genau eine Auswahl ist aktiv.
   const lastSelBlock = useRef<{ zoneId: string; blockIndex: number } | null>(null)
+  // --- In-Place-Patch der Vorschau (Spec §25 / P2·P6) ---
+  // Statt bei jeder Änderung das Iframe neu zu laden (srcDoc), vergleichen wir gegen
+  // den zuletzt gerenderten Stand und patchen per postMessage (Tokens / einzelne Zone).
+  // lastRendered/lastAssets/lastEdit = Vergleichs-Snapshot (was das Iframe zeigt).
+  const lastRendered = useRef<Presentation | null>(null)
+  const lastAssets = useRef<AssetMap | null>(null)
+  const lastEdit = useRef<boolean>(false)
+  // reloadSeq = monotone Nonce je Voll-Reload → das srcDoc unterscheidet sich IMMER, auch
+  // wenn der Voll-Render byte-gleich wäre (z.B. Import eines nicht referenzierten Assets).
+  // So feuert onLoad garantiert und readyRef bleibt nie hängen — ohne fragile String-Vergleiche.
+  const reloadSeq = useRef<number>(0)
+  // ready = Iframe ist geladen (Skripte installiert) → sicher patchbar. busy = im
+  // Iframe läuft eine Interaktion (Drag/Resize/Inline-Edit) → Patch aufschieben.
+  const readyRef = useRef<boolean>(true)
+  const busyRef = useRef<boolean>(false)
+  // deferred = eine Änderung kam während busy/!ready → beim nächsten sicheren Moment
+  // (busy:false bzw. onLoad) EINMAL nachziehen.
+  const deferredRef = useRef<boolean>(false)
   // Folien-Auswahl-Popover für „Element → Folie verknüpfen" (§23). null = zu.
   const [linkPicker, setLinkPicker] = useState<{
     zoneId: string
@@ -43,29 +63,102 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     current: string
   } | null>(null)
 
-  // Debounced Full-Page-Render (vermeidet Iframe-Reload bei jedem Tastendruck).
-  // editable: Markdown-Blöcke per Drag umsortierbar (Spec §18.1 / interaktive Vorschau).
-  // directEdit: Direktmanipulations-Layer für HTML-Zonen (Spec §20).
+  // In-Place-Sync der Vorschau (Spec §25 / P2·P6). Klassifiziert die Änderung gegen den
+  // zuletzt gerenderten Stand und wählt die günstigste sichere Strategie:
+  //   full  → renderFullPage → srcDoc (Iframe-Reload). Fallback + selten (Struktur/Assets/
+  //           Fonts/Logo/previewEdit-Toggle/erster Render).
+  //   patch → per postMessage: :root-Tokens und/oder einzelne .slideo-frame-Sections.
+  //   none  → nichts render-relevant → nur Snapshot nachziehen.
+  // Liest den Store frisch (getState) → auch vom busy/onLoad-Reconcile aufrufbar.
+  // editable: Markdown-Blöcke per Drag umsortierbar (Spec §18.1). directEdit: §20-Layer.
+  const syncPreview = useCallback(() => {
+    const iframe = iframeRef.current
+    if (!iframe) return
+    const st = usePresentationStore.getState()
+    const p = st.presentation
+    if (!p) return
+    const a = st.assets
+    const edit = useUiStore.getState().previewEdit
+
+    // Laufende Iframe-Interaktion oder Iframe (re)lädt gerade → aufschieben und beim
+    // nächsten sicheren Moment (busy:false / onLoad) EINMAL nachziehen.
+    if (busyRef.current || !readyRef.current) {
+      deferredRef.current = true
+      return
+    }
+
+    const decision = classifyPreviewChange(
+      lastRendered.current,
+      p,
+      lastAssets.current,
+      a,
+      lastEdit.current,
+      edit,
+    )
+
+    if (decision.kind === 'full') {
+      lastRendered.current = p
+      lastAssets.current = a
+      lastEdit.current = edit
+      reloadSeq.current += 1
+      // Nonce-Kommentar im <head> → das srcDoc unterscheidet sich garantiert vom vorherigen,
+      // also feuert onLoad zuverlässig (readyRef bleibt nie hängen). Kein String-Vergleich mehr,
+      // dessen Prämisse (DOM == letzter Voll-Render) nach In-Place-Patches nicht mehr stimmt.
+      const full = renderFullPage(p, {
+        present: false,
+        assets: a,
+        assetUrlBase: ASSET_BASE,
+        editable: true,
+        directEdit: edit,
+      }).replace('</head>', `<!--sld:${reloadSeq.current}--></head>`)
+      readyRef.current = false
+      setHtml(full)
+      return
+    }
+
+    // Snapshot in jedem Fall nachziehen (auch 'none').
+    lastRendered.current = p
+    lastAssets.current = a
+    lastEdit.current = edit
+    if (decision.kind === 'none') return
+
+    const win = iframe.contentWindow
+    if (!win) return
+    if (decision.tokens) {
+      win.postMessage({ type: 'slideo:patch-tokens', tokens: decision.tokens }, '*')
+    }
+    if (decision.zoneIds.length) {
+      const logo = logoHtml(p, a)
+      for (const id of decision.zoneIds) {
+        const zone = p.zones.find((z) => z.id === id)
+        if (!zone) continue
+        const frameHtml = renderZoneSection(zone, a, ASSET_BASE, true, false, logo)
+        win.postMessage({ type: 'slideo:patch-zone', zoneId: id, frameHtml }, '*')
+        // §20: hält die gepatchte Zone die aktuelle Auswahl → gezielt neu selektieren
+        // (die alten Overlays zeigen sonst auf ersetzte, detachte Knoten).
+        if (edit) {
+          if (lastSel.current?.zoneId === id) {
+            win.postMessage({ type: 'slideo:reselect', ...lastSel.current }, '*')
+          } else if (lastSelBlock.current?.zoneId === id) {
+            win.postMessage({ type: 'slideo:reselect-block', ...lastSelBlock.current }, '*')
+          }
+        }
+      }
+    }
+  }, [])
+
+  // Debounce: Änderungen ~220 ms sammeln, dann einmal synchronisieren.
   useEffect(() => {
     if (!presentation) return
-    const id = setTimeout(
-      () =>
-        setHtml(
-          renderFullPage(presentation, {
-            present: false,
-            assets,
-            assetUrlBase: ASSET_BASE,
-            editable: true,
-            directEdit: previewEdit,
-          }),
-        ),
-      220,
-    )
+    const id = setTimeout(() => syncPreview(), 220)
     return () => clearTimeout(id)
-  }, [presentation, assets, previewEdit])
+  }, [presentation, assets, previewEdit, syncPreview])
 
   // Beim Verlassen des Direktbearbeiten-Modus die Auswahl verwerfen.
   useEffect(() => {
+    // Toggle des Bearbeiten-Modus ist eine bewusste Nutzeraktion (Pointer ist oben) → als
+    // Recovery-Escape busy/deferred zurücksetzen (falls ein busy:false je verloren ging).
+    busyRef.current = false
     if (!previewEdit) {
       lastSel.current = null
       lastSelBlock.current = null
@@ -120,6 +213,17 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     function onMessage(e: MessageEvent) {
       const d = e.data || {}
       const tag = typeof d.tag === 'string' ? (d.tag as string) : undefined
+      if (d.type === 'slideo:preview-busy' && typeof d.busy === 'boolean') {
+        // Iframe-Interaktion (Drag/Resize/Inline-Edit) läuft/endet (Spec §25 / P2·P6).
+        // Während busy schieben wir Patches auf; bei busy:false EINMAL nachziehen —
+        // die Op-Nachricht (freeze/move/edit) kam davor, der Store ist also schon aktuell.
+        busyRef.current = d.busy
+        if (!d.busy && deferredRef.current) {
+          deferredRef.current = false
+          syncPreview()
+        }
+        return
+      }
       if (d.type === 'slideo:reorder-blocks' && typeof d.zoneId === 'string' && Array.isArray(d.order)) {
         reorderZoneBlocks(d.zoneId, d.order as number[])
       } else if (
@@ -266,7 +370,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [reorderZoneBlocks, resizeZoneImage, applyZoneElementOp, deleteZoneBlock, duplicateZoneBlock, editZoneBlock, setActiveZone, setHtmlReveal])
+  }, [reorderZoneBlocks, resizeZoneImage, applyZoneElementOp, deleteZoneBlock, duplicateZoneBlock, editZoneBlock, setActiveZone, setHtmlReveal, freezeZoneLayout, syncPreview])
 
   const activeIndex = useMemo(() => {
     if (!presentation) return 0
@@ -284,6 +388,11 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   }, [activeIndex])
 
   function handleLoad() {
+    // Iframe geladen → Skripte (nav/edit/patch) installiert → sicher patchbar. Ein frisch
+    // geladenes Dokument hat garantiert keine laufende Interaktion → busy zurücksetzen
+    // (schließt „busy bleibt über einen Reload hinweg hängen" → Vorschau fröre ein).
+    readyRef.current = true
+    busyRef.current = false
     const win = iframeRef.current?.contentWindow
     win?.postMessage({ type: 'slideo:goto', index: activeIndex, smooth: false }, '*')
     // Auswahl nach dem Re-Render wiederherstellen (Spec §20 Re-Select-Handshake) —
@@ -292,6 +401,11 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
       if (lastSel.current) win?.postMessage({ type: 'slideo:reselect', ...lastSel.current }, '*')
       else if (lastSelBlock.current)
         win?.postMessage({ type: 'slideo:reselect-block', ...lastSelBlock.current }, '*')
+    }
+    // Während des (Re)Loads aufgeschobene Änderung jetzt EINMAL nachziehen.
+    if (deferredRef.current) {
+      deferredRef.current = false
+      syncPreview()
     }
   }
 

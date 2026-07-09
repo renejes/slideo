@@ -364,6 +364,25 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   (nicht-quotiertes `style=` vor Multibyte) char-grenzen-sicher gemacht + Test; **offen (Defense-in-Depth):**
   `catch_unwind` um `tools::handle` ([ipc.rs](src-tauri/src/ipc.rs)) gegen Mutex-Vergiftung. **cargo test 42**,
   typecheck, vite build grün. **Für die MCP-Seite: `cargo build` + Claude Desktop neu starten.** GUI-Check ausstehend.
+- **Vorschau In-Place-Patch (P2/P6, Spec §25, umgesetzt):** Die Vorschau lädt das Iframe **nicht mehr** bei jeder Änderung
+  neu (`srcDoc`), sondern **klassifiziert** die Änderung ([preview-diff.ts](src/lib/preview-diff.ts) `classifyPreviewChange`
+  → `full` | `patch{tokens,zoneIds}` | `none`) und **patcht in-place** per `postMessage`. **`patchScript`**
+  ([renderer.ts](src/lib/renderer.ts), eigene IIFE, **nur bei `editable`** injiziert): `slideo:patch-tokens` setzt die
+  `:root`-Variablen inline (+ stößt `resize` an → §20-Overlays neu vermessen), `slideo:patch-zone` **behält den
+  `.slideo-frame`-Knoten** und tauscht nur dessen `innerHTML` → **navScripts `slides[]` + §23-`zoneIndex` bleiben gültig**
+  (beide index-basiert, Section-`id` unverändert), Scroll/Auswahl der übrigen Zonen überleben; die gepatchte Zone wird
+  über den bestehenden `slideo:reselect`(`-block`)-Handshake reselektiert. **Voll-Reload bleibt Fallback** (Struktur/
+  Assets/Fonts/Logo/`previewEdit`-Toggle/entfernter Token-Key) und hängt eine **monotone Nonce** in den `<head>`, damit
+  `onLoad` garantiert feuert (`readyRef` bleibt nie hängen). **State-Machine im Parent** ([PreviewPane.tsx](src/components/preview/PreviewPane.tsx)
+  `syncPreview`, refs `lastRendered`/`readyRef`/`busyRef`/`deferredRef`/`reloadSeq`): während (Re)Load oder laufender
+  Interaktion werden Patches **aufgeschoben** und beim nächsten sicheren Moment **einmal** reconciled. **Invariante:**
+  DOM ≡ `renderFullPage(current)` nach jedem `syncPreview`. **Kritische §20-Wechselwirkung:** `editScript` meldet **jede**
+  Interaktion (Block-Reorder/Bild-Resize/Verschieben/Inline-Edit) per `slideo:preview-busy {busy}` → der Parent
+  unterdrückt Patches, solange busy (`busy:false` **nach** der Op-Nachricht via `try/finally`); gegen hängendes busy (=
+  eingefrorene Vorschau): **`setPointerCapture`** an allen Drags + Fenster-**`blur`**-Fallbacks + `busyRef`-Reset in
+  `handleLoad`/`previewEdit`-Toggle + Overlap-Guard am Block-Drag. `logoHtml` exportiert (Patch braucht es pro Zone).
+  **Kein Schema-Eingriff** (`version` "1.0"; reine Render-/UI-Mechanik). Headless grün (typecheck/build/`node --check` der
+  3 Iframe-Skripte); **zwei adversariale Review-Runden** (7 Findings gefixt). **GUI-Check ausstehend** (next-steps §1b P2/P6).
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
