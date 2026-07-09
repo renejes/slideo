@@ -395,7 +395,20 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   ([PresentationMode.tsx](src/components/presentation/PresentationMode.tsx)); `presentShareWindow` synct erst den AppState,
   öffnet das Fenster und **refokussiert das Hauptfenster** (Tastatur-Nav bleibt am Cockpit). v1-Grenzen wie Zweitfenster
   (Laser/Stift aus, Live-Edit-Reload). **Kein Schema-Eingriff.** typecheck/build/`cargo check` grün, fokussiertes
-  adversariales Review clean. **GUI-Check ausstehend.**
+  adversariales Review clean. **GUI-bestätigt.**
+- **SpeakerView gestapelt + Folien-Vorschau-Rendering (WebKit-Härtung, GUI-bestätigt):** Die [SpeakerView](src/components/presentation/SpeakerView.tsx)
+  ist jetzt **gestapelt** (aktuelle Folie oben groß im 16:9, darunter Timer · nächste Folie · Notizen) statt zwei Spalten.
+  **Gemeinsame [SlidePreview](src/components/presentation/SlidePreview.tsx)** für ALLE Folien-Thumbnails (SpeakerView +
+  [SlideOverview](src/components/presentation/SlideOverview.tsx)). **Vier WebKit/WKWebView-Fallen, die kleine Folien-
+  Vorschauen leer rendern ließen (hart erkämpft — bei künftigen Iframe-Thumbnails beachten):** (1) WKWebView dimensioniert
+  ein Iframe nach seinem **Inhalt**, nicht der CSS-Größe → `renderSingleZonePage` rendert jetzt bei **fester nativer
+  1280×720** (`--slideo-scale:1`, kein Fit-Script) statt `height:100%` (kollabierte zirkulär); der Aufrufer skaliert per
+  CSS-`transform` ins Ziel. (2) **`transform` direkt auf einem Iframe** ist in Safari buggy → skaliert wird ein **Wrapper-
+  `div`**, das Iframe bleibt plain 1280×720. (3) Ein **`backdrop-filter` auf einem Vorfahren** lässt verschachtelte Iframes
+  leer rendern → das Übersicht-Overlay ist voll deckend **ohne** `backdrop-blur`. (4) Eine **`aspect-ratio`-Box mit nur
+  absolut positionierten Kindern** bekommt in WebKit **keine Höhe** (kollabiert → „nur Titel") → der Übersicht-Kasten nutzt
+  den **`padding-bottom:56.25%`-Trick**. **Kein Schema-Eingriff.** typecheck/build grün, GUI-bestätigt (Speaker-Vorschau +
+  Übersicht-Thumbnails).
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität

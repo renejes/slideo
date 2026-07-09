@@ -1762,8 +1762,12 @@ ${sections}
 }
 
 /** Rendert nur eine einzelne Zone als self-contained Mini-Page (Thumbnail/Speaker-
- *  Vorschau): die feste 1280×720-Bühne wird **ins Fenster eingepasst** (fit-both,
- *  zentriert/Letterbox) — passt damit in jede Box (Spec §21). */
+ *  Vorschau, Übersicht). **Feste, native 1280×720-Intrinsic-Größe** (`--slideo-scale:1`,
+ *  kein Fit-Script): WKWebView dimensioniert ein Iframe oft nach seinem INHALT statt nach
+ *  der CSS-Größe — mit `height:100%` kollabierte die Seite (zirkulär) → leeres Iframe.
+ *  Die Anzeigegröße macht der Aufrufer, indem er einen 1280×720-**Wrapper** per CSS-
+ *  `transform: scale()` einpasst ([SlidePreview]) — Transform NICHT direkt aufs Iframe
+ *  (Safari-Bug), sondern auf den Wrapper. */
 export function renderSingleZonePage(
   presentation: Presentation,
   zone: Zone,
@@ -1774,9 +1778,10 @@ export function renderSingleZonePage(
 ${fontFaceCss(presentation, assets)}
 :root {
 ${tokensToCssString(presentation.tokens)}
+  --slideo-scale: 1;
 }
 ${SLIDE_CSS}
-html, body { height: 100%; overflow: hidden; }
-.slideo-frame { position: fixed; inset: 0; aspect-ratio: auto; margin: 0; }
-</style></head><body>${renderZoneSection(zone, assets, undefined, false, false, logoHtml(presentation, assets))}<script>(function(){function f(){var s=Math.min((document.documentElement.clientWidth||1)/1280,(document.documentElement.clientHeight||1)/720);if(s>0)document.documentElement.style.setProperty('--slideo-scale',String(s));}f();window.addEventListener('resize',f);})();</script></body></html>`
+html, body { width: 1280px; height: 720px; margin: 0; overflow: hidden; }
+.slideo-frame { position: absolute; inset: 0; aspect-ratio: auto; margin: 0; }
+</style></head><body>${renderZoneSection(zone, assets, undefined, false, false, logoHtml(presentation, assets))}</body></html>`
 }

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
-import type { Presentation, Zone, AssetMap } from '@/types'
+import type { Presentation } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
-import { renderSingleZonePage } from '@/lib/renderer'
+import { SlidePreview } from './SlidePreview'
 
 interface SpeakerViewProps {
   presentation: Presentation
@@ -28,39 +28,48 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
   const notes = current?.notes?.trim() ?? ''
 
   return (
-    <div className="flex h-full w-full gap-4 p-4 text-white">
-      {/* Aktuelle Folie */}
-      <div className="flex min-w-0 flex-[1.6] flex-col gap-2">
+    // Gestapelt (Spec §26): aktuelle Folie oben groß & randlos im 16:9, darunter eine
+    // Leiste mit Timer/Zähler, nächster Folie und Notizen.
+    <div className="flex h-full w-full flex-col gap-3 p-4 text-white">
+      {/* Kopfzeile: aktuelle Folie + Timer/Zähler */}
+      <div className="flex shrink-0 items-center justify-between">
         <Label>Aktuell · {current?.label ?? '—'}</Label>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-black">
-          {current && <MiniSlide presentation={presentation} zone={current} assets={assets} />}
-        </div>
-      </div>
-
-      {/* Seitenspalte */}
-      <div className="flex w-[34%] min-w-[18rem] flex-col gap-4">
-        <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-          <span className="text-3xl font-semibold tabular-nums">{formatTime(elapsed)}</span>
+        <div className="flex items-baseline gap-3">
+          <span className="text-2xl font-semibold tabular-nums">{formatTime(elapsed)}</span>
           <span className="text-sm text-white/50 tabular-nums">
             {Math.min(index + 1, count)} / {count}
             {stepTotal > 1 && <span className="text-white/30"> · Schritt {step + 1}/{stepTotal}</span>}
           </span>
         </div>
+      </div>
 
-        <div className="flex flex-col gap-2">
+      {/* Aktuelle Folie — so groß wie möglich, exakt 16:9 (füllt randlos), zentriert.
+          Höhen-getrieben (h-full → Breite = Höhe·16/9); max-w/max-h fangen extreme
+          Fensterformen ab (der Iframe-Inhalt passt sich per Scale-to-fit an, Spec §21). */}
+      <div className="flex min-h-0 flex-1 items-center justify-center">
+        <div className="relative aspect-video h-full max-h-full max-w-full overflow-hidden rounded-xl border border-white/10 bg-black">
+          {current && <SlidePreview presentation={presentation} zone={current} assets={assets} />}
+        </div>
+      </div>
+
+      {/* Untere Info-Leiste: nächste Folie + Notizen nebeneinander */}
+      <div className="flex h-[32%] min-h-[9rem] shrink-0 gap-4">
+        <div className="flex w-[34%] min-w-[13rem] flex-col gap-1.5">
           <Label>{next ? `Nächste · ${next.label}` : 'Letzte Folie'}</Label>
-          <div className="aspect-video overflow-hidden rounded-lg border border-white/10 bg-black">
-            {next ? (
-              <MiniSlide presentation={presentation} zone={next} assets={assets} />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-white/30">
-                Ende der Präsentation
-              </div>
-            )}
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="relative aspect-video h-full max-h-full max-w-full overflow-hidden rounded-lg border border-white/10 bg-black">
+              {next ? (
+                <SlidePreview presentation={presentation} zone={next} assets={assets} />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-white/30">
+                  Ende der Präsentation
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <Label>Notizen</Label>
           <div className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/85">
             {notes || <span className="text-white/30">Keine Notizen für diese Folie.</span>}
@@ -76,30 +85,6 @@ function Label({ children }: { children: React.ReactNode }) {
     <span className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
       {children}
     </span>
-  )
-}
-
-// Eine einzelne Folie, ins Fenster eingepasst (feste 16:9-Bühne, Spec §21).
-function MiniSlide({
-  presentation,
-  zone,
-  assets,
-}: {
-  presentation: Presentation
-  zone: Zone
-  assets: AssetMap
-}) {
-  const html = useMemo(
-    () => renderSingleZonePage(presentation, zone, assets),
-    [presentation, zone, assets],
-  )
-  return (
-    <iframe
-      srcDoc={html}
-      title="Folienvorschau"
-      sandbox="allow-scripts"
-      className="h-full w-full border-0"
-    />
   )
 }
 

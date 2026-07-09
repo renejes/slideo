@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Presentation, AssetMap } from '@/types'
-import { renderSingleZonePage } from '@/lib/renderer'
 import { Icon } from '@/components/ui/Icon'
+import { SlidePreview } from './SlidePreview'
 
 interface SlideOverviewProps {
   presentation: Presentation
@@ -84,7 +84,9 @@ export function SlideOverview({ presentation, assets, current, onJump, onClose }
       role="dialog"
       aria-modal="true"
       aria-label="Folien-Übersicht"
-      className="absolute inset-0 z-30 flex flex-col bg-[#0b0b0f]/95 backdrop-blur-sm"
+      /* Voll deckend OHNE backdrop-filter: ein backdrop-filter auf einem Vorfahren lässt
+         in WebKit verschachtelte Iframes (die Folien-Thumbnails) leer rendern. */
+      className="absolute inset-0 z-30 flex flex-col bg-[#0b0b0f]"
     >
       <div className="flex items-center justify-between px-6 py-4 text-white">
         <span className="text-sm font-medium text-white/70">
@@ -119,7 +121,12 @@ export function SlideOverview({ presentation, assets, current, onJump, onClose }
               }`}
             >
               <div
-                className={`relative aspect-video overflow-hidden rounded-lg border bg-black ${
+                // 16:9-Höhe über padding-bottom (nicht aspect-video): Der Kasten hat nur
+                // absolut positionierte Kinder (SlidePreview + Badges) → ohne In-Flow-Inhalt
+                // gibt WebKit einer aspect-ratio-Box hier keine Höhe (sie kollabiert auf 0 →
+                // „nur Titel"). padding-bottom:56.25% erzwingt 16:9 unabhängig vom Inhalt.
+                style={{ paddingBottom: '56.25%' }}
+                className={`relative w-full overflow-hidden rounded-lg border bg-black ${
                   isCurrent
                     ? 'border-chrome-accent ring-2 ring-chrome-accent'
                     : isSel
@@ -162,18 +169,6 @@ function Thumb({
     [presentation],
   )
   const zone = zones[zoneIndex]
-  const html = useMemo(
-    () => (zone ? renderSingleZonePage(presentation, zone, assets) : ''),
-    [presentation, assets, zone],
-  )
   if (!zone) return null
-  return (
-    <iframe
-      srcDoc={html}
-      title={zone.label}
-      sandbox="allow-scripts"
-      tabIndex={-1}
-      className="pointer-events-none h-full w-full border-0"
-    />
-  )
+  return <SlidePreview presentation={presentation} zone={zone} assets={assets} />
 }
