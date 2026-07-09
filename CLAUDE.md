@@ -98,7 +98,7 @@ gesamt inkl. `icon`), Barrierefreiheit (§19.7: Alt-Text + WCAG-Kontrast), **In-
 **echtes Zweitfenster** = randlos bildschirmfüllendes „projector"-Fenster auf gewähltem Monitor), **Medien**
 (§19.8: **Drag&Drop-Import**, **Bild-Crop**, **Icon-Inline-SVG** — Aufnahme/Narration **bewusst weggelassen**, s.u.), **PPTX-Export**
 (§19.5: native Rekonstruktion via pptxgenjs).
-**MCP-Tools: 35** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`,
+**MCP-Tools: 37** (war 23) — neu u.a. `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`, `check_zone_overflow`/`validate_deck`,
 `set_transition`, `list_components`/`insert_component`, sowie (MCP-Parität) `set_logo`/`clear_logo`,
 `register_font`, `set_presentation_title`, `set_zone_label`.
 
@@ -412,7 +412,7 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
-app-weit geprüft → 35 Tools; **Outline-Modus §19.9 wieder entfernt** — redundant, Reorder liegt jetzt in der Folienliste). **§19.8 Aufnahme/Narration + Video-Export ist bewusst weggelassen** (out of scope —
+app-weit geprüft → 37 Tools; **Outline-Modus §19.9 wieder entfernt** — redundant, Reorder liegt jetzt in der Folienliste). **§19.8 Aufnahme/Narration + Video-Export ist bewusst weggelassen** (out of scope —
 off-thesis; Medien-Bedarf via Einbettung gedeckt; siehe [[scope-mcp-authoring-thesis]]). **Neu: §20
 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt** (Klick→Quelle, Auswählen/Löschen/Duplizieren,
 Inline-Text, Verschieben; s.o.) **+ §21 feste 16:9-Folien-Bühne + Scale-to-fit** (ersetzt responsive 100vh-Zonen;

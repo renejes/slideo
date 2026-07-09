@@ -8,20 +8,22 @@
 > MVP + Roadmap **§18/§19** umgesetzt (Charts, A11y, Builds + Auto-Animate, Vorlagen/Marke, Suchen&Ersetzen +
 > Versionshistorie, Presenter-Tools inkl. echtem Zweitfenster, Medien, PPTX, Komponenten-Palette; **§19.8 Aufnahme/
 > Narration + Video-Export bewusst weggelassen**). **§20 Direktmanipulation** (HTML *und* Markdown-Blöcke) **+ §21 feste
-> 16:9-Bühne** **+ §22 Security-Härtung** (S1–S9). **MCP: 35 Tools.**
+> 16:9-Bühne** **+ §22 Security-Härtung** (S1–S9) **+ §23 Zonen-Links + §24 Workflow-Optimierung + §25 Vorschau-In-Place-
+> Patch + §26 teilbares Folien-Fenster (Ein-Monitor-Remote) + gestapelte SpeakerView**. **MCP: 37 Tools · 17 Komponenten.**
 >
 > **Seit diesem Stand-Dokument zusätzlich (maßgeblich: [../CLAUDE.md](../CLAUDE.md), Records in [done/](done/)):**
-> **Security-Härtung S1–S9** (IPC-Token, CSP, ZIP-Caps …); **Performance** P1/P3/P4/P5/P7/P8/P9/P10/P13 (Font-Subset,
-> Bilder in-app über `slideoasset://` + Rust-Decode-Cache, Code-Splitting, …); **Editor-Cleanup** (Shell **2-spaltig**,
-> linke **Sidebar/Folienliste entfernt** → Reorder über die Editor-Karten, **Design-System als Brand-Kit-Overlay**,
-> kontext-sensitive Toolbar, **Outline-Modus entfernt**); **Markdown-Direktmanipulation** (Block auswählen/duplizieren/
-> löschen + Inline-Text-Edit); **Medien/Komponenten** werden in HTML-Zonen **absolut & sichtbar** eingefügt + **HTML-Bild-
-> Resize**. **Automatisiert grün** (cargo test **33**, typecheck, vite build); jeder größere Schritt adversarial
-> multi-agent-reviewt; die zuletzt gebauten Features **GUI-bestätigt**.
+> **Security-Härtung S1–S9** (IPC-Token, CSP, ZIP-Caps …); **Performance** P1–P13 (Font-Subset, Bilder in-app über
+> `slideoasset://` + Rust-Decode-Cache, Code-Splitting, **P2/P6 Vorschau-In-Place-Patch §25**); **Editor-Cleanup** (Shell
+> **2-spaltig**, linke **Sidebar/Folienliste entfernt** → Reorder über die Editor-Karten, **Design-System als Brand-Kit-
+> Overlay**, **Outline-Modus entfernt**); **Markdown-Direktmanipulation** (§20); **§23 Zonen-Links** (`data-slideo-goto` +
+> `toc`); **§24 Workflow-Optimierung** (Onboarding, Asset-Verwaltung, **Komponenten 11→17**, KI-Layout-Check → **37 MCP-
+> Tools**); **§26** teilbares **Folien-Fenster** für Ein-Monitor-Remote (Zoom/Meet) + **gestapelte SpeakerView** + WebKit-
+> robuste Folien-Vorschauen (gemeinsame `SlidePreview`). **Automatisiert grün** (cargo test **42**, typecheck, vite build);
+> jeder größere Schritt adversarial multi-agent-reviewt; die zuletzt gebauten Features **GUI-bestätigt**.
 >
-> **Nächster Fokus (siehe [next-steps.md](next-steps.md)/[handover.md](handover.md)):** Codebase **grafisch darstellen**
-> → **Workflow-Optimierung** → **Release-Ready** (Distribution/Notarization, voller GUI-Test A1–A7). Bewusst vertagt:
-> Perf P2/P6 (Vorschau-In-Place-Patch).
+> **Nächster Fokus (siehe [next-steps.md](next-steps.md)/[handover.md](handover.md)):** **Release-Ready** —
+> **Distribution/Notarization** (Signing, notarisierte/Cross-Platform-Builds) + voller **GUI-Test A1–A7** + optionaler
+> `catch_unwind`-Hardening-Punkt.
 
 ---
 
@@ -67,7 +69,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - Light/minimalistisches App-Chrome (an Penwright orientiert), Material-Symbols-Icons, WCAG-AA-Kontraste, `prefers-reduced-motion`.
 
 ### MCP-Server (KI-Anbindung)
-- **35 Tools** (Presentation, Zones, Content, Tokens, Styles, Presentation-Mode, `set_zone_css`, `list_assets` + `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`, `set_transition`, `list_components`/`insert_component` + **MCP-Parität** `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label`).
+- **37 Tools** (Presentation, Zones, Content, Tokens, Styles, Presentation-Mode, `set_zone_css`, `list_assets` + `set_zone_notes`, `set_zone_reveal`, `list_presets`/`apply_preset`, `set_transition`, `list_components`/`insert_component` + **MCP-Parität** `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` + **§24-Layout-Check** `check_zone_overflow`/`validate_deck`).
 - **MCP-Parität geprüft** (Spec §13): Multi-Agent-Audit (60 Mensch-Fähigkeiten ↔ Tools) → alles Dokument-Authoring ist über MCP erreichbar (direkt oder durch Markdown/HTML-Inhalt); die 5 obigen Tools schlossen die letzten Dokument-Lücken. Bewusst nur Mensch: Asset-Binär-Upload/Crop, Datei-Exporte, Undo/Snapshots, Laufzeit-/Display-Steuerung.
 - **10 token-bewusste Komponenten** (`insert_component`): stat_cards, bar_chart, **line_chart**, **donut_chart**, progress, quote, timeline, comparison, callout, **icon** (Inline-SVG, §19.8).
 - **KI-Steuerung:** `instructions` im `initialize` (Markdown-first, Presets/Komponenten/Charts, token-bewusstes HTML, Bild-Positionierung, Builds) + MCP-Prompt **`slideo_guide`** (aufrufbarer Leitfaden mit `thema`-Argument).

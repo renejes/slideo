@@ -1000,7 +1000,7 @@ HTML-Zonen führen beliebiges JavaScript im Präsentations-Iframe aus. Das ist g
 ### 19.4 Vorlagen & Marke — *medium*
 - ✅ **Custom-Fonts-Upload UMGESETZT:** Font-Datei (woff2/woff/ttf/otf) → Asset in `assets/` + `presentation.fonts` ({family, asset}); Renderer injiziert `@font-face` (Vorschau/Präsentation/Export); im Design-Tab „Schriften"-Upload + Auswahl-Datalist für die Font-Felder ([fonts in renderer.ts](../src/lib/renderer.ts), Store `addFont`). guess_mime kennt Font-Endungen.
 - ✅ **Logo/Brand UMGESETZT:** `meta.logo = { asset, position }` (additiv); Renderer zeigt das Logo absolut in der gewählten Ecke **jeder** Folie (auch Export/PDF). Upload + Position + Entfernen im Design-Tab „Logo" (Store `setLogo`/`setLogoPosition`/`clearLogo`). **MCP-Parität:** `set_logo(asset, position?)`/`clear_logo` (asset = vorhandenes Asset aus `list_assets`).
-- ✅ **MCP-Parität (Marke/Meta/Schriften):** ein Multi-Agent-Audit (Mensch-Fähigkeiten ↔ MCP-Tools) bestätigte, dass nur Dokument-Felder für Marke/Meta fehlten; ergänzt: `set_presentation_title`, `set_zone_label`, `set_logo`/`clear_logo`, `register_font(family, asset)` (registriert ein vorhandenes Font-Asset als `presentation.fonts`-Eintrag → via `set_token` aktivierbar). **35 MCP-Tools.** Bewusst **nur Mensch:** Binär-Upload/Crop von Assets, lokale Datei-Exporte, Undo/Snapshots, Laufzeit-/Display-Steuerung (Präsentieren, Laser/Stift, Zweitfenster-Routing).
+- ✅ **MCP-Parität (Marke/Meta/Schriften):** ein Multi-Agent-Audit (Mensch-Fähigkeiten ↔ MCP-Tools) bestätigte, dass nur Dokument-Felder für Marke/Meta fehlten; ergänzt: `set_presentation_title`, `set_zone_label`, `set_logo`/`clear_logo`, `register_font(family, asset)` (registriert ein vorhandenes Font-Asset als `presentation.fonts`-Eintrag → via `set_token` aktivierbar). **35 MCP-Tools** (mit dem späteren §24-Layout-Check `check_zone_overflow`/`validate_deck` → **37**). Bewusst **nur Mensch:** Binär-Upload/Crop von Assets, lokale Datei-Exporte, Undo/Snapshots, Laufzeit-/Display-Steuerung (Präsentieren, Laser/Stift, Zweitfenster-Routing).
 - ✅ **Starter-Templates UMGESETZT:** [templates.ts](../src/lib/templates.ts) — 4 Decks (Leer, Pitch, Vortrag, Editorial) mit Token-Preset + Seed-Zonen (inkl. Layouts + Builds); auswählbar im Neu-Dialog (`newPresentation(title, template)`).
 - *Polish:* Font-/Logo-Assets erscheinen aktuell auch in der Settings-Asset-Library als „kaputtes" Thumbnail (eigene Kachel später).
 
@@ -1129,9 +1129,11 @@ gestaltet, dass er passt). Der Skalierungsfaktor wird **im Iframe per JS** geset
   sonst Scroll-Snap (`.slideo-frame` 100vh).
 - **Print/PDF** (`renderPrintPage`): Frame = 1280×720-Seite (`page-break`), Zone `transform:none` (1:1, deckt sich
   jetzt mit dem Editor-Maßstab).
-- **Thumbnail/Speaker-Vorschau** (`renderSingleZonePage`): **fit-both** (`s = min(...)`, Frame `position:fixed;
-  inset:0`) → eine Folie zentriert/eingepasst in jede Box. SpeakerView rendert „aktuell"+„nächste" je als eigene
-  `renderSingleZonePage` (statt Deck + `goto`).
+- **Thumbnail/Speaker-Vorschau:** SpeakerView (seit §26 **gestapelt**: aktuelle Folie oben groß im 16:9, darunter Timer/
+  nächste Folie/Notizen) **und** SlideOverview rendern jede Folien-Vorschau über die gemeinsame Komponente
+  [SlidePreview.tsx](../src/components/presentation/SlidePreview.tsx): `renderSingleZonePage` rendert bei **fester nativer
+  1280×720** (`--slideo-scale:1`), die Anzeigegröße macht ein per CSS-`transform` skaliertes Wrapper-`div` (WebKit-Härtung,
+  siehe §26).
 
 **Wechselwirkung mit Skalierung (kritisch):** `getBoundingClientRect` liefert in einer skalierten Zone
 **Bildschirm-px** (skaliert), `clientWidth/Height/Left/Top` dagegen **unskalierte Layout-px** (CSS-Transform berührt
@@ -1169,7 +1171,7 @@ Vollreport + Bedrohungsmodell: [audit.md](audit.md). Umgesetzte Härtungen (Bran
 - **IPC-Steuer-Socket authentifiziert (S1/S8):** Der lokale TCP-Socket (App ↔ `slideo mcp`) verlangt jetzt ein beim
   Start erzeugtes **Shared-Secret-Token**; `ipc.json` (Port + Token) wird mit **0600** angelegt. Anfragen ohne
   gültiges Token werden abgewiesen → die bloße Kenntnis des Ports reicht einem fremden lokalen Prozess nicht mehr,
-  die 35 Tools aufzurufen. Eingehende Bytes pro Verbindung sind auf 16 MiB begrenzt. **Restgrenze:** ein
+  die MCP-Tools aufzurufen. Eingehende Bytes pro Verbindung sind auf 16 MiB begrenzt. **Restgrenze:** ein
   Same-UID-Prozess kann `ipc.json` lesen (gleicher Nutzer = gleiche Dateirechte) — das ist akzeptiert (er hat ohnehin
   die Rechte des Nutzers). 0600 schützt zusätzlich auf Multi-User-Hosts ([ipc.rs](../src-tauri/src/ipc.rs)).
 - **Content-Security-Policy gesetzt (S2/S3):** Die App-CSP in [tauri.conf.json](../src-tauri/tauri.conf.json) ist von
@@ -1322,7 +1324,8 @@ Strategie gewählt; der **Voll-Reload bleibt immer der Fallback**. Reine Render-
 
 **Verifikation:** headless `typecheck` + `vite build` + `node --check` der drei emittierten Iframe-Skripte (nav/edit/patch)
 grün; **zwei adversariale Multi-Agent-Review-Runden** (6 Dimensionen → 5 bestätigte Findings gefixt; fokussiertes
-Fix-Re-Review → 2 weitere gefixt). **GUI-Check ausstehend** (Checkliste [next-steps.md](next-steps.md) §1b P2/P6).
+Fix-Re-Review → 2 weitere gefixt). **GUI-bestätigt** (In-Place-Patch verifiziert: Token-/Zonen-Patch statt Voll-Reload,
+Voll-Reload nur strukturell).
 
 ## 26. Remote-Präsentation auf EINEM Bildschirm (teilbares Folien-Fenster)
 
@@ -1352,6 +1355,18 @@ fenster): Laser/Stift im Zwei-Fenster-Modus aus; Live-Edits laden das Folien-Fen
 Tauri-Command, **kein Schema-Eingriff**. Ambitioniertere Wege (lokaler LAN-Viewer; echtes WebRTC-Remote) bewusst nicht
 gebaut — Bedarf ist gedeckt.
 
+**SpeakerView + Folien-Vorschau (Teil derselben §26-Runde).** Die [SpeakerView](../src/components/presentation/SpeakerView.tsx)
+ist **gestapelt** (aktuelle Folie oben groß im 16:9, darunter Timer · nächste Folie · Notizen) statt zweispaltig. Alle
+Folien-Thumbnails (SpeakerView + [SlideOverview](../src/components/presentation/SlideOverview.tsx)) laufen über die
+gemeinsame [SlidePreview](../src/components/presentation/SlidePreview.tsx). Dabei mussten **vier WKWebView/WebKit-Fallen**
+entschärft werden, die kleine Folien-Vorschauen leer rendern ließen (für künftige Iframe-Thumbnails merken): (1) WKWebView
+dimensioniert ein Iframe nach seinem **Inhalt** statt der CSS-Größe → `renderSingleZonePage` rendert nun bei **fester nativer
+1280×720** (`--slideo-scale:1`, kein Fit-Script) statt `height:100%` (kollabierte zirkulär); (2) **`transform` direkt aufs
+Iframe** ist in Safari fehlerhaft → skaliert wird ein **Wrapper-`div`**; (3) ein **`backdrop-filter` auf einem Vorfahren**
+lässt verschachtelte Iframes leer rendern → das Übersicht-Overlay ist voll deckend **ohne** Blur; (4) eine **`aspect-ratio`-
+Box mit nur absolut positionierten Kindern** bekommt in WebKit **keine Höhe** → der Übersicht-Kasten nutzt den
+**`padding-bottom:56.25%`-Trick**.
+
 **Verifikation:** typecheck/vite build/`cargo check` grün; fokussiertes adversariales Review (Rust-Fenster-Semantik +
-FE-State/UX) clean. **GUI-Check ausstehend** (in Zoom/Meet „Fenster teilen" listet „Slideo — Präsentation"; nur Folie
-sichtbar, Notizen privat; Navigation vom Cockpit; Schließen/Erneut-Öffnen).
+FE-State/UX) clean. **GUI-bestätigt** (Fenster-Teilen in Zoom/Meet listet „Slideo — Präsentation", nur Folie sichtbar,
+Navigation vom Cockpit, Schließen/Erneut-Öffnen; gestapelte SpeakerView + Übersicht-Thumbnails rendern).

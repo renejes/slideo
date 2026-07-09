@@ -53,10 +53,12 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
   UI **live** per Tauri-Event.
 - **Auto-Registrierung:** Beim App-Start wird Slideo idempotent in die
   `claude_desktop_config.json` eingetragen (nur falls Claude Desktop installiert ist).
-- **30 Tools:** Presentation, Zones, Content, Tokens, Styles, Presentation-Mode,
+- **37 Tools:** Presentation, Zones, Content, Tokens, Styles, Presentation-Mode,
   Speaker-Notes (`set_zone_notes`), Builds (`set_zone_reveal`), Themes
   (`list_presets`/`apply_preset`), Transitions (`set_transition`), Komponenten
-  (`list_components`/`insert_component`), Assets (`list_assets`), Custom-CSS (`set_zone_css`).
+  (`list_components`/`insert_component`), Assets (`list_assets`), Custom-CSS (`set_zone_css`),
+  Marke/Meta (`set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label`),
+  KI-Layout-Check (`check_zone_overflow`/`validate_deck`).
 - **MCP-Prompt `slideo_guide`:** aufrufbarer Leitfaden, wie eine KI Slideo hochwertig nutzt.
 
 > Voraussetzung: Die Slideo-App muss **laufen**, damit der MCP-Server sich verbinden kann.
@@ -64,12 +66,13 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
 ## Status — MVP funktional komplett
 
 - ✅ Datenmodell, Zustand-Store, `.slideo` Reader/Writer (Rust) + Round-Trip-Test
-- ✅ Editor: Zone-Cards (Tiptap), Drag&Drop-Reordering, Add/Delete, Token-Sidebar
+- ✅ Editor: Zone-Cards (Tiptap), Drag&Drop-Reordering, Add/Delete, Design-Overlay (Brand-Kit-Tokens)
 - ✅ **Interaktive HTML-Zonen** (`content_type: 'markdown' | 'html'`, CodeMirror) — Spec §14
-- ✅ Live-Preview (isoliertes Iframe) + Vollbild-Präsentationsmodus mit Tastatur-Navigation
-- ✅ **Integrierte Speaker-View** (aktuelle + nächste Folie, Timer, Notizen, Zähler; Taste `s`)
+- ✅ Live-Preview (isoliertes Iframe, **In-Place-Patch** statt Voll-Reload — §25) + Vollbild-Präsentationsmodus mit
+  Tastatur-Navigation + **teilbares Folien-Fenster** für Ein-Monitor-Remote (Zoom/Meet, §26)
+- ✅ **Integrierte Speaker-View** (gestapelt: aktuelle Folie oben 16:9, darunter Timer · nächste Folie · Notizen; Taste `s`)
 - ✅ Light/minimalistisches Design (Penwright-nah) + Material-Symbols-Icons
-- ✅ **MCP-Server** (30 Tools, Live-Socket, Auto-Registrierung) — verifiziert per Unit- + E2E-Test
+- ✅ **MCP-Server** (37 Tools, Live-Socket, Auto-Registrierung) — verifiziert per Unit- + E2E-Test
 - ✅ Undo (Cmd/Ctrl+Z), Shortcuts (Cmd+S/N), Toast-Feedback, Unsaved-Changes-Guard
 - ✅ **Neue-Präsentation-Modal** (Name + Speicherort) + **Settings-Menü** (Shell)
 - ✅ **Bild-Import** über `assets/`-Ordner im ZIP — Referenz `assets/<name>`, im Renderer zu
@@ -79,7 +82,7 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
 
 - ✅ **Speaker-Notes**, **HTML- & PDF-Export + Teilen**, **Themes/Presets** (5), **Folien-Transitions**
   (fade/slide/zoom), **Bild-Positionierung** Light (Toolbar) + Medium (Block-Drag/Resize **in der Vorschau**),
-  **Komponenten-Bibliothek** (9, inkl. Charts) + erweiterter Agenten-Skill.
+  **Komponenten-Bibliothek** (17, inkl. Charts, Tabellen, TOC) + erweiterter Agenten-Skill + Komponenten-Palette im Editor.
 - ✅ **In-Folien-Builds** (schrittweises Einblenden), **Barrierefreiheit** (Alt-Text + WCAG-Kontrast),
   **Custom-Fonts** (Upload → `@font-face`), **Logo/Brand** auf jeder Folie, **Starter-Templates**
   (Pitch/Vortrag/Editorial), **Suchen & Ersetzen** + Rechtschreibung.
@@ -88,10 +91,14 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
 `Cmd/Ctrl+S` speichern · `Cmd/Ctrl+N` neu · `Cmd/Ctrl+Z` rückgängig · `Cmd/Ctrl+F` Suchen & Ersetzen ·
 Präsentation: `←/→/Leertaste` navigieren (Builds Schritt für Schritt) · `s` Speaker-Ansicht · `Esc` verlassen
 
-### Bewusst noch offen (nächste Schritte, siehe [docs/next-steps.md](docs/next-steps.md))
+### Weiter umgesetzt (§19.1–§19.9 + §20–§26)
 
-- **Presenter-Tools** (§19.3): Folien-Übersicht/Sprung, Laser/Stift, echtes Zweitfenster, Auto-Advance
-- **Auto-Animate/Morph** (§19.1, zweite Hälfte) · **PPTX-Export** (§19.5) · **Outline-Modus + Versionshistorie** (§19.9)
-- **Medien** (§19.8): Drag&Drop-Bildimport, Crop, Aufnahme/Narration · **Komponenten-Palette** (manuell, Polish)
-- Plattformübergreifende Builds (Windows/Linux) + Signing/Notarization · Material-Symbols-Font subsetten
-# slideo
+- ✅ **Presenter-Tools** (§19.3): Folien-Übersicht/Sprung, Laser/Stift, **echtes Zweitfenster** + **teilbares Folien-Fenster** (§26), Auto-Advance/Loop
+- ✅ **Auto-Animate/Morph** (§19.1) · **Daten-Diagramme** (§19.2) · **PPTX-Export** (§19.5) · **Versionshistorie** (§19.9)
+- ✅ **Medien** (§19.8): Drag&Drop-Bildimport, Crop · **Komponenten-Palette** im Editor (Aufnahme/Narration bewusst out-of-scope)
+- ✅ **Direktmanipulation in der Vorschau** (§20) · **feste 16:9-Bühne** (§21) · **Security-Härtung** (§22) · **Zonen-Links** (§23) · **Workflow-Optimierung** (§24) · **Vorschau-In-Place-Patch** (§25)
+
+### Offen (Release-Ready)
+
+- Voller GUI-Test (Checklisten in [docs/next-steps.md](docs/next-steps.md) Abschnitt A) · **Distribution/Notarization**
+  (Signing, notarisierte/Cross-Platform-Builds — Abschnitt C) · optional `catch_unwind`-Hardening um `tools::handle`.

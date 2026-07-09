@@ -1,20 +1,17 @@
 # Slideo — Nächste Schritte
 
-> **AKTUELLER FOKUS: Slideo ist im Prinzip release-reif → Release-Ready machen.** Reihenfolge (siehe
-> [handover.md](handover.md)): **(1)** Codebase **grafisch darstellen** (wie ist sie aufgebaut, was kann sie, wo —
-> bestehende [slideo_architecture.svg](slideo_architecture.svg) prüfen/erneuern) → **(2) Workflow-Optimierung**
-> überlegen + besprechen (Mensch *und* KI-über-MCP; was lässt sich am Authoring-Fluss noch verbessern) → **(3) Release**
-> (Distribution/Notarization, Abschnitt C + voller GUI-Test A).
+> **AKTUELLER FOKUS: Slideo ist funktional komplett → Release-Ready machen.** Verbleibend: voller GUI-Test (Abschnitt A)
+> + **Distribution/Notarization** (Abschnitt C) + optionaler `catch_unwind`-Hardening-Punkt.
 >
-> **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 33, typecheck, vite build):**
-> Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 (s.u. 1b) · **Editor-Cleanup** (2-spaltige Shell,
-> Sidebar raus, Brand-Kit-Overlay, kontext-sensitive Toolbar) · **Markdown-Direktmanipulation** (§20 auf Markdown-Blöcke
-> ausgeweitet) · sichtbares Einfügen + HTML-Bild-Resize. Records → [done/](done/) (`audit.md`, `editor-cleanup-plan.md`,
-> `direct-manipulation-plan.md`). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
+> **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 42, typecheck, vite build):**
+> Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 · **P2/P6 Vorschau-In-Place-Patch (§25)** ·
+> **§26 teilbares Folien-Fenster (Ein-Monitor-Remote) + gestapelte SpeakerView + WebKit-robuste Folien-Vorschauen** ·
+> **Workflow-Optimierung (§24:** Onboarding, Asset-Verwaltung, Komponenten 11→17, KI-Layout-Check, **37 MCP-Tools**) ·
+> **Editor-Cleanup** (2-spaltige Shell, Sidebar raus, Brand-Kit-Overlay) · **Markdown-Direktmanipulation** (§20) ·
+> §21 feste 16:9-Bühne · §23 Zonen-Links. Records → [done/](done/). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
 >
-> **Offen für den Release:** Workflow-Optimierungs-Runde (Ziel der nächsten Session) · **bewusst vertagte Perf** P2/P6
-> (Vorschau-In-Place-Patch, s.u. 1b) · voller GUI-Test A1–A7 (A) · Distribution/Notarization (C).
-> Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
+> **Offen für den Release:** voller GUI-Test A1–A7 (Abschnitt A) · Distribution/Notarization (Abschnitt C) · optional
+> `catch_unwind` um `tools::handle` (Defense-in-Depth). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
@@ -53,16 +50,11 @@
       nur `innerHTML`-Swap → nav/§23 gültig) statt Reload; Voll-Reload bleibt Fallback (Nonce erzwingt `onLoad`).
       Laufende §20-Interaktion via `slideo:preview-busy` geschützt (Pointer-Capture + blur + busyRef-Reset). Headless grün
       (typecheck/build/`node --check` der 3 Iframe-Skripte); 2 adversariale Review-Runden (7 Findings gefixt).
-      **— GUI-Test offen (Checkliste unten P2/P6-GUI).**
-  - **P2/P6-GUI-Checkliste** (im `tauri:dev`, HTML- **und** Markdown-Zonen):
-    - [ ] **Tippen** im Markdown-Editor → Vorschau aktualisiert die betroffene Folie **ohne Reload/Flackern**; Scroll bleibt.
-    - [ ] **Design** (Token/Farbe/Schrift/Größe schieben) → sofort, kein Flackern; §20-Auswahl-Overlay bleibt am Element.
-    - [ ] **§20 Direktbearbeiten:** Auswahl/Inline-Edit/Duplizieren/Löschen/**Verschieben+Freeze** — überleben einen
-          Inhalts-Patch; kein Zerreißen mitten im Drag. Maus **außerhalb** der Vorschau loslassen → kein Einfrieren.
-    - [ ] **Struktur:** Folie hinzufügen/löschen/umsortieren, `content_type` toggeln → sauberer Voll-Reload.
-    - [ ] **§23-Links** (TOC-Sprung/Rücksprung) + Bild/Video weiter korrekt nach Patches; Präsentation/Standalone unverändert.
-    - [ ] **Reset:** „Zurücksetzen"/`reset_tokens` mit zuvor gesetztem Custom-Token → Vorschau zeigt keinen stale Wert.
-    - [ ] **MCP** (Claude Desktop) editiert eine Folie live → nur diese patcht; kein Ganzseiten-Reload.
+      **— GUI-bestätigt (auf `main` gemerged, Commit `adea83b`).**
+  - **P2/P6-GUI-Checkliste (bestätigt):** Tippen patcht ohne Reload/Flackern (Scroll bleibt) · Design/Token sofort ·
+    §20 (Auswahl/Inline/Duplizieren/Löschen/Verschieben+Freeze) überlebt Patches, Maus-außerhalb friert nicht ein ·
+    Struktur (add/del/reorder, `content_type`) → sauberer Voll-Reload · §23-Links + Bild/Video weiter korrekt ·
+    Reset/`reset_tokens` ohne stale Token · MCP-Live-Edit patcht nur die eine Folie.
 - [ ] **P12 (`Vec<u8>` intern):** **bewusst übersprungen** — hohes Risiko (MCP-Save load-bearing), geringer Wert (Speicher), im Konflikt mit dem P7-Cache.
 
 ### 1c. Optimierungs-/Überarbeitungs-Runde
@@ -106,7 +98,7 @@ Bisher ist alles nur automatisch grün (`cargo test` 27, `typecheck`, `vite buil
 Feature), aber **noch nichts in der echten App durchgeklickt**. **A1–A7 Punkt für Punkt** — der
 **Mensch testet**, die **KI fixt bestätigte Findings**.
 
-Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderung zusätzlich **Claude Desktop neu starten** (sonst altes MCP-Binary! — jetzt **35 MCP-Tools**).
+Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderung zusätzlich **Claude Desktop neu starten** (sonst altes MCP-Binary! — jetzt **37 MCP-Tools**).
 
 ### A1. Editor-Grundfunktionen
 - [ ] Neue Präsentation: „Neu" → Modal (Name + Speicherort) → speichert direkt als `.slideo`.
@@ -126,7 +118,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Zonen-Links (§23):** `toc`-Komponente (Palette) oder HTML-Zone mit `<a data-slideo-goto="2">…</a>` einfügen → in der **Präsentation** auf einen Eintrag klicken springt zur Zielfolie; **Rücksprung-Link** zurück zum Inhalt. Auch mit aktiver **Transition** (Deck-Modus) testen. **Standalone-Export** (.html im Browser): Klick springt + Browser-Zurück. **Vorschau** (Nicht-Edit): Klick scrollt zur Zone. Markdown-`#`-Link `[x](#zone-<ID>)` testen (about:srcdoc-abhängig). Zweitfenster/Projektor: Klick auf der Beamer-Folie springt.
 
 ### A4. MCP / KI (Claude Desktop)
-- [ ] Claude Desktop neu starten → Slideo-Tools erscheinen (sollten **23** sein, inkl. `set_zone_css`, `list_assets`).
+- [ ] Claude Desktop neu starten → Slideo-Tools erscheinen (sollten **37** sein, inkl. `set_zone_css`, `list_assets`).
 - [ ] Generierung: „Baue eine Präsentation über X mit dunklem Theme" → Folien erscheinen **live** im Editor.
 - [ ] Prüfen, ob Claude **Markdown-first** baut (Tokens/Layouts statt Inline-HTML) und HTML nur token-basiert nutzt.
 - [ ] MCP-Prompt `slideo_guide` in Claude Desktop aufrufbar?
@@ -162,13 +154,13 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 > was am schnellsten geht, und arbeiten uns zu den großen Brocken vor — ob das eine Session schafft
 > oder mehrere, zeigt sich unterwegs. Grobe Reihenfolge nach Aufwand (klein → groß):
 > 1. ✅ **Komponenten-Palette** (umgesetzt) — 10 Rust-Komponenten per UI-Klick einsetzen (Tauri-Commands `list_components`/`render_component`, derselbe Generator wie MCP), mit Parameter-Formularen + Live-Vorschau.
-> 2. ✅ **Outline-Modus** (umgesetzt) — Folientexte als editierbare Gliederung ([OutlineView.tsx](../src/components/editor/OutlineView.tsx), verlustfrei über [outline.ts](../src/lib/outline.ts)).
+> 2. ~~**Outline-Modus**~~ — zunächst umgesetzt, dann **wieder entfernt** (redundant; Reorder liegt jetzt in der Folienliste/den Editor-Karten). `OutlineView.tsx`/`outline.ts` existieren nicht mehr.
 > 3. ✅ **Versionshistorie** (umgesetzt) — lokale `.slideo`-Snapshots (Auto + manuell, Wiederherstellen) — [history.rs](../src-tauri/src/history.rs) / [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx).
 > 4. ✅ **Auto-Animate/Morph** (umgesetzt) — Übergang `auto`: gleiche `data-id`-Elemente zwischen Folien per FLIP ([renderer.ts](../src/lib/renderer.ts), `data-id` via HTML-Zone / `insert_component`).
 > 5. ✅ **Echtes Zweitfenster** (umgesetzt) — `projector`-Fenster (randlos bildschirmfüllend) + Monitor-Dropdown + Event-Sync; Ein-Fenster-Modus bleibt.
 > 6. ❌ **§19.8 Aufnahme/Narration + Video-Export** — **bewusst weggelassen (out of scope):** off-thesis für eine MCP/KI-Authoring-App; Medien-Bedarf ist via Einbettung gedeckt; schlimmste WKWebView-Hürden. Wird nicht gebaut.
 >
-> Quer dazu **erledigt**: MCP-Paritäts-Audit → 5 neue Tools (`set_logo`/`clear_logo`/`register_font`/`set_presentation_title`/`set_zone_label`), **35 MCP-Tools**.
+> Quer dazu **erledigt**: MCP-Paritäts-Audit → 5 neue Tools (`set_logo`/`clear_logo`/`register_font`/`set_presentation_title`/`set_zone_label`); mit dem §24-Layout-Check (`check_zone_overflow`/`validate_deck`) **37 MCP-Tools**.
 >
 > **Damit ist die Feature-Roadmap §18/§19 im Wesentlichen durch.** Nächste Session: **(1) vollständiger GUI-Test A1–A7**, **(2) Polish auswählen** (siehe „Polish-Kandidaten" unten), später **(3) Distribution/Notarization** (C). Keine neuen großen Features geplant.
 >
@@ -178,7 +170,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - ✅ **19.7 Barrierefreiheit** — Alt-Text-Feld + WCAG-Kontrast-Check.
 - ✅ **19.1 In-Folien-Builds + Auto-Animate** — `set_zone_reveal`, parent-autoritative Nav; **Übergang `auto`** = FLIP-Morph gleicher `data-id`-Elemente zwischen benachbarten Folien (In-App + Export). **§19.1 komplett.**
 - ✅ **19.4 Vorlagen & Marke** — Custom-Fonts + Logo/Brand + Starter-Templates.
-- ✅ **19.9 Suchen & Ersetzen** + Spellcheck + **Outline-Modus** (Ansichtswechsel „Folien ⇄ Gliederung", verlustfreie Titel/Rumpf-Bearbeitung über [outline.ts](../src/lib/outline.ts)) + **Versionshistorie** (lokale `.slideo`-Snapshots, Auto beim Speichern + manuell, Wiederherstellen — [history.rs](../src-tauri/src/history.rs) / [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx)). **§19.9 komplett.**
+- ✅ **19.9 Suchen & Ersetzen** + Spellcheck + **Versionshistorie** (lokale `.slideo`-Snapshots, Auto beim Speichern + manuell, Wiederherstellen — [history.rs](../src-tauri/src/history.rs) / [HistoryModal.tsx](../src/components/modals/HistoryModal.tsx)). **§19.9 komplett.**
 - ✅ **19.3 Presenter-Tools** — Folien-Übersicht/Sprung-Grid, Laser-/Stift-Overlay, Auto-Advance/Loop + **echtes Zweitfenster** (randlos bildschirmfüllendes `projector`-Fenster auf gewähltem Monitor, Event-Sync; [present.rs](../src-tauri/src/present.rs)/[ProjectorView.tsx](../src/components/presentation/ProjectorView.tsx)). **§19.3 komplett** (Multi-Display-GUI-Test steht aus).
 - ✅ **19.8 Medien** — Drag&Drop-Medienimport, Bild-Crop (non-destruktiv), Icon-Inline-SVG-Komponente. **Aufnahme/Narration + Video-Export: bewusst weggelassen** (out of scope — off-thesis; Einbettung deckt den Bedarf). → §19.8 abgeschlossen.
 - ✅ **19.5 PPTX-Export (v1)** — **native Rekonstruktion** via pptxgenjs (Text/Bilder/Token-Hintergründe, in PowerPoint editierbar). Bild-basiert (1:1) entfällt in-app wegen WKWebView-Canvas-Taint; optional später via Browser-Offload.
@@ -192,7 +184,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Notizen:** Notizen-Panel pro Zone → Text erscheint in der Speaker-View.
 - [ ] **Themes:** Theme-Picker im Design-Tab → Preset wendet Farben/Fonts live an.
 - [ ] **Komponenten (MCP):** „füge ein Balkendiagramm/eine Timeline ein" → `insert_component` erzeugt token-bewusste HTML-Zone, live sichtbar, über Token-Sidebar umfärbbar.
-- [ ] **MCP-Tools 35:** Claude Desktop neu starten → `set_zone_notes`, `set_zone_reveal`, `apply_preset`, `set_transition`, `list_components`/`insert_component` (inkl. `line_chart`/`donut_chart`) sowie die Paritäts-Tools `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` vorhanden.
+- [ ] **MCP-Tools 37:** Claude Desktop neu starten → `set_zone_notes`, `set_zone_reveal`, `apply_preset`, `set_transition`, `list_components`/`insert_component` (inkl. `line_chart`/`donut_chart`) sowie die Paritäts-Tools `set_logo`/`clear_logo`, `register_font`, `set_presentation_title`, `set_zone_label` und der §24-Layout-Check `check_zone_overflow`/`validate_deck` vorhanden.
 - [ ] **MCP-Parität (neu):** „Setz das Logo auf <vorhandenes Asset>", „Benenn die Präsentation in X um", „Nenn Folie 2 ‚Intro'", „Registrier die Schrift Y aus Asset Z" → Logo erscheint auf jeder Folie / Titel + Folien-Label ändern sich / Font in den Token-Auswahllisten nutzbar. (Asset-Referenzen via `list_assets`; die KI lädt keine Dateien hoch.)
 - [ ] **Block-Drag (Medium, in der VORSCHAU):** in der rechten Vorschau über einen Block fahren → Drag-Handle (⠿) links erscheint → Block per Drag umsortieren; die Reihenfolge wird ins Markdown übernommen, nach Speichern/Öffnen erhalten. (Nur Markdown-Zonen ohne `split`; HTML/Spalten-Zonen ohne Handle.) **Pointer-Events** — nicht natives DnD.
 - [ ] **Bild-Resize (in der VORSCHAU):** über ein Bild fahren → blauer Anfasser an der rechten Kante → ziehen skaliert die Breite stufenlos (5–100 %); beim Loslassen als `<img style="width:NN%">` gespeichert, im Editor/Export erhalten.
@@ -210,7 +202,6 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] **Icon-Komponente (§19.8, MCP):** „füge ein Häkchen-Icon mit Beschriftung ein" → `insert_component(type:'icon', {name:'check', label:'…'})` → token-gefärbtes Inline-SVG, über die Token-Sidebar umfärbbar.
 - [ ] **PPTX-Export (§19.5):** Topbar „PPTX" → Speichern-Dialog → `.pptx` öffnet in PowerPoint/Keynote/LibreOffice: Token-Hintergründe, Überschriften/Listen/Text (Bold/Italic), Bilder, Logo, 16:9. Erwartete v1-Grenzen: HTML-Zonen vereinfacht (Text + Hinweis), Charts/Custom-CSS nicht 1:1, nur #RGB/#RRGGBB-Farben.
 - [ ] **Komponenten-Palette (§18.7):** ZoneToolbar-Icon „widgets" (oder Topbar „Komponente") → Modal → links Komponente wählen (z.B. Balkendiagramm), rechts Felder/Daten-Tabelle ausfüllen → **Live-Vorschau** rendert token-gefärbt mit. Platzierung wählen (leere Folie → „einsetzen", HTML-Folie → „anhängen", sonst „neue Folie") → „Einfügen" → erscheint live in der Vorschau, über Token-Sidebar umfärbbar. Eine nicht-leere Markdown-Folie wird nie überschrieben (kommt als neue Folie). Undo (Cmd+Z) nimmt das Einfügen zurück. (Nur Desktop-App — im Browser-Dev zeigt das Modal einen Hinweis.)
-- [ ] **Outline-Modus (§19.9):** Topbar-Umschalter „Gliederung" → alle Folien als Liste; Titel (erste Überschrift) + Inhalt (Markdown) editierbar → Änderungen wirken in den Folien (zurück auf „Folien" prüfen); Cursor springt beim Tippen nicht. ↑/↓ sortieren, „+" fügt Folie ein, Papierkorb löscht, Stift öffnet die Folie im Editor. Nach Reorder/Einfügen/Löschen macht **Cmd/Z** die Aktion rückgängig (auch wenn vorher ein Textfeld fokussiert war). HTML-Folien sind read-only (Öffnen-Link). Eine Überschrift, die oben ins Inhalt-Feld getippt wird, wandert beim Wechsel ins Titel-Feld (gleiche Ausgabe).
 - [ ] **Auto-Animate (§19.1):** Zwei benachbarte HTML-Zonen mit einem Element gleichen `data-id` (z.B. `<div data-id="box" style="...">` an verschiedenen Positionen/Größen) — oder Komponente via Palette mit gesetztem `data-id`. Design-Tab → Übergang **„Auto-Animate"** → Präsentieren → Vor/Zurück blättern: das `data-id`-Element **gleitet/skaliert** weich von der einen zur anderen Lage; nicht gematchte Inhalte schalten um. Übersicht-Sprung/erstes Anzeigen morpht NICHT. Mit OS-„Bewegung reduzieren" gibt es harte Umschaltung statt Morph. Im HTML-Export (Teilen) ebenfalls morphend. (data-id geht nur in HTML-Zonen/Komponenten, nicht in Markdown.)
 - [ ] **Echtes Zweitfenster (§19.3, Multi-Display):** Mit zweitem Bildschirm → Präsentieren → Steuerleiste „Auf zweitem Bildschirm präsentieren" (present_to_all) → Monitor wählen → **Folien randlos bildschirmfüllend auf dem gewählten Display**, Hauptfenster zeigt die **SpeakerView**. Pfeil/Leertaste am Laptop blättert **beide** synchron (inkl. Builds/Auto-Animate). MCP-Edit während offen → Folien-Fenster aktualisiert. „Zweites Fenster schließen"/Esc/Verlassen schließt es; Fenster manuell schließen → Steuerfenster merkt es. Monitor-Menü: Klick daneben/Esc schließt nur das Menü. (Laser/Stift im Zwei-Bildschirm-Modus ausgeblendet — v1.)
 - [ ] **Versionshistorie (§19.9):** Deck speichern (Cmd/Strg+S) → Topbar-Uhr-Icon → „Versionsverlauf": ein **Auto**-Snapshot ist da. Etwas ändern + speichern → neuer Auto-Snapshot; ohne Änderung speichern → **kein** neuer (Dedupe). „Schnappschuss" mit Beschriftung → **Manuell**-Eintrag. „Wiederherstellen" (mit Bestätigung) → alter Stand erscheint im Editor, Datei-Dirty-Punkt an, **Cmd/Z** macht das Wiederherstellen rückgängig; danach speichern übernimmt. „Löschen" entfernt einen Snapshot. (Snapshots liegen unter `<config>/slideo/history/`; max. 50, manuelle bleiben länger.) Nur Desktop-App; ohne gespeicherte Datei zeigt das Modal einen Hinweis.
