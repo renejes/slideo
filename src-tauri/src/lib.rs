@@ -109,6 +109,7 @@ pub fn run() {
             commands::get_assets,
             present::list_monitors,
             present::open_presentation_window,
+            present::open_share_window,
             present::close_presentation_window,
             commands::list_snapshots,
             commands::create_snapshot,

@@ -1323,3 +1323,35 @@ Strategie gewählt; der **Voll-Reload bleibt immer der Fallback**. Reine Render-
 **Verifikation:** headless `typecheck` + `vite build` + `node --check` der drei emittierten Iframe-Skripte (nav/edit/patch)
 grün; **zwei adversariale Multi-Agent-Review-Runden** (6 Dimensionen → 5 bestätigte Findings gefixt; fokussiertes
 Fix-Re-Review → 2 weitere gefixt). **GUI-Check ausstehend** (Checkliste [next-steps.md](next-steps.md) §1b P2/P6).
+
+## 26. Remote-Präsentation auf EINEM Bildschirm (teilbares Folien-Fenster)
+
+**Problem.** Der Presenter-Modus (§19.3) trennt Folien (randloses Vollbild-Fenster `projector`) von der Presenter-View
+(Hauptfenster: [SpeakerView](../src/components/presentation/SpeakerView.tsx) mit Notizen/nächster Folie/Timer/Tools) —
+funktioniert aber nur mit **zwei Monitoren**. Beim Remote-Präsentieren (Zoom/Meet/Teams) hat man oft nur **einen**
+Bildschirm und will trotzdem **nur die Folie** an die Zuschauer geben, Notizen/Tools **privat** behalten.
+
+**Erkenntnis (Recherche).** Genau das ist der Industrie-Standard für Ein-Monitor-Präsentieren (Google Slides,
+PowerPoint): **nicht den Bildschirm, sondern ein Fenster teilen** — die Presenter-View bleibt vorne, das Folien-Fenster
+liegt dahinter; im Meeting-Tool wählt man „Fenster teilen → das Folien-Fenster". Window-Capture erfasst das Fenster
+**auch verdeckt**. Kein WebRTC/Server nötig (auf macOS unterstützt WKWebView ohnehin kein `getDisplayMedia`); nichts
+verlässt die Maschine außer über das ohnehin genutzte Meeting-Tool → passt zur „läuft lokal"-Zusage.
+
+**Lösung.** Neuer Command **`open_share_window`** ([present.rs](../src-tauri/src/present.rs)): öffnet das Folien-Fenster
+als **normales, dekoriertes, verschieb-/skalierbares, betiteltes 16:9-Fenster** auf dem **aktuellen** Display (statt
+randlos-Vollbild auf Monitor 2). Nutzt **dasselbe `projector`-Label** + dieselbe Event-Sync (`slideo:nav`/`projector-
+ready`/`goto`/`closed`) und dieselbe [ProjectorView](../src/components/presentation/ProjectorView.tsx) (`role=projector`)
+wie das Zweitfenster — es ist immer nur **ein** Folien-Fenster gleichzeitig offen. `sharingType` bleibt Default (macOS
+`.readOnly` = capturable) → kein natives Fenster-Handle nötig; der Titel „Slideo — Präsentation" macht es im Fenster-
+Picker eindeutig. UI: Button **„Folie teilen"** (`screen_share`) in der Steuerleiste von
+[PresentationMode](../src/components/presentation/PresentationMode.tsx), sichtbar solange kein Folien-Fenster offen ist;
+`presentShareWindow` synct erst den `AppState` (wie `presentOnMonitor`), öffnet das Fenster und **refokussiert das
+Hauptfenster** (Cockpit behält die Tastatur-Navigation, das Folien-Fenster darf dahinter liegen). Ein Toast erklärt den
+einzigen Handgriff („Fenster teilen → Slideo — Präsentation, nicht den ganzen Bildschirm"). **v1-Grenzen** (wie Zweit-
+fenster): Laser/Stift im Zwei-Fenster-Modus aus; Live-Edits laden das Folien-Fenster kurz neu. Reines Frontend + ein
+Tauri-Command, **kein Schema-Eingriff**. Ambitioniertere Wege (lokaler LAN-Viewer; echtes WebRTC-Remote) bewusst nicht
+gebaut — Bedarf ist gedeckt.
+
+**Verifikation:** typecheck/vite build/`cargo check` grün; fokussiertes adversariales Review (Rust-Fenster-Semantik +
+FE-State/UX) clean. **GUI-Check ausstehend** (in Zoom/Meet „Fenster teilen" listet „Slideo — Präsentation"; nur Folie
+sichtbar, Notizen privat; Navigation vom Cockpit; Schließen/Erneut-Öffnen).

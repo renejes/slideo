@@ -7,6 +7,7 @@ import {
   assetUrlBase,
   listMonitors,
   openPresentationWindow,
+  openShareWindow,
   closePresentationWindow,
   type MonitorInfo,
 } from '@/lib/tauri'
@@ -318,6 +319,36 @@ export function PresentationMode() {
       notify(`Zweites Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
     }
   }
+  // Ein-Monitor-Remote (Spec §26): Folien-Fenster als teilbares 16:9-Fenster öffnen und
+  // in Zoom/Meet/Teams per „Fenster teilen" freigeben; die Presenter-View bleibt privat.
+  async function presentShareWindow() {
+    setShowMonitorMenu(false)
+    try {
+      // AppState frisch machen, bevor das Folien-Fenster ihn liest (wie presentOnMonitor).
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('sync_presentation', { presentation })
+      await invoke('sync_assets', { assets: mapToAssets(assets) })
+      await openShareWindow()
+      // Fokus zurück aufs Hauptfenster (Cockpit) → Tastatur-Navigation bleibt hier;
+      // das teilbare Folien-Fenster darf ruhig dahinter liegen (Window-Capture erfasst es
+      // trotzdem). Auf einem Bildschirm sonst müsste man erst zurückklicken.
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        await getCurrentWindow().setFocus()
+      } catch {
+        /* ignorieren */
+      }
+      setProjectorOpen(true)
+      setView('speaker')
+      setTool('none') // Laser/Stift im Zwei-Fenster-Modus (v1) deaktiviert
+      notify(
+        'Folien-Fenster geöffnet. In Zoom/Meet/Teams „Bildschirm teilen“ → „Fenster“ → „Slideo — Präsentation“ wählen (nicht den ganzen Bildschirm).',
+        'info',
+      )
+    } catch (e) {
+      notify(`Folien-Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
+    }
+  }
   async function stopProjector() {
     try {
       await closePresentationWindow()
@@ -432,11 +463,20 @@ export function PresentationMode() {
           {TAURI && (
             <>
               <Divider />
+              {/* Ein-Monitor-Remote (Spec §26): teilbares Folien-Fenster für Zoom/Meet/Teams.
+                  Braucht KEINEN zweiten Bildschirm — nur die Folie wird freigegeben. */}
+              {!projectorOpen && (
+                <ControlButton
+                  onClick={presentShareWindow}
+                  title="Folie teilen (Zoom/Meet/Teams — nur die Folie, Notizen bleiben privat)"
+                  icon="screen_share"
+                />
+              )}
               <div className="relative" data-monitor-menu>
                 {projectorOpen ? (
                   <ControlButton
                     onClick={stopProjector}
-                    title="Zweites Fenster schließen"
+                    title="Folien-Fenster schließen"
                     icon="cancel_presentation"
                     active
                   />

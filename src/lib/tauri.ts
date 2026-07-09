@@ -207,6 +207,15 @@ export function openPresentationWindow(monitorIndex: number): Promise<void> {
   return invoke<void>('open_presentation_window', { monitorIndex })
 }
 
+/**
+ * Öffnet das Folien-Fenster als teilbares 16:9-Fenster auf dem aktuellen Bildschirm
+ * (Spec §26 — Ein-Monitor-Remote): in Zoom/Meet/Teams per „Fenster teilen" freigeben,
+ * während die Presenter-View (Notizen/Tools) im Hauptfenster privat bleibt.
+ */
+export function openShareWindow(): Promise<void> {
+  return invoke<void>('open_share_window')
+}
+
 /** Schließt das Folien-Fenster (falls offen). */
 export function closePresentationWindow(): Promise<void> {
   return invoke<void>('close_presentation_window')

@@ -383,6 +383,19 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   `handleLoad`/`previewEdit`-Toggle + Overlap-Guard am Block-Drag. `logoHtml` exportiert (Patch braucht es pro Zone).
   **Kein Schema-Eingriff** (`version` "1.0"; reine Render-/UI-Mechanik). Headless grün (typecheck/build/`node --check` der
   3 Iframe-Skripte); **zwei adversariale Review-Runden** (7 Findings gefixt). **GUI-Check ausstehend** (next-steps §1b P2/P6).
+- **Remote-Präsentation auf EINEM Bildschirm (Spec §26, umgesetzt):** Der Presenter-Modus (§19.3) trennt Folie (Fenster
+  `projector`) von Notizen/Tools (Hauptfenster [SpeakerView](src/components/presentation/SpeakerView.tsx)), war aber an
+  einen zweiten Monitor gebunden. Neu: Command **`open_share_window`** ([present.rs](src-tauri/src/present.rs)) öffnet das
+  Folien-Fenster als **normales, dekoriertes, verschiebbares, betiteltes 16:9-Fenster** auf dem **aktuellen** Display →
+  in Zoom/Meet/Teams per **„Fenster teilen"** freigebbar (Window-Capture erfasst es auch verdeckt), Notizen bleiben
+  privat. **Kein WebRTC/Server** (WKWebView kann kein `getDisplayMedia`; passt zur lokal-These). **Reuse:** selbes
+  `projector`-Label + Event-Sync + [ProjectorView](src/components/presentation/ProjectorView.tsx) wie das Zweitfenster (nur
+  EIN Folien-Fenster gleichzeitig); `sharingType` bleibt Default (`.readOnly` = capturable), Titel „Slideo — Präsentation".
+  UI: Button **„Folie teilen"** (`screen_share`, ins Icon-Subset aufgenommen) in der Steuerleiste
+  ([PresentationMode.tsx](src/components/presentation/PresentationMode.tsx)); `presentShareWindow` synct erst den AppState,
+  öffnet das Fenster und **refokussiert das Hauptfenster** (Tastatur-Nav bleibt am Cockpit). v1-Grenzen wie Zweitfenster
+  (Laser/Stift aus, Live-Edit-Reload). **Kein Schema-Eingriff.** typecheck/build/`cargo check` grün, fokussiertes
+  adversariales Review clean. **GUI-Check ausstehend.**
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität

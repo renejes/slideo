@@ -64,6 +64,7 @@ export const ICON_CODEPOINTS: Record<string, string> = {
   "present_to_all": "e0df",
   "repeat": "e040",
   "save": "e161",
+  "screen_share": "e0e2",
   "search": "e8b6",
   "sell": "e54e",
   "settings": "e8b8",
