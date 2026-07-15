@@ -445,6 +445,28 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   Single Source für Typenliste/Params ([ComponentPaletteModal.tsx](src/components/modals/ComponentPaletteModal.tsx) `displayMeta`).
   Headless grün (cargo test **42**, cargo build, typecheck, vite build). **WICHTIG: greift erst nach `cargo build`
   + Neustart des MCP-Clients (Claude Desktop/Code) — sonst läuft das alte, deutsche MCP-Binary.** App-Chrome unberührt.
+- **Lizenzierung + 30-Tage-Trial (2026-07-15, umgesetzt — [licensing.md](docs/licensing.md)):** 30 Tage lokale, voll
+  nutzbare Demo → danach **read-only** (öffnen + exportieren bleibt), bis eine **Polar**-Lizenz aktiviert wird
+  (Einmalkauf, unbefristet, **3 Geräte**). **Kein Backend, kein Secret** — der Client ([license.rs](src-tauri/src/license.rs))
+  ruft Polars öffentliche `customer-portal`-Endpoints (activate/validate/deactivate) direkt; nur `key` + die **öffentliche**
+  `organization_id` gehen raus (+ ein **gehashter** Geräte-Fingerprint), nie Deck-Inhalte. Trial-/Lizenz-Zustand liegt in
+  `<config>/slideo/license.json` (atomarer Write; **bewusst File statt Keychain** → kein Linux-secret-service-Build-Risiko,
+  casual-tamper-resistant reicht laut Recherche). **Offline:** einmal online aktivieren → danach offline nutzbar (Re-Check
+  beim Start; nie hart sperren nur wegen fehlender Verbindung). **MCP-Gate** ([ipc.rs](src-tauri/src/ipc.rs) +
+  `tools::is_read_only_tool`): mutierende Tools sind nach Ablauf gesperrt (sonst wäre die Demo über den KI-Kanal umgehbar);
+  read-only-Tools + open/save/set_active_slide bleiben erlaubt. **Frontend:** [store/license.ts](src/store/license.ts) +
+  [LicenseBar](src/components/ui/LicenseBar.tsx) (Trial-Countdown / Read-only-Warnung) +
+  [LicenseModal](src/components/modals/LicenseModal.tsx) (Aktivieren/Kaufen/Gerät-freigeben) + Topbar-Button (`sell`);
+  Read-only-Gate an `mutate` + `newPresentation` ([presentation.ts](src/store/presentation.ts)). Deps:
+  `reqwest`(rustls)/`machine-uid`/`sha2`. **Platzhalter-Config:** `POLAR_ORG_ID` + `POLAR_CHECKOUT_URL` in license.rs
+  (bis gesetzt: Trial läuft, Kaufen/Aktivieren zeigen „nicht konfiguriert"). **Grenze:** Polar liefert kein offline
+  verifizierbares signiertes Artefakt → lokaler Cache ist der Vertrauensanker (nur casual tamper-resistant; bewusst nicht
+  overengineert). **Update-/Upgrade-Pfad vorbereitet:** Versions-Entitlement über die Polar-`benefit_id` — Konstante
+  `POLAR_ENTITLED_BENEFIT_IDS` (leer = permissiv = reines Perpetual, heutiges Verhalten). Für ein bezahltes Major-Upgrade
+  (Slideo 2 = eigenes Produkt/Benefit) die v2-`benefit_id` eintragen → alte Schlüssel → Zustand `upgrade_required` (read-only,
+  „Upgrade nötig"); v1-benefit mit aufnehmen = Grandfather-Gratis-Upgrade. Aktivierung prüft vorab **ohne** Slot-Verbrauch.
+  **Entscheidung: Lizenzierung VOR Notarisierung.** cargo test **42**, typecheck, vite build grün;
+  GUI-/Polar-Test steht aus (echte Werte + Sandbox).
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität

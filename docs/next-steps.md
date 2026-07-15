@@ -3,8 +3,10 @@
 > **🎯 AKTUELLES ZIEL: Distribution & Notarisierung (Abschnitt C)** — signierte, notarisierte, auslieferbare Builds
 > (macOS + Windows), damit Slideo an echte Nutzer verteilt werden kann (heute: `bundle.macOS`-Block/Entitlements/Signing
 > **fehlen komplett** → Gatekeeper/SmartScreen blockt). Voraussetzung: Apple Developer Program ($99/J) + Developer-ID-
-> Zertifikat (nur der Mensch kann das besorgen). Parallel/sekundär: voller GUI-Test (Abschnitt A) + optionaler
-> `catch_unwind`-Hardening-Punkt.
+> Zertifikat (nur der Mensch kann das besorgen). **Vorgelagert (User-Entscheidung: Lizenzierung VOR Notarisierung):**
+> Trial + Polar-Lizenz sind **im Code umgesetzt** (30-Tage-Demo → read-only, Einmalkauf/3 Geräte — [licensing.md](licensing.md));
+> es fehlt nur die **Polar-Config** (`organization_id` + Checkout-Link in [license.rs](../src-tauri/src/license.rs)).
+> Parallel/sekundär: voller GUI-Test (Abschnitt A) + optionaler `catch_unwind`-Hardening-Punkt.
 >
 > **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 42, typecheck, vite build):**
 > Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 · **P2/P6 Vorschau-In-Place-Patch (§25)** ·
@@ -16,11 +18,14 @@
 > **Session 2026-07-15:** Pre-Release Bug-Review (13 Spuren, adversarial verifiziert → **10 Fixes, 0 Critical** —
 > [bug-review-2026-07.md](done/bug-review-2026-07.md)) · **MCP-Texte auf Englisch lokalisiert** (server_instructions,
 > slideo_guide, 37 Tool-Beschreibungen, `list_components`/`list_presets`-Katalog, Overflow-Hinweise, Fehler; `thema`→`topic`;
-> Palette-Anzeige bleibt DE via `COMPONENT_CATALOG_DE`) · **Marketing-Konzept** ([marketing-strategy.md](marketing-strategy.md)).
-> cargo test **42** · cargo build · typecheck · vite build grün.
+> Palette-Anzeige bleibt DE via `COMPONENT_CATALOG_DE`) · **Marketing-Konzept** ([marketing-strategy.md](marketing-strategy.md)) ·
+> **Lizenzierung** (30-Tage-Trial + Polar-Einmalkauf/3 Geräte, MCP-Gate, read-only nach Ablauf — [licensing.md](licensing.md);
+> Platzhalter-Config, Polar-Werte noch einzutragen). cargo test **42** · cargo build · typecheck · vite build grün.
 >
-> **Offen für den Release (Reihenfolge):** (1) **Distribution/Notarization (Abschnitt C) — 🎯 DAS ZIEL** · (2) voller
-> GUI-Test A1–A7 (Abschnitt A) · optional `catch_unwind` um `tools::handle` (Defense-in-Depth). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
+> **Offen für den Release (Reihenfolge):** (1) **Lizenzierung scharfstellen** — Polar-Org anlegen + `organization_id`/
+> Checkout-Link in [license.rs](../src-tauri/src/license.rs) eintragen, dann GUI-testen ([licensing.md](licensing.md)) ·
+> (2) **Distribution/Notarization** (Abschnitt C) · (3) voller GUI-Test A1–A7 (Abschnitt A) · optional `catch_unwind`
+> um `tools::handle` (Defense-in-Depth). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 

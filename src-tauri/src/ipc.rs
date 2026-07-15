@@ -163,9 +163,16 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
     }
     let method = match request.get("method").and_then(|m| m.as_str()) {
         Some(m) => m,
-        None => return json!({ "error": "Feld 'method' fehlt" }),
+        None => return json!({ "error": "Field 'method' is missing" }),
     };
     let params = request.get("params").cloned().unwrap_or(json!({}));
+
+    // Lizenz-Gate (Trial/Read-only): nach Ablauf ohne gültige Lizenz sind MUTIERENDE
+    // Tools gesperrt — sonst ließe sich die Demo unbegrenzt über den KI-Kanal weiterbetreiben.
+    // Read-only-Tools (get_*/list_*/check_*/validate_deck/open+save/set_active_slide) bleiben erlaubt.
+    if !tools::is_read_only_tool(method) && !crate::license::editing_allowed() {
+        return json!({ "error": "Slideo trial expired. Activate a license in the Slideo app to keep authoring (editing is disabled)." });
+    }
 
     let state = app.state::<AppState>();
     let mut pres = state.presentation.lock().unwrap();

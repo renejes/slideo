@@ -7,6 +7,7 @@ mod components;
 mod file;
 mod history;
 mod ipc;
+mod license;
 mod mcp;
 mod mcp_registration;
 mod overflow;
@@ -86,6 +87,13 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // Trial-Beginn beim Erststart festhalten (idempotent, lokal, kein Netz) …
+            license::ensure_trial();
+            // … und eine aktivierte Lizenz beim Start online re-validieren (offline = No-op,
+            // der lokale Cache gilt weiter — nie hart sperren nur wegen fehlender Verbindung).
+            tauri::async_runtime::spawn(async {
+                let _ = license::recheck().await;
+            });
             // Lokalen IPC-Socket für den MCP-Server starten …
             ipc::start(app.handle().clone());
             // … und das gewählte MCP-Ziel (Meta-MCP / Claude Code / Claude Desktop)
@@ -116,6 +124,11 @@ pub fn run() {
             commands::delete_snapshot,
             commands::mcp_status,
             commands::mcp_set_target,
+            license::license_status,
+            license::license_activate,
+            license::license_recheck,
+            license::license_deactivate,
+            license::license_open_checkout,
         ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Slideo-App");

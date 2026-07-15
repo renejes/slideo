@@ -30,6 +30,7 @@ import {
   familyFromName,
   extFromName,
 } from '@/lib/assets'
+import { useLicenseStore } from './license'
 import {
   loadPresentationFile,
   savePresentationFile,
@@ -252,6 +253,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
    * `recordHistory=false` für hochfrequente Texteingaben (Editor hat eigenes Undo).
    */
   function mutate(fn: (p: Presentation) => Presentation, recordHistory = true): void {
+    // Lizenz-Gate: nach Ablauf der Demo ohne Lizenz ist Slideo schreibgeschützt
+    // (Öffnen + Exportieren bleibt möglich). Hochfrequente Tipp-Mutationen
+    // (recordHistory=false) still ablehnen, damit keine Toast-Flut entsteht.
+    if (!useLicenseStore.getState().editingAllowed()) {
+      if (recordHistory) {
+        notify('Testphase abgelaufen — Slideo ist schreibgeschützt. Aktiviere eine Lizenz zum Weiterbearbeiten.', 'error')
+      }
+      return
+    }
     const p = get().presentation
     if (!p) return
     if (recordHistory) pushHistory(p)
@@ -285,6 +295,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     activeSlideIndex: 0,
 
     newPresentation: (title, template) => {
+      if (!useLicenseStore.getState().editingAllowed()) {
+        notify('Testphase abgelaufen — bitte aktiviere eine Lizenz, um neue Präsentationen zu erstellen.', 'error')
+        return
+      }
       const presentation = makePresentation(title || 'Unbenannt', template)
       set({
         presentation,

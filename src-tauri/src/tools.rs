@@ -126,6 +126,31 @@ fn touch_modified(p: &mut Value) {
 
 // ---------- Dispatch ----------
 
+/// Read-only-Tools, die auch nach Ablauf der Demo OHNE Lizenz noch laufen dürfen
+/// (Lizenz-Gate in ipc.rs). Alles andere mutiert das Deck und ist dann gesperrt.
+/// `open_presentation`/`save_presentation` sind erlaubt (Öffnen + Exportieren des
+/// bestehenden Decks bleibt möglich); `set_active_slide` ist reine Laufzeit-Navigation.
+pub fn is_read_only_tool(method: &str) -> bool {
+    matches!(
+        method,
+        "get_presentation_meta"
+            | "get_zone"
+            | "get_all_zones"
+            | "get_zone_content"
+            | "get_zone_style"
+            | "get_tokens"
+            | "get_slide_count"
+            | "list_presets"
+            | "list_assets"
+            | "list_components"
+            | "check_zone_overflow"
+            | "validate_deck"
+            | "open_presentation"
+            | "save_presentation"
+            | "set_active_slide"
+    )
+}
+
 /// Führt ein Tool aus. `pres`/`file_path`/`assets` sind der App-State.
 pub fn handle(
     method: &str,

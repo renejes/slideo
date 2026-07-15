@@ -19,6 +19,9 @@ import { EditorShell } from '@/components/ui/EditorShell'
 import { OnboardingNudge } from '@/components/ui/OnboardingNudge'
 import { HelpModal } from '@/components/modals/HelpModal'
 import { AssetManagerModal } from '@/components/modals/AssetManagerModal'
+import { LicenseModal } from '@/components/modals/LicenseModal'
+import { LicenseBar } from '@/components/ui/LicenseBar'
+import { useLicenseStore } from '@/store/license'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
 export default function App() {
@@ -89,6 +92,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save, undo])
 
+  // Lizenz-/Trial-Status laden (No-op-Fallback im Browser-Dev, blockiert dort nicht).
+  useEffect(() => {
+    void useLicenseStore.getState().load()
+  }, [])
+
   // Live-Bridge zum MCP-Server starten (No-op außerhalb von Tauri).
   useEffect(() => {
     let dispose: (() => void) | undefined
@@ -111,6 +119,7 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col bg-chrome-bg text-chrome-text">
       <Topbar />
+      <LicenseBar />
       {presentation ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <OnboardingNudge />
@@ -127,6 +136,7 @@ export default function App() {
       {modal === 'design' && <DesignModal />}
       {modal === 'help' && <HelpModal />}
       {modal === 'assets' && <AssetManagerModal />}
+      {modal === 'license' && <LicenseModal />}
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />

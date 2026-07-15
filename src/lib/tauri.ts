@@ -220,3 +220,41 @@ export function getPresentationState(): Promise<Presentation | null> {
 export function getAssetsState(): Promise<Asset[]> {
   return invoke<Asset[]>('get_assets')
 }
+
+// ---------- Lizenzierung (Trial + Polar) ----------
+
+/** Lizenzstatus — Spiegel von license.rs `LicenseStatus`. */
+export interface LicenseStatus {
+  state: 'licensed' | 'trial' | 'trial_expired' | 'revoked' | 'expired' | 'upgrade_required'
+  editing_allowed: boolean
+  configured: boolean
+  checkout_available: boolean
+  trial_days_left: number | null
+  key_display: string | null
+  expires_at: string | null
+}
+
+/** Aktueller Lizenz-/Trial-Status (billig, kein Netz). */
+export function licenseStatus(): Promise<LicenseStatus> {
+  return invoke<LicenseStatus>('license_status')
+}
+
+/** Aktiviert einen Lizenzschlüssel auf diesem Gerät (Polar activate + validate). */
+export function licenseActivate(key: string): Promise<LicenseStatus> {
+  return invoke<LicenseStatus>('license_activate', { key })
+}
+
+/** Re-validiert eine aktivierte Lizenz online (offline = No-op, Cache gilt weiter). */
+export function licenseRecheck(): Promise<LicenseStatus> {
+  return invoke<LicenseStatus>('license_recheck')
+}
+
+/** Gibt dieses Gerät frei (Aktivierungs-Slot zurück) und löscht die lokale Lizenz. */
+export function licenseDeactivate(): Promise<LicenseStatus> {
+  return invoke<LicenseStatus>('license_deactivate')
+}
+
+/** Öffnet die Polar-Kaufseite im Standardbrowser. */
+export function licenseOpenCheckout(): Promise<void> {
+  return invoke<void>('license_open_checkout')
+}

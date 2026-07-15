@@ -144,6 +144,14 @@ export function Topbar() {
           <Icon name="history" size={18} />
         </button>
         <button
+          onClick={() => openModal('license')}
+          className={ghost + ' !px-2'}
+          title="Lizenz — Testphase, kaufen & aktivieren"
+          aria-label="Lizenz"
+        >
+          <Icon name="sell" size={18} />
+        </button>
+        <button
           onClick={() => openModal('help')}
           className={ghost + ' !px-2'}
           title="Hilfe — wie Slideo mit Claude arbeitet"

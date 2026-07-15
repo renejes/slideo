@@ -199,8 +199,8 @@ pub fn mcp_set_target(target: String) -> Result<Value, String> {
     Ok(mcp_registration::status())
 }
 
-/// Öffnet einen Pfad mit der Standard-App des Betriebssystems.
-fn open_in_default_app(path: &std::path::Path) -> Result<(), String> {
+/// Öffnet einen Pfad (oder eine URL) mit der Standard-App des Betriebssystems.
+pub(crate) fn open_in_default_app(path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let mut cmd = std::process::Command::new("open");
     #[cfg(target_os = "macos")]
