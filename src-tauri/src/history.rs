@@ -89,7 +89,17 @@ fn read_index(dir: &Path) -> Vec<SnapshotMeta> {
 fn write_index(dir: &Path, idx: &[SnapshotMeta]) -> Result<()> {
     std::fs::create_dir_all(dir)?;
     let json = serde_json::to_string_pretty(idx).context("Index-Serialisierung fehlgeschlagen")?;
-    std::fs::write(index_path(dir), json).context("Index konnte nicht geschrieben werden")?;
+    // Atomar: Temp im SELBEN Ordner + rename, damit ein Crash/Stromausfall mitten im
+    // Schreiben nicht eine truncatete index.json hinterlässt (read_index würde sie still
+    // zu einer LEEREN Historie degradieren → alle <id>.slideo-Snapshots unerreichbar).
+    let tmp = dir.join(format!(".index-{}.tmp", uuid::Uuid::new_v4().simple()));
+    std::fs::write(&tmp, json.as_bytes()).context("Index (temp) konnte nicht geschrieben werden")?;
+    std::fs::rename(&tmp, index_path(dir))
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&tmp);
+            e
+        })
+        .context("Index konnte nicht ersetzt werden")?;
     Ok(())
 }
 

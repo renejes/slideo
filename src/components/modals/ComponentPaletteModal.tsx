@@ -9,6 +9,7 @@ import { tokensToCssString } from '@/lib/tokens'
 import {
   COMPONENT_FORMS,
   COMPONENT_ICONS,
+  COMPONENT_CATALOG_DE,
   buildParams,
   emptyItemRow,
   initFormState,
@@ -21,6 +22,12 @@ type Placement = 'new' | 'append' | 'replace'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
+}
+
+// Deutsche Anzeige-Texte für die menschliche Palette; Fallback auf den englischen
+// Rust-Katalog (AI-facing), falls ein Typ hier (noch) nicht gepflegt ist.
+function displayMeta(c: ComponentMeta): { label: string; description: string } {
+  return COMPONENT_CATALOG_DE[c.type] ?? { label: c.label, description: c.description }
 }
 
 const inputClass =
@@ -219,7 +226,7 @@ export function ComponentPaletteModal() {
                 <button
                   key={c.type}
                   onClick={() => setSelectedType(c.type)}
-                  title={c.description}
+                  title={displayMeta(c).description}
                   aria-pressed={selectedType === c.type}
                   className={
                     'flex items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
@@ -234,7 +241,7 @@ export function ComponentPaletteModal() {
                     weight={400}
                     className="shrink-0"
                   />
-                  <span className="min-w-0 truncate text-[13px] font-medium">{c.label}</span>
+                  <span className="min-w-0 truncate text-[13px] font-medium">{displayMeta(c).label}</span>
                 </button>
               ))}
             </div>
@@ -264,11 +271,14 @@ export function ComponentPaletteModal() {
 
             {/* Parameter-Formular */}
             <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              {catalog.find((c) => c.type === selectedType) && (
-                <p className="mb-3 text-[12px] leading-snug text-chrome-muted">
-                  {catalog.find((c) => c.type === selectedType)?.description}
-                </p>
-              )}
+              {(() => {
+                const sel = catalog.find((c) => c.type === selectedType)
+                return sel ? (
+                  <p className="mb-3 text-[12px] leading-snug text-chrome-muted">
+                    {displayMeta(sel).description}
+                  </p>
+                ) : null
+              })()}
 
               {!form && selectedType && (
                 <p className="rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2 text-[12px] text-chrome-muted">

@@ -83,9 +83,13 @@ const DROP_TAGS = new Set([
  * Block-Container (Karten, Komponenten, data-id-Wrapper) sind NICHT editierbar.
  */
 function isInlineEditable(el: Element): boolean {
-  const kids = el.children
-  for (let i = 0; i < kids.length; i++) {
-    if (!INLINE_OK.has(kids[i].tagName.toLowerCase())) return false
+  // TIEF prüfen: JEDES Nachfahre-Element muss inline-sicher sein. Ein nicht-inline
+  // Element (z.B. <img>/<svg> in einem Inline-Wrapper wie <a>/<span>) würde sonst
+  // beim Commit von sanitizeInline still verworfen (Datenverlust) — solche Blöcke
+  // bleiben dem Quell-/Markdown-Editor vorbehalten.
+  const all = el.getElementsByTagName('*')
+  for (let i = 0; i < all.length; i++) {
+    if (!INLINE_OK.has(all[i].tagName.toLowerCase())) return false
   }
   return true
 }

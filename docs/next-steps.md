@@ -1,7 +1,10 @@
 # Slideo — Nächste Schritte
 
-> **AKTUELLER FOKUS: Slideo ist funktional komplett → Release-Ready machen.** Verbleibend: voller GUI-Test (Abschnitt A)
-> + **Distribution/Notarization** (Abschnitt C) + optionaler `catch_unwind`-Hardening-Punkt.
+> **🎯 AKTUELLES ZIEL: Distribution & Notarisierung (Abschnitt C)** — signierte, notarisierte, auslieferbare Builds
+> (macOS + Windows), damit Slideo an echte Nutzer verteilt werden kann (heute: `bundle.macOS`-Block/Entitlements/Signing
+> **fehlen komplett** → Gatekeeper/SmartScreen blockt). Voraussetzung: Apple Developer Program ($99/J) + Developer-ID-
+> Zertifikat (nur der Mensch kann das besorgen). Parallel/sekundär: voller GUI-Test (Abschnitt A) + optionaler
+> `catch_unwind`-Hardening-Punkt.
 >
 > **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 42, typecheck, vite build):**
 > Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 · **P2/P6 Vorschau-In-Place-Patch (§25)** ·
@@ -10,8 +13,14 @@
 > **Editor-Cleanup** (2-spaltige Shell, Sidebar raus, Brand-Kit-Overlay) · **Markdown-Direktmanipulation** (§20) ·
 > §21 feste 16:9-Bühne · §23 Zonen-Links. Records → [done/](done/). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
 >
-> **Offen für den Release:** voller GUI-Test A1–A7 (Abschnitt A) · Distribution/Notarization (Abschnitt C) · optional
-> `catch_unwind` um `tools::handle` (Defense-in-Depth). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
+> **Session 2026-07-15:** Pre-Release Bug-Review (13 Spuren, adversarial verifiziert → **10 Fixes, 0 Critical** —
+> [bug-review-2026-07.md](done/bug-review-2026-07.md)) · **MCP-Texte auf Englisch lokalisiert** (server_instructions,
+> slideo_guide, 37 Tool-Beschreibungen, `list_components`/`list_presets`-Katalog, Overflow-Hinweise, Fehler; `thema`→`topic`;
+> Palette-Anzeige bleibt DE via `COMPONENT_CATALOG_DE`) · **Marketing-Konzept** ([marketing-strategy.md](marketing-strategy.md)).
+> cargo test **42** · cargo build · typecheck · vite build grün.
+>
+> **Offen für den Release (Reihenfolge):** (1) **Distribution/Notarization (Abschnitt C) — 🎯 DAS ZIEL** · (2) voller
+> GUI-Test A1–A7 (Abschnitt A) · optional `catch_unwind` um `tools::handle` (Defense-in-Depth). Maßgebliche Spec: [slideo-spec.md](slideo-spec.md).
 
 ---
 
@@ -235,7 +244,7 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 
 ---
 
-## C. Distribution & Notarization
+## C. Distribution & Notarization — 🎯 AKTUELLES ZIEL (Fokus nach dieser Session)
 
 Ziel: signierte, notarisierte Builds, die ohne Gatekeeper-Warnung laufen.
 

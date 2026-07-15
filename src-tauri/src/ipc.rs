@@ -75,7 +75,7 @@ fn write_discovery(port: u16, token: &str) {
             Ok(mut f) => {
                 let _ = f.write_all(content.as_bytes());
             }
-            Err(e) => eprintln!("[slideo] ipc.json schreiben fehlgeschlagen: {e}"),
+            Err(e) => eprintln!("[slideo] failed to write ipc.json: {e}"),
         }
     }
     #[cfg(not(unix))]
@@ -106,13 +106,13 @@ pub fn start(app: AppHandle) {
         let listener = match TcpListener::bind(("127.0.0.1", 0)).await {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("[slideo] IPC-Server konnte nicht starten: {e}");
+                eprintln!("[slideo] IPC server failed to start: {e}");
                 return;
             }
         };
         if let Ok(addr) = listener.local_addr() {
             write_discovery(addr.port(), server_token());
-            eprintln!("[slideo] IPC-Server läuft auf 127.0.0.1:{}", addr.port());
+            eprintln!("[slideo] IPC server listening on 127.0.0.1:{}", addr.port());
         }
         loop {
             match listener.accept().await {
@@ -152,14 +152,14 @@ async fn handle_connection(stream: tokio::net::TcpStream, app: AppHandle) {
 fn process_request(line: &str, app: &AppHandle) -> Value {
     let request: Value = match serde_json::from_str(line) {
         Ok(v) => v,
-        Err(e) => return json!({ "error": format!("Ungültiges JSON: {e}") }),
+        Err(e) => return json!({ "error": format!("Invalid JSON: {e}") }),
     };
     // Authentifizierung (Audit S1): nur Anfragen mit dem beim Start erzeugten Token
     // werden verarbeitet — verhindert, dass ein beliebiger lokaler Prozess die Tools
     // aufruft, nur weil er den Port kennt.
     let token = request.get("token").and_then(|t| t.as_str()).unwrap_or("");
     if !token_eq(token, server_token()) {
-        return json!({ "error": "Nicht autorisiert (fehlendes oder ungültiges Token)." });
+        return json!({ "error": "Not authorized (missing or invalid token)." });
     }
     let method = match request.get("method").and_then(|m| m.as_str()) {
         Some(m) => m,
@@ -202,10 +202,10 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
 /// Blockierend (std::net), da der MCP-stdio-Modus ohnehin synchron läuft.
 pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
     let (port, token) = read_discovery()
-        .ok_or("Slideo läuft nicht (keine IPC-Discovery-Datei gefunden). Bitte die Slideo-App starten.")?;
+        .ok_or("Slideo is not running (no IPC discovery file found). Please start the Slideo app.")?;
 
     let stream = std::net::TcpStream::connect(("127.0.0.1", port))
-        .map_err(|e| format!("Verbindung zur Slideo-App fehlgeschlagen: {e}. Läuft die App?"))?;
+        .map_err(|e| format!("Connection to the Slideo app failed: {e}. Is the app running?"))?;
 
     // Token mitsenden (Audit S1) — der Server weist nicht-authentifizierte Anfragen ab.
     let request = json!({ "method": method, "params": params, "token": token });
@@ -222,7 +222,7 @@ pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
     reader.read_line(&mut line).map_err(|e| e.to_string())?;
 
     let response: Value = serde_json::from_str(line.trim())
-        .map_err(|e| format!("Ungültige Antwort der App: {e}"))?;
+        .map_err(|e| format!("Invalid response from the app: {e}"))?;
 
     if let Some(err) = response.get("error").and_then(|e| e.as_str()) {
         return Err(err.to_string());

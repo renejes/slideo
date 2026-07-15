@@ -74,7 +74,7 @@ fn new_presentation(title: &str) -> Value {
         "version": "1.0",
         "meta": { "title": title, "created": ts, "modified": ts },
         "tokens": default_tokens(),
-        "zones": [ make_zone(0, "Slide 1", &format!("# {title}\n\nDein erster Slide. Leg los.")) ]
+        "zones": [ make_zone(0, "Slide 1", &format!("# {title}\n\nYour first slide. Let's go.")) ]
     })
 }
 
@@ -88,7 +88,7 @@ fn req_str(params: &Value, key: &str) -> Result<String, String> {
     p_param(params, key)
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| format!("Pflichtfeld '{key}' (String) fehlt"))
+        .ok_or_else(|| format!("Required field '{key}' (string) is missing"))
 }
 
 fn opt_str(params: &Value, key: &str) -> Option<String> {
@@ -96,20 +96,20 @@ fn opt_str(params: &Value, key: &str) -> Option<String> {
 }
 
 fn pres_mut<'a>(pres: &'a mut Option<Value>) -> Result<&'a mut Value, String> {
-    pres.as_mut().ok_or_else(|| "Keine Präsentation geöffnet".to_string())
+    pres.as_mut().ok_or_else(|| "No presentation open".to_string())
 }
 
 fn zones_mut<'a>(p: &'a mut Value) -> Result<&'a mut Vec<Value>, String> {
     p.get_mut("zones")
         .and_then(|z| z.as_array_mut())
-        .ok_or_else(|| "Präsentation hat kein 'zones'-Array".to_string())
+        .ok_or_else(|| "Presentation has no 'zones' array".to_string())
 }
 
 fn zone_index(zones: &[Value], id: &str) -> Result<usize, String> {
     zones
         .iter()
         .position(|z| z.get("id").and_then(|v| v.as_str()) == Some(id))
-        .ok_or_else(|| format!("Zone '{id}' nicht gefunden"))
+        .ok_or_else(|| format!("Zone '{id}' not found"))
 }
 
 fn renumber(zones: &mut [Value]) {
@@ -151,17 +151,17 @@ pub fn handle(
             ok(json!({ "path": path }), Effect::Presentation)
         }
         "save_presentation" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
             let target = opt_str(params, "path")
                 .map(PathBuf::from)
                 .or_else(|| file_path.clone())
-                .ok_or("Kein Speicherpfad bekannt (path angeben)")?;
+                .ok_or("No save path known (provide 'path')")?;
             file::write_presentation(&target, p, assets).map_err(|e| format!("{e:#}"))?;
             *file_path = Some(target.clone());
             ok(json!({ "saved": target.to_string_lossy() }), Effect::None)
         }
         "get_presentation_meta" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
             let zone_count = p.get("zones").and_then(|z| z.as_array()).map(|a| a.len()).unwrap_or(0);
             ok(
                 json!({
@@ -204,14 +204,20 @@ pub fn handle(
         "reorder_zones" => {
             let ids: Vec<String> = p_param(params, "ordered_ids")
                 .and_then(|v| v.as_array())
-                .ok_or("Pflichtfeld 'ordered_ids' (Array) fehlt")?
+                .ok_or("Required field 'ordered_ids' (array) is missing")?
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
             let mut reordered: Vec<Value> = Vec::with_capacity(zones.len());
+            let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
             for id in &ids {
+                // Wiederholte id NICHT ein zweites Mal klonen — sonst entstünden zwei
+                // Zonen mit identischer UUID (persistierte, stille Datenkorruption).
+                if !seen.insert(id.as_str()) {
+                    continue;
+                }
                 if let Ok(idx) = zone_index(zones, id) {
                     reordered.push(zones[idx].clone());
                 }
@@ -230,23 +236,23 @@ pub fn handle(
         }
         "get_zone" => {
             let id = req_str(params, "id")?;
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             ok(zones[idx].clone(), Effect::None)
         }
         // ----- Layout-Heuristik (Spec §24): read-only, misst NICHT echtes Layout -----
         "check_zone_overflow" => {
             let id = req_str(params, "id")?;
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
             ok(crate::overflow::analyze(&zones[idx], &tokens), Effect::None)
         }
         "validate_deck" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
             let problems: Vec<Value> = zones
                 .iter()
@@ -268,13 +274,13 @@ pub fn handle(
                     "zones_total": zones.len(),
                     "zones_with_issues": problems.len(),
                     "problems": problems,
-                    "note": "Heuristische Prüfung — Details je Folie via check_zone_overflow(id)."
+                    "note": "Heuristic check — per-slide details via check_zone_overflow(id)."
                 }),
                 Effect::None,
             )
         }
         "get_all_zones" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
             ok(p.get("zones").cloned().unwrap_or(json!([])), Effect::None)
         }
 
@@ -284,7 +290,7 @@ pub fn handle(
             let content_type = req_str(params, "content_type")?;
             let content = req_str(params, "content")?;
             if content_type != "markdown" && content_type != "html" {
-                return Err("content_type muss 'markdown' oder 'html' sein".into());
+                return Err("content_type must be 'markdown' or 'html'".into());
             }
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
@@ -321,6 +327,11 @@ pub fn handle(
         "replace_in_zone" => {
             let id = req_str(params, "id")?;
             let search = req_str(params, "search")?;
+            // Leerer Suchstring würde `replace` an JEDER Char-Grenze einfügen
+            // (str::replace("", r)) und den Inhalt zerhacken → früh ablehnen.
+            if search.is_empty() {
+                return Err("'search' must not be empty".to_string());
+            }
             let replace = req_str(params, "replace")?;
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
@@ -336,8 +347,8 @@ pub fn handle(
         }
         "get_zone_content" => {
             let id = req_str(params, "id")?;
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             let zone = &zones[idx];
             let is_html = zone.get("content_type").and_then(|v| v.as_str()) == Some("html");
@@ -354,14 +365,14 @@ pub fn handle(
 
         // ----- Tokens -----
         "get_tokens" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
             ok(p.get("tokens").cloned().unwrap_or(json!({})), Effect::None)
         }
         "set_token" => {
             let key = req_str(params, "key")?;
             let value = req_str(params, "value")?;
             let p = pres_mut(pres)?;
-            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("Kein 'tokens'-Objekt")?;
+            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("No 'tokens' object")?;
             tokens.insert(key, json!(value));
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
@@ -369,10 +380,10 @@ pub fn handle(
         "set_tokens_bulk" => {
             let incoming = p_param(params, "tokens")
                 .and_then(|v| v.as_object())
-                .ok_or("Pflichtfeld 'tokens' (Objekt) fehlt")?
+                .ok_or("Required field 'tokens' (object) is missing")?
                 .clone();
             let p = pres_mut(pres)?;
-            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("Kein 'tokens'-Objekt")?;
+            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("No 'tokens' object")?;
             for (k, v) in incoming {
                 tokens.insert(k, v);
             }
@@ -391,12 +402,12 @@ pub fn handle(
         "apply_preset" => {
             let name = req_str(params, "name")?;
             let preset = crate::presets::tokens(&name)
-                .ok_or_else(|| format!("Theme '{name}' nicht gefunden"))?;
+                .ok_or_else(|| format!("Theme '{name}' not found"))?;
             let p = pres_mut(pres)?;
             let tokens = p
                 .get_mut("tokens")
                 .and_then(|t| t.as_object_mut())
-                .ok_or("Kein 'tokens'-Objekt")?;
+                .ok_or("No 'tokens' object")?;
             if let Some(obj) = preset.as_object() {
                 for (k, v) in obj {
                     tokens.insert(k.clone(), v.clone());
@@ -413,7 +424,7 @@ pub fn handle(
             let style = p_param(params, "style").and_then(|v| v.as_object()).cloned();
             let custom_css = opt_str(params, "custom_css");
             if style.is_none() && custom_css.is_none() {
-                return Err("Mindestens 'style' oder 'custom_css' angeben".into());
+                return Err("Provide at least 'style' or 'custom_css'".into());
             }
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
@@ -422,7 +433,7 @@ pub fn handle(
                 let zone_style = zones[idx]
                     .get_mut("style")
                     .and_then(|s| s.as_object_mut())
-                    .ok_or("Zone hat kein 'style'-Objekt")?;
+                    .ok_or("Zone has no 'style' object")?;
                 for (k, v) in style {
                     zone_style.insert(k, v);
                 }
@@ -435,8 +446,8 @@ pub fn handle(
         }
         "get_zone_style" => {
             let id = req_str(params, "id")?;
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("Kein 'zones'-Array")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
+            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             ok(zones[idx].get("style").cloned().unwrap_or(json!({})), Effect::None)
         }
@@ -468,7 +479,7 @@ pub fn handle(
             let id = req_str(params, "id")?;
             let mode = req_str(params, "mode")?;
             if mode != "none" && mode != "steps" {
-                return Err("mode muss 'none' oder 'steps' sein".into());
+                return Err("mode must be 'none' or 'steps'".into());
             }
             let p = pres_mut(pres)?;
             let zones = zones_mut(p)?;
@@ -524,20 +535,20 @@ pub fn handle(
 
         // ----- Presentation Mode -----
         "get_slide_count" => {
-            let p = pres.as_ref().ok_or("Keine Präsentation geöffnet")?;
+            let p = pres.as_ref().ok_or("No presentation open")?;
             let count = p.get("zones").and_then(|z| z.as_array()).map(|a| a.len()).unwrap_or(0);
             ok(json!({ "count": count }), Effect::None)
         }
         "set_active_slide" => {
             let index = p_param(params, "index")
                 .and_then(|v| v.as_i64())
-                .ok_or("Pflichtfeld 'index' (Zahl) fehlt")?;
+                .ok_or("Required field 'index' (number) is missing")?;
             ok(json!({ "index": index }), Effect::ActiveSlide(index))
         }
         "set_transition" => {
             let kind = req_str(params, "kind")?;
             if !["none", "fade", "slide", "zoom", "auto"].contains(&kind.as_str()) {
-                return Err("kind muss 'none', 'fade', 'slide', 'zoom' oder 'auto' sein".into());
+                return Err("kind must be 'none', 'fade', 'slide', 'zoom' or 'auto'".into());
             }
             let duration = p_param(params, "duration_ms")
                 .and_then(|v| v.as_i64())
@@ -547,7 +558,7 @@ pub fn handle(
             let meta = p
                 .get_mut("meta")
                 .and_then(|m| m.as_object_mut())
-                .ok_or("Kein 'meta'-Objekt")?;
+                .ok_or("No 'meta' object")?;
             meta.insert(
                 "transition".to_string(),
                 json!({ "kind": kind, "duration_ms": duration }),
@@ -563,7 +574,7 @@ pub fn handle(
             let meta = p
                 .get_mut("meta")
                 .and_then(|m| m.as_object_mut())
-                .ok_or("Kein 'meta'-Objekt")?;
+                .ok_or("No 'meta' object")?;
             meta.insert("title".to_string(), json!(title));
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
@@ -572,17 +583,17 @@ pub fn handle(
             let asset = req_str(params, "asset")?;
             // Die KI lädt keine Binärdateien hoch — sie referenziert vorhandene Assets.
             if !assets.iter().any(|a| a.name == asset) {
-                return Err(format!("Asset '{asset}' nicht gefunden (siehe list_assets)"));
+                return Err(format!("Asset '{asset}' not found (see list_assets)"));
             }
             let position = opt_str(params, "position").unwrap_or_else(|| "bottom-right".to_string());
             if !["top-left", "top-right", "bottom-left", "bottom-right"].contains(&position.as_str()) {
-                return Err("position muss top-left, top-right, bottom-left oder bottom-right sein".into());
+                return Err("position must be top-left, top-right, bottom-left or bottom-right".into());
             }
             let p = pres_mut(pres)?;
             let meta = p
                 .get_mut("meta")
                 .and_then(|m| m.as_object_mut())
-                .ok_or("Kein 'meta'-Objekt")?;
+                .ok_or("No 'meta' object")?;
             meta.insert("logo".to_string(), json!({ "asset": asset, "position": position }));
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
@@ -599,12 +610,12 @@ pub fn handle(
             let family = req_str(params, "family")?;
             let asset = req_str(params, "asset")?;
             if !assets.iter().any(|a| a.name == asset) {
-                return Err(format!("Asset '{asset}' nicht gefunden (siehe list_assets)"));
+                return Err(format!("Asset '{asset}' not found (see list_assets)"));
             }
             let p = pres_mut(pres)?;
-            let obj = p.as_object_mut().ok_or("Ungültige Presentation")?;
+            let obj = p.as_object_mut().ok_or("Invalid presentation")?;
             let fonts = obj.entry("fonts").or_insert_with(|| json!([]));
-            let arr = fonts.as_array_mut().ok_or("'fonts' ist kein Array")?;
+            let arr = fonts.as_array_mut().ok_or("'fonts' is not an array")?;
             // Dedup nach Familienname (bestehende ersetzen, sonst anhängen).
             match arr
                 .iter_mut()
@@ -627,7 +638,7 @@ pub fn handle(
             ok(json!({ "ok": true }), Effect::Presentation)
         }
 
-        other => Err(format!("Unbekanntes Tool: {other}")),
+        other => Err(format!("Unknown tool: {other}")),
     }
 }
 
@@ -635,67 +646,65 @@ pub fn handle(
 /// Steuert Claude Richtung Markdown-first und token-bewusstes HTML, damit
 /// Präsentationen für Menschen editierbar/themebar bleiben.
 pub fn server_instructions() -> &'static str {
-    "Slideo baut Präsentationen aus 'Zones' (Slides). Wichtigste Regeln, damit die \
-Präsentation für den Menschen editierbar bleibt:\n\n\
-0. FORMAT (zwingend): Jede Folie ist eine FESTE Bühne von genau 1280×720 px (16:9). Sie wächst \
-NICHT mit dem Inhalt — was über 1280×720 hinausragt, wird ABGESCHNITTEN (kein Scrollen, keine \
-zweite Seite). Gestalte JEDE Folie so, dass alles vollständig hineinpasst: lieber Inhalt auf \
-mehrere Folien aufteilen als eine Folie überfüllen (eine Kernaussage pro Folie). Bei HTML-Folien \
-strikt im 1280×720-Koordinatensystem denken — siehe Punkt 8.\n\
-1. BEVORZUGE Markdown-Zonen (content_type 'markdown') für Text-, Titel-, Bullet- und \
-Bild-Folien. Markdown bleibt im WYSIWYG-Editor bearbeitbar.\n\
-2. Gestalte das Look & Feel über DESIGN-TOKENS (set_tokens_bulk: color-primary, color-bg, \
-color-text, color-accent, font-heading, font-body, font-size-base, border-radius …) und über \
-set_zone_style (layout: center|top|split|full, text_align, padding, background) — NICHT über \
-Inline-HTML/CSS. SCHNELLSTART: list_presets + apply_preset wählt in einem Schritt ein stimmiges \
-Theme (editorial, dark-tech, warm, minimal, corporate); danach mit set_token feinjustieren.\n\
-3. Reiche Layouts gibt es auch mit Markdown – nutze sie statt HTML: set_zone_style layout \
-'hero' (große Titel-Folie), 'split' (ZWEI SPALTEN – trenne die beiden Spalten im Markdown mit \
-einer eigenen Zeile '+++'; eine Spalte kann ein Bild sein, z.B. ![](assets/x.png)), 'center', \
+    "Slideo builds presentations from 'Zones' (slides). Key rules so the presentation stays \
+editable for the human:\n\n\
+0. FORMAT (mandatory): Every slide is a FIXED stage of exactly 1280×720 px (16:9). It does NOT \
+grow with its content — anything beyond 1280×720 is CLIPPED (no scrolling, no second page). Design \
+EVERY slide so everything fits completely: rather split content across several slides than overfill \
+one (one key message per slide). For HTML slides think strictly in the 1280×720 coordinate system — \
+see rule 8.\n\
+1. PREFER Markdown zones (content_type 'markdown') for text, title, bullet and image slides. \
+Markdown stays editable in the WYSIWYG editor.\n\
+2. Design the look & feel via DESIGN TOKENS (set_tokens_bulk: color-primary, color-bg, \
+color-text, color-accent, font-heading, font-body, font-size-base, border-radius …) and via \
+set_zone_style (layout: center|top|split|full, text_align, padding, background) — NOT via \
+inline HTML/CSS. QUICK START: list_presets + apply_preset picks a coherent theme in one step \
+(editorial, dark-tech, warm, minimal, corporate); fine-tune afterwards with set_token.\n\
+3. Rich layouts are available with Markdown too – use them instead of HTML: set_zone_style layout \
+'hero' (large title slide), 'split' (TWO COLUMNS – separate the two columns in the Markdown with \
+a line of its own containing '+++'; a column can be an image, e.g. ![](assets/x.png)), 'center', \
 'top', 'full'.\n\
-4. FERTIGE KOMPONENTEN statt handgeschriebenem HTML: Für Diagramme, KPI-Karten (big_number, \
-stat_cards), Tabellen (data_table), Feature-Raster (feature_grid), Prozess-Schritte (process_steps), \
-Preise (pricing), Bild-Galerien (gallery), Zeitstrahl, Vergleich, Fortschritt, Zitat, Hinweis nutze \
-list_components + insert_component(zone_id, type, params). Diese Komponenten sind bereits \
-token-bewusst (themebar) und sehen gut aus — der schnellste Weg zu hochwertigen Inhalten.\n\
-5. Für GESTYLTEN, aber editierbaren Text: Markdown + set_zone_css (zonen-gescoptes \
-Custom-CSS) statt HTML. So bleibt der Text im Editor lesbar/bearbeitbar UND hat volles \
-CSS-Styling. Beispiel: set_zone_css(id, 'h1 { letter-spacing: -.02em } strong { color: \
-var(--color-accent) }').\n\
-6. Bild-Positionierung in Markdown-Zonen: ein normales Bild ist ![](assets/x.png). Für Größe/\
-Ausrichtung/Umfluss schreibe rohes <img>: <img src=\"assets/x.png\" style=\"width:50%\" \
-class=\"align-right\"> bzw. class=\"float-left\" (Textumfluss). Klassen: align-left|center|right, \
-float-left|right.\n\
-7. EIGENES HTML (content_type 'html') NUR für Interaktives/Animiertes, das die Komponenten nicht \
-abdecken: eigene Charts (SVG/JS), CSS/JS-Animationen (@keyframes), interaktive SVGs/Diagramme, \
-eingebettete Player, Demos — ODER Video/Audio: <video controls src=\"assets/x.mp4\"> bzw. \
-<audio controls src=\"assets/x.mp3\"> (Asset zuvor mit list_assets finden; Video/Audio nur in \
-HTML-Zonen).\n\
-8. WENN du HTML nutzt: (a) GRÖSSE — die Folie ist 1280×720 px. Positioniere und dimensioniere \
-ALLES so, dass es hineinpasst; halte lesbaren Inhalt (Text, Zahlen, wichtige Elemente) in einer \
-Safe-Area von ca. x 64–1216 / y 64–656 (720 px sind KURZ — achte besonders auf die Höhe und auf \
-Schriftgrößen: eine zu große Headline läuft seitlich aus dem 1280-px-Rahmen). Rein dekorative \
-Formen (Blobs/Kreise/Streifen ohne Text) dürfen bewusst über den Rand hinausragen (bleed), aber NIEMALS Text \
-oder Inhalt außerhalb der Folie platzieren — er würde abgeschnitten. (b) STYLE ausschließlich über \
-die CSS-Variablen der Design-Tokens (var(--color-primary), var(--color-bg), var(--color-text), \
-var(--color-accent), var(--font-heading), var(--font-body), var(--border-radius) …). KEINE \
-hartkodierten Farben/Fonts. Halte HTML-Folien fokussiert und klein.\n\
-9. Optional: set_zone_notes(id, notes) für Sprechernotizen (nur in der Speaker-View sichtbar); \
-set_transition(kind, duration_ms) für den deck-weiten Folienübergang (none|fade|slide|zoom|auto — \
-auto morpht Elemente mit gleichem data-id zwischen Folien, data-id via HTML-Zone oder insert_component(data_id)); \
-set_zone_reveal(id, 'steps') für Builds (Blöcke der Folie erscheinen schrittweise).\n\
-10. Marke/Meta: set_presentation_title(title); set_zone_label(id, label) (Folien-Anzeigename); \
-set_logo(asset, position?)/clear_logo (asset = vorhandenes Bild aus list_assets); register_font(family, asset) \
-registriert ein vorhandenes Font-Asset → dann via set_token('font-heading'|'font-body', family) aktivieren.\n\
-11. FOLIEN-LINKS (nicht-linear): ein klickbares Element springt über das Attribut data-slideo-goto zu einer \
-anderen Folie — Wert = Zonen-ID ODER 1-basierte Foliennummer. Am schnellsten ein Inhaltsverzeichnis per \
-insert_component(zone_id, 'toc', { items: [{ label, target }] }); alternativ in einer HTML-Zone \
-<a data-slideo-goto=\"3\">Kapitel</a> oder als Markdown-Link [Kapitel](#zone-<Zonen-ID>). Ein Rücksprung-Link \
-(data-slideo-goto auf die Inhalts-Folie) bringt zurück. Funktioniert in Präsentation, Standalone-Export & Vorschau.\n\
-12. LAYOUT PRÜFEN: Die Bühne ist fest 1280×720 und schneidet Überstehendes ab — der Server misst aber KEIN echtes \
-Layout. Rufe nach dem Bauen einer Folie check_zone_overflow(id) auf (Schätzung: läuft Inhalt rechts/unten aus der \
-Bühne / aus der Safe-Area?) und am Ende validate_deck() über alle Folien. Bei gemeldetem Overflow: Inhalt auf \
-mehrere Folien teilen, Schrift verkleinern oder das Layout vereinfachen."
+4. READY-MADE COMPONENTS instead of hand-written HTML: for charts, KPI cards (big_number, \
+stat_cards), tables (data_table), feature grids (feature_grid), process steps (process_steps), \
+pricing (pricing), image galleries (gallery), timeline, comparison, progress, quote, callout use \
+list_components + insert_component(zone_id, type, params). These components are already \
+token-aware (themeable) and look good — the fastest route to high-quality content.\n\
+5. For STYLED but editable text: Markdown + set_zone_css (zone-scoped custom CSS) instead of HTML. \
+This keeps the text readable/editable in the editor AND gives it full CSS styling. Example: \
+set_zone_css(id, 'h1 { letter-spacing: -.02em } strong { color: var(--color-accent) }').\n\
+6. Image positioning in Markdown zones: a normal image is ![](assets/x.png). For size/alignment/\
+wrap write raw <img>: <img src=\"assets/x.png\" style=\"width:50%\" class=\"align-right\"> or \
+class=\"float-left\" (text wrap). Classes: align-left|center|right, float-left|right.\n\
+7. CUSTOM HTML (content_type 'html') ONLY for interactive/animated content the components do not \
+cover: custom charts (SVG/JS), CSS/JS animations (@keyframes), interactive SVGs/diagrams, \
+embedded players, demos — OR video/audio: <video controls src=\"assets/x.mp4\"> or \
+<audio controls src=\"assets/x.mp3\"> (find the asset first with list_assets; video/audio only in \
+HTML zones).\n\
+8. WHEN you use HTML: (a) SIZE — the slide is 1280×720 px. Position and size EVERYTHING so it \
+fits; keep readable content (text, numbers, important elements) within a safe area of about \
+x 64–1216 / y 64–656 (720 px is SHORT — watch the height and font sizes in particular: an \
+oversized headline runs sideways out of the 1280-px frame). Purely decorative shapes \
+(blobs/circles/stripes without text) may deliberately bleed past the edge, but NEVER place text \
+or content outside the slide — it would be clipped. (b) STYLE exclusively via the design-token \
+CSS variables (var(--color-primary), var(--color-bg), var(--color-text), \
+var(--color-accent), var(--font-heading), var(--font-body), var(--border-radius) …). NO \
+hard-coded colors/fonts. Keep HTML slides focused and small.\n\
+9. Optional: set_zone_notes(id, notes) for speaker notes (visible only in the Speaker View); \
+set_transition(kind, duration_ms) for the deck-wide slide transition (none|fade|slide|zoom|auto — \
+auto morphs elements with the same data-id between slides, set data-id via an HTML zone or insert_component(data_id)); \
+set_zone_reveal(id, 'steps') for builds (the slide's blocks appear step by step).\n\
+10. Brand/meta: set_presentation_title(title); set_zone_label(id, label) (slide display name); \
+set_logo(asset, position?)/clear_logo (asset = an existing image from list_assets); register_font(family, asset) \
+registers an existing font asset → then activate it via set_token('font-heading'|'font-body', family).\n\
+11. SLIDE LINKS (non-linear): a clickable element jumps to another slide via the attribute data-slideo-goto — \
+value = zone id OR 1-based slide number. Fastest is a table of contents via \
+insert_component(zone_id, 'toc', { items: [{ label, target }] }); alternatively in an HTML zone \
+<a data-slideo-goto=\"3\">Chapter</a> or as a Markdown link [Chapter](#zone-<zone-id>). A back link \
+(data-slideo-goto to the contents slide) returns. Works in presentation, standalone export & preview.\n\
+12. CHECK LAYOUT: the stage is a fixed 1280×720 and clips overflow — but the server measures NO real \
+layout. After building a slide call check_zone_overflow(id) (estimate: does content run off the stage \
+right/bottom or out of the safe area?) and at the end validate_deck() across all slides. On reported \
+overflow: split content across more slides, reduce the font size, or simplify the layout."
 }
 
 /// MCP-Prompt-Definitionen (`prompts/list`). Der "slideo_guide"-Prompt ist die
@@ -704,75 +713,75 @@ mehrere Folien teilen, Schrift verkleinern oder das Layout vereinfachen."
 pub fn prompt_definitions() -> Value {
     json!([{
         "name": "slideo_guide",
-        "description": "Leitfaden: wie man mit Slideo eine hochwertige, für Menschen editierbare Präsentation baut (Design-Tokens, Layouts, Markdown vs. HTML, Bilder).",
+        "description": "Guide: how to build a high-quality, human-editable presentation with Slideo (design tokens, layouts, Markdown vs. HTML, images).",
         "arguments": [
-            { "name": "thema", "description": "Thema/Inhalt der Präsentation (optional)", "required": false }
+            { "name": "topic", "description": "Topic/content of the presentation (optional)", "required": false }
         ]
     }])
 }
 
 /// Vollständiger Leitfaden-Text (Inhalt des "slideo_guide"-Prompts).
-pub fn build_guide(thema: Option<&str>) -> String {
-    let intro = "Du baust eine Präsentation in Slideo über den MCP-Server. Slideo-Präsentationen \
-bestehen aus 'Zones' (Slides). Ziel: eine schöne Präsentation, die für den Menschen NACHHER \
-editierbar und global umgestaltbar bleibt.\n\n";
+pub fn build_guide(topic: Option<&str>) -> String {
+    let intro = "You are building a presentation in Slideo via the MCP server. Slideo presentations \
+consist of 'Zones' (slides). Goal: a beautiful presentation that stays editable and globally \
+restyleable for the human AFTERWARDS.\n\n";
 
-    let workflow = "EMPFOHLENER ABLAUF:\n\
-1) Designsystem zuerst: ENTWEDER apply_preset(name) für ein fertiges Theme (list_presets zeigt \
-editorial, dark-tech, warm, minimal, corporate) ODER set_tokens_bulk mit einem stimmigen Set — \
+    let workflow = "RECOMMENDED WORKFLOW:\n\
+1) Design system first: EITHER apply_preset(name) for a ready-made theme (list_presets shows \
+editorial, dark-tech, warm, minimal, corporate) OR set_tokens_bulk with a coherent set — \
 color-primary, color-secondary, color-bg, color-surface, color-text, color-accent, font-heading, \
-font-body, font-size-base, spacing-base, border-radius. (get_tokens zeigt die aktuellen Werte.)\n\
-2) Folien anlegen: create_zone + set_zone_content (content_type 'markdown'). Schreibe klaren, \
-knappen Markdown-Inhalt (eine Kernaussage pro Folie).\n\
-3) Layout je Folie über set_zone_style:\n\
-   - 'hero': große, zentrierte Titel-Folie (Auftakt).\n\
-   - 'split': ZWEI SPALTEN — trenne die beiden Spalten im Markdown mit einer eigenen Zeile '+++'. \
-Eine Spalte kann ein Bild sein.\n\
-   - 'center' / 'top' / 'full': einspaltig.\n\
-   - text_align (left|center|right), padding, background (überschreibt color-bg, z.B. Gradient).\n\
-4) Bilder: vorhandene Assets mit list_assets entdecken und als ![](assets/<name>) referenzieren. \
-Für Größe/Ausrichtung/Umfluss rohes <img> nutzen: <img src=\"assets/x.png\" style=\"width:50%\" \
-class=\"align-right\"> (Klassen: align-left|center|right, float-left|right).\n\
-5) Reiche Inhalte ohne HTML-Handarbeit: insert_component(zone_id, type, params) setzt fertige, \
-token-bewusste Komponenten ein — list_components zeigt Typen + Parameter: stat_cards (KPIs), \
-big_number (eine große Zahl), bar_chart, line_chart (Trend), donut_chart (Anteile), progress, \
-data_table (Tabelle), feature_grid (Icon-Karten), process_steps (1-2-3), pricing (Preise), \
-gallery (Bildraster aus Assets), quote, timeline, comparison (zwei Spalten), callout, icon. \
-Bevorzuge diese für Daten/Diagramme/Vergleiche/Tabellen.\n\
-6) Feinschliff: set_zone_notes(id, notes) für Sprechernotizen (nur Speaker-View); \
-set_transition(kind, duration_ms) für den Folienübergang (none|fade|slide|zoom|auto — auto = Magic-Move \
-gleicher data-id-Elemente); \
-set_zone_reveal(id, 'steps') für Builds — die Blöcke der Folie erscheinen im \
-Präsentationsmodus nacheinander (gut für Bullet-Listen, die schrittweise aufgebaut werden). \
-FOLIEN-LINKS (nicht-linear): insert_component(zone_id, 'toc', { items: [{ label, target }] }) baut ein \
-klickbares Inhaltsverzeichnis (target = Zonen-ID oder 1-basierte Foliennummer); allgemein springt jedes \
-Element mit data-slideo-goto zur Zielfolie, ein Rücksprung-Link bringt zurück.\n\
-7) LAYOUT-CHECK (1280×720 ist fest, Überstehendes wird abgeschnitten): der Server misst kein echtes Layout — \
-rufe nach dem Bauen einer Folie check_zone_overflow(id) und am Ende validate_deck() auf (Heuristik); bei \
-gemeldetem Overflow Inhalt auf mehrere Folien teilen, Schrift verkleinern oder das Layout vereinfachen.\n\n";
+font-body, font-size-base, spacing-base, border-radius. (get_tokens shows the current values.)\n\
+2) Create slides: create_zone + set_zone_content (content_type 'markdown'). Write clear, \
+concise Markdown content (one key message per slide).\n\
+3) Layout per slide via set_zone_style:\n\
+   - 'hero': large, centered title slide (opener).\n\
+   - 'split': TWO COLUMNS — separate the two columns in the Markdown with a line of its own containing '+++'. \
+A column can be an image.\n\
+   - 'center' / 'top' / 'full': single column.\n\
+   - text_align (left|center|right), padding, background (overrides color-bg, e.g. a gradient).\n\
+4) Images: discover existing assets with list_assets and reference them as ![](assets/<name>). \
+For size/alignment/wrap use raw <img>: <img src=\"assets/x.png\" style=\"width:50%\" \
+class=\"align-right\"> (classes: align-left|center|right, float-left|right).\n\
+5) Rich content without hand-written HTML: insert_component(zone_id, type, params) inserts ready-made, \
+token-aware components — list_components shows types + parameters: stat_cards (KPIs), \
+big_number (one large number), bar_chart, line_chart (trend), donut_chart (shares), progress, \
+data_table (table), feature_grid (icon cards), process_steps (1-2-3), pricing (prices), \
+gallery (image grid from assets), quote, timeline, comparison (two columns), callout, icon. \
+Prefer these for data/charts/comparisons/tables.\n\
+6) Finishing touches: set_zone_notes(id, notes) for speaker notes (Speaker View only); \
+set_transition(kind, duration_ms) for the slide transition (none|fade|slide|zoom|auto — auto = Magic Move \
+of elements with the same data-id); \
+set_zone_reveal(id, 'steps') for builds — the slide's blocks appear one after another in \
+presentation mode (good for bullet lists built up step by step). \
+SLIDE LINKS (non-linear): insert_component(zone_id, 'toc', { items: [{ label, target }] }) builds a \
+clickable table of contents (target = zone id or 1-based slide number); in general any element with \
+data-slideo-goto jumps to the target slide, a back link returns.\n\
+7) LAYOUT CHECK (1280×720 is fixed, overflow is clipped): the server measures no real layout — \
+after building a slide call check_zone_overflow(id) and at the end validate_deck() (heuristic); on \
+reported overflow split content across more slides, reduce the font size, or simplify the layout.\n\n";
 
-    let principles = "FORMAT (zwingend): Jede Folie ist eine FESTE 1280×720-px-Bühne (16:9) — sie \
-wächst NICHT mit dem Inhalt, alles Überstehende wird ABGESCHNITTEN. Plane jede Folie so, dass alles \
-vollständig hineinpasst (eine Kernaussage pro Folie; lieber mehr Folien als eine überfüllte). Bei \
-HTML-Folien strikt im 1280×720-Raster denken: lesbaren Inhalt in der Safe-Area x 64–1216 / y 64–656 \
-halten (720 px sind kurz!), Schriftgrößen prüfen (zu große Headlines laufen aus dem Rahmen); nur \
-rein dekorative Formen dürfen über den Rand hinausragen (bleed), niemals Text/Inhalt.\n\n\
-WICHTIGE PRINZIPIEN (Editierbarkeit):\n\
-- BEVORZUGE Markdown + Tokens + Layouts + fertige Komponenten. Markdown-Folien bleiben im \
-WYSIWYG-Editor bearbeitbar, Komponenten bleiben themebar.\n\
-- Eigenes content_type 'html' NUR für Interaktives/Animiertes, das die Komponenten nicht abdecken \
-(eigene Charts SVG/JS, CSS-@keyframes-Animationen, interaktive SVGs, eingebettete Player, Demos) \
-ODER Video/Audio. Das volle Browser-Repertoire ist erlaubt — aber klein und fokussiert halten.\n\
-- WENN HTML: style ausschließlich über die Token-CSS-Variablen (var(--color-primary), \
-var(--font-heading), var(--color-bg), var(--border-radius) …), NIE hartkodierte Farben/Fonts — \
-so bleibt die Folie über die Token-Sidebar global themebar.\n\
-- Konsistenz: gleiche Tokens für die ganze Deck; pro Folie nur gezielte Overrides.\n";
+    let principles = "FORMAT (mandatory): Every slide is a FIXED 1280×720-px stage (16:9) — it does \
+NOT grow with its content, everything beyond is CLIPPED. Plan each slide so everything fits \
+completely (one key message per slide; rather more slides than one overfilled). For \
+HTML slides think strictly in the 1280×720 grid: keep readable content in the safe area x 64–1216 / y 64–656 \
+(720 px is short!), check font sizes (oversized headlines run out of the frame); only \
+purely decorative shapes may bleed past the edge, never text/content.\n\n\
+IMPORTANT PRINCIPLES (editability):\n\
+- PREFER Markdown + tokens + layouts + ready-made components. Markdown slides stay editable in the \
+WYSIWYG editor, components stay themeable.\n\
+- Custom content_type 'html' ONLY for interactive/animated content the components do not cover \
+(custom charts SVG/JS, CSS @keyframes animations, interactive SVGs, embedded players, demos) \
+OR video/audio. The full browser repertoire is allowed — but keep it small and focused.\n\
+- WHEN HTML: style exclusively via the token CSS variables (var(--color-primary), \
+var(--font-heading), var(--color-bg), var(--border-radius) …), NEVER hard-coded colors/fonts — \
+so the slide stays globally themeable via the token sidebar.\n\
+- Consistency: the same tokens for the whole deck; only targeted overrides per slide.\n";
 
     let mut out = String::new();
     out.push_str(intro);
-    if let Some(t) = thema {
+    if let Some(t) = topic {
         if !t.trim().is_empty() {
-            out.push_str(&format!("THEMA DIESER PRÄSENTATION: {t}\n\n"));
+            out.push_str(&format!("TOPIC OF THIS PRESENTATION: {t}\n\n"));
         }
     }
     out.push_str(workflow);
@@ -787,239 +796,239 @@ pub fn tool_schemas() -> Value {
     json!([
         {
             "name": "create_presentation",
-            "description": "Erstellt eine neue leere Präsentation und öffnet sie in der App.",
-            "inputSchema": { "type": "object", "properties": { "title": s("Titel der Präsentation") }, "required": ["title"] }
+            "description": "Creates a new empty presentation and opens it in the app.",
+            "inputSchema": { "type": "object", "properties": { "title": s("Presentation title") }, "required": ["title"] }
         },
         {
             "name": "open_presentation",
-            "description": "Öffnet eine bestehende .slideo Datei.",
-            "inputSchema": { "type": "object", "properties": { "path": s("Absoluter Pfad zur .slideo Datei") }, "required": ["path"] }
+            "description": "Opens an existing .slideo file.",
+            "inputSchema": { "type": "object", "properties": { "path": s("Absolute path to the .slideo file") }, "required": ["path"] }
         },
         {
             "name": "save_presentation",
-            "description": "Speichert die aktuelle Präsentation. Ohne path wird am bestehenden Ort gespeichert.",
-            "inputSchema": { "type": "object", "properties": { "path": s("Optionaler Speicherpfad (Save As)") } }
+            "description": "Saves the current presentation. Without path it saves to the existing location.",
+            "inputSchema": { "type": "object", "properties": { "path": s("Optional save path (Save As)") } }
         },
         {
             "name": "get_presentation_meta",
-            "description": "Gibt Metadaten der aktuellen Präsentation zurück: Titel, Anzahl Zones, Token-Übersicht.",
+            "description": "Returns metadata of the current presentation: title, number of zones, token overview.",
             "inputSchema": obj()
         },
         {
             "name": "create_zone",
-            "description": "Erstellt eine neue Zone (Slide) am Ende oder an einer bestimmten Position.",
+            "description": "Creates a new zone (slide) at the end or at a specific position.",
             "inputSchema": { "type": "object", "properties": {
-                "label": s("Anzeigename z.B. 'Slide 3'"),
-                "after_id": s("UUID der Zone nach der eingefügt wird. Ohne Angabe: ans Ende."),
-                "markdown": s("Optionaler initialer Inhalt als Markdown")
+                "label": s("Display name, e.g. 'Slide 3'"),
+                "after_id": s("UUID of the zone to insert after. Omit to append at the end."),
+                "markdown": s("Optional initial content as Markdown")
             }, "required": ["label"] }
         },
         {
             "name": "delete_zone",
-            "description": "Löscht eine Zone permanent.",
-            "inputSchema": { "type": "object", "properties": { "id": s("UUID der Zone") }, "required": ["id"] }
+            "description": "Permanently deletes a zone.",
+            "inputSchema": { "type": "object", "properties": { "id": s("UUID of the zone") }, "required": ["id"] }
         },
         {
             "name": "reorder_zones",
-            "description": "Ändert die Reihenfolge aller Zones.",
+            "description": "Changes the order of all zones.",
             "inputSchema": { "type": "object", "properties": {
-                "ordered_ids": { "type": "array", "items": { "type": "string" }, "description": "Alle Zone-UUIDs in der gewünschten neuen Reihenfolge" }
+                "ordered_ids": { "type": "array", "items": { "type": "string" }, "description": "All zone UUIDs in the desired new order" }
             }, "required": ["ordered_ids"] }
         },
         {
             "name": "get_zone",
-            "description": "Gibt eine einzelne Zone zurück (id, label, content_type, markdown, html, style, notes).",
+            "description": "Returns a single zone (id, label, content_type, markdown, html, style, notes).",
             "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
         },
         {
             "name": "get_all_zones",
-            "description": "Gibt alle Zones in ihrer aktuellen Reihenfolge zurück.",
+            "description": "Returns all zones in their current order.",
             "inputSchema": obj()
         },
         {
             "name": "check_zone_overflow",
-            "description": "Heuristische Layout-Prüfung EINER Folie gegen die feste 1280×720-Bühne (Spec §21): schätzt, ob Inhalt rechts/unten aus der Bühne läuft oder die Safe-Area (x64–1216 / y64–656) überschreitet. NUR eine Schätzung (kein echtes Rendering). Nach dem Bauen einer Folie aufrufen; bei Overflow Inhalt teilen / Schrift kleiner / Layout vereinfachen.",
+            "description": "Heuristic layout check of ONE slide against the fixed 1280×720 stage (Spec §21): estimates whether content runs off the stage right/bottom or exceeds the safe area (x64–1216 / y64–656). ONLY an estimate (no real rendering). Call after building a slide; on overflow split the content / use a smaller font / simplify the layout.",
             "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
         },
         {
             "name": "validate_deck",
-            "description": "Heuristische Layout-Prüfung ALLER Folien auf einmal (Spec §21): listet die Folien mit geschätztem Overflow + Hinweisen. Gut als Schlusscheck nach dem Aufbau eines Decks.",
+            "description": "Heuristic layout check of ALL slides at once (Spec §21): lists the slides with estimated overflow + hints. Good as a final check after building a deck.",
             "inputSchema": obj()
         },
         {
             "name": "set_zone_content",
-            "description": "Ersetzt den Inhalt einer Zone. BEVORZUGE content_type 'markdown' (bleibt für den Menschen WYSIWYG-editierbar; style über Design-Tokens + set_zone_style). Nutze 'html' NUR für Interaktives/Animiertes (Charts, SVG, JS) – und dann ausschließlich mit den Token-CSS-Variablen (var(--color-primary), var(--font-heading) …) statt hartkodierter Farben/Fonts, damit der Mensch es global umgestalten kann.",
+            "description": "Replaces a zone's content. PREFER content_type 'markdown' (stays WYSIWYG-editable for the human; style via design tokens + set_zone_style). Use 'html' ONLY for interactive/animated content (charts, SVG, JS) – and then exclusively with the token CSS variables (var(--color-primary), var(--font-heading) …) instead of hard-coded colors/fonts, so the human can restyle it globally.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
-                "content_type": { "type": "string", "enum": ["markdown", "html"], "description": "markdown für Text-Slides, html für interaktive oder animierte Inhalte" },
-                "content": s("Inhalt als Markdown-String oder als HTML-String je nach content_type")
+                "content_type": { "type": "string", "enum": ["markdown", "html"], "description": "markdown for text slides, html for interactive or animated content" },
+                "content": s("Content as a Markdown string or an HTML string depending on content_type")
             }, "required": ["id", "content_type", "content"] }
         },
         {
             "name": "append_to_zone",
-            "description": "Fügt Inhalt am Ende einer Zone hinzu (Markdown bzw. HTML je nach content_type).",
+            "description": "Appends content at the end of a zone (Markdown or HTML depending on content_type).",
             "inputSchema": { "type": "object", "properties": { "id": { "type": "string" }, "markdown": { "type": "string" } }, "required": ["id", "markdown"] }
         },
         {
             "name": "replace_in_zone",
-            "description": "Ersetzt einen bestimmten Text in einer Zone durch neuen Text.",
+            "description": "Replaces a specific text in a zone with new text.",
             "inputSchema": { "type": "object", "properties": {
-                "id": { "type": "string" }, "search": s("Zu ersetzender Text"), "replace": s("Neuer Text")
+                "id": { "type": "string" }, "search": s("Text to replace"), "replace": s("New text")
             }, "required": ["id", "search", "replace"] }
         },
         {
             "name": "get_zone_content",
-            "description": "Gibt den Inhalt einer Zone zurück (Markdown, bzw. rohes HTML bei HTML-Zonen).",
+            "description": "Returns a zone's content (Markdown, or raw HTML for HTML zones).",
             "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
         },
         {
             "name": "get_tokens",
-            "description": "Gibt alle aktuellen Design Tokens zurück.",
+            "description": "Returns all current design tokens.",
             "inputSchema": obj()
         },
         {
             "name": "set_token",
-            "description": "Setzt einen einzelnen Design Token.",
-            "inputSchema": { "type": "object", "properties": { "key": s("Token-Name z.B. 'color-primary'"), "value": s("Token-Wert z.B. '#6366f1'") }, "required": ["key", "value"] }
+            "description": "Sets a single design token.",
+            "inputSchema": { "type": "object", "properties": { "key": s("Token name, e.g. 'color-primary'"), "value": s("Token value, e.g. '#6366f1'") }, "required": ["key", "value"] }
         },
         {
             "name": "set_tokens_bulk",
-            "description": "Setzt mehrere Design Tokens auf einmal. Ideal zum Erstellen eines kompletten Design Systems.",
+            "description": "Sets several design tokens at once. Ideal for creating a complete design system.",
             "inputSchema": { "type": "object", "properties": {
-                "tokens": { "type": "object", "description": "Key-Value Paare aller zu setzenden Tokens", "additionalProperties": { "type": "string" } }
+                "tokens": { "type": "object", "description": "Key-value pairs of all tokens to set", "additionalProperties": { "type": "string" } }
             }, "required": ["tokens"] }
         },
         {
             "name": "reset_tokens",
-            "description": "Setzt alle Design Tokens auf die Standard-Werte zurück.",
+            "description": "Resets all design tokens to their default values.",
             "inputSchema": obj()
         },
         {
             "name": "list_presets",
-            "description": "Listet die verfügbaren Theme-Presets (kuratierte Design-Token-Bündel) mit Name, Label und Beschreibung. Wende eines mit apply_preset an, um in einem Schritt ein stimmiges Farb-/Font-System zu setzen.",
+            "description": "Lists the available theme presets (curated design-token bundles) with name, label and description. Apply one with apply_preset to set a coherent color/font system in one step.",
             "inputSchema": obj()
         },
         {
             "name": "apply_preset",
-            "description": "Wendet ein Theme-Preset an (setzt die Design-Tokens des Presets per Bulk). Schneller Start für ein konsistentes Look & Feel; danach kann per set_token/set_tokens_bulk feinjustiert werden. Verfügbare Namen via list_presets.",
+            "description": "Applies a theme preset (sets the preset's design tokens in bulk). A quick start for a consistent look & feel; fine-tune afterwards via set_token/set_tokens_bulk. Available names via list_presets.",
             "inputSchema": { "type": "object", "properties": {
-                "name": s("Preset-Name, z.B. 'editorial', 'dark-tech', 'warm', 'minimal', 'corporate' (siehe list_presets)")
+                "name": s("Preset name, e.g. 'editorial', 'dark-tech', 'warm', 'minimal', 'corporate' (see list_presets)")
             }, "required": ["name"] }
         },
         {
             "name": "set_zone_style",
-            "description": "Setzt Style-Properties einer Zone: layout/padding/background/text_align (im 'style'-Objekt) und/oder zonen-gescoptes 'custom_css'. Mit custom_css stylst du eine Markdown-Folie frei, ohne den Text in HTML zu vergraben (Text bleibt editierbar). Mindestens eines von 'style'/'custom_css' angeben.",
+            "description": "Sets a zone's style properties: layout/padding/background/text_align (in the 'style' object) and/or zone-scoped 'custom_css'. With custom_css you style a Markdown slide freely without burying the text in HTML (text stays editable). Provide at least one of 'style'/'custom_css'.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
                 "style": { "type": "object", "properties": {
-                    "layout": { "type": "string", "enum": ["center", "hero", "top", "split", "full"], "description": "Layout: center (zentriert), hero (große Titel-Folie), top (oben), split (zwei Spalten – Markdown an einer '+++'-Zeile trennen), full (vollflächig)" },
-                    "padding": s("CSS padding z.B. '4rem'"),
-                    "background": s("CSS background, überschreibt Token. z.B. '#1a1a2e' oder 'linear-gradient(...)'"),
+                    "layout": { "type": "string", "enum": ["center", "hero", "top", "split", "full"], "description": "Layout: center (centered), hero (large title slide), top (top), split (two columns – separate the Markdown at a '+++' line), full (full-bleed)" },
+                    "padding": s("CSS padding, e.g. '4rem'"),
+                    "background": s("CSS background, overrides the token, e.g. '#1a1a2e' or 'linear-gradient(...)'"),
                     "text_align": { "type": "string", "enum": ["left", "center", "right"] }
                 } },
-                "custom_css": s("Zonen-gescoptes CSS, z.B. 'h1 { letter-spacing: -.02em } strong { color: var(--color-accent) }'. Selektoren beziehen sich auf den Folieninhalt. Nutze Token-Variablen, damit es themebar bleibt.")
+                "custom_css": s("Zone-scoped CSS, e.g. 'h1 { letter-spacing: -.02em } strong { color: var(--color-accent) }'. Selectors refer to the slide content. Use token variables so it stays themeable.")
             }, "required": ["id"] }
         },
         {
             "name": "get_zone_style",
-            "description": "Gibt die Style-Properties einer Zone zurück.",
+            "description": "Returns a zone's style properties.",
             "inputSchema": { "type": "object", "properties": { "id": { "type": "string" } }, "required": ["id"] }
         },
         {
             "name": "set_zone_css",
-            "description": "Setzt zonen-spezifisches Custom-CSS, das auf DIESE Zone gescoped angewendet wird – ideal, um eine Markdown-Folie zu stylen, ohne den Text in HTML zu vergraben (Text bleibt editierbar). Selektoren beziehen sich auf den Folieninhalt, z.B. 'h1 { ... }', '.slideo-content p { ... }'. Nutze die Token-CSS-Variablen (var(--color-primary) …), damit es themebar bleibt.",
+            "description": "Sets zone-specific custom CSS applied scoped to THIS zone – ideal for styling a Markdown slide without burying the text in HTML (text stays editable). Selectors refer to the slide content, e.g. 'h1 { ... }', '.slideo-content p { ... }'. Use the token CSS variables (var(--color-primary) …) so it stays themeable.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
-                "css": s("CSS-Regeln für diese Zone, z.B. 'h1 { letter-spacing: -0.02em } strong { color: var(--color-accent) }'")
+                "css": s("CSS rules for this zone, e.g. 'h1 { letter-spacing: -0.02em } strong { color: var(--color-accent) }'")
             }, "required": ["id", "css"] }
         },
         {
             "name": "set_zone_notes",
-            "description": "Setzt die Sprechernotizen (Speaker Notes) einer Zone. Notizen erscheinen NUR in der Speaker-View während der Präsentation, nie auf der Folie selbst. Ideal für Stichpunkte, was der Vortragende zu dieser Folie sagen will.",
+            "description": "Sets a zone's speaker notes. Notes appear ONLY in the Speaker View during the presentation, never on the slide itself. Ideal for bullet points of what the presenter wants to say about this slide.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
-                "notes": s("Sprechernotizen als reiner Text (mehrzeilig erlaubt). Leerer String löscht die Notizen.")
+                "notes": s("Speaker notes as plain text (multi-line allowed). An empty string clears the notes.")
             }, "required": ["id", "notes"] }
         },
         {
             "name": "set_zone_reveal",
-            "description": "Schaltet Builds (schrittweises Einblenden) einer Markdown-Zone. 'steps' = die Top-Level-Blöcke (Absätze/Bullets/Bilder) erscheinen im Präsentationsmodus nacheinander pro Pfeil/Klick; 'none' = alles sofort (Default). Nur Markdown-Zonen ohne 'split'.",
+            "description": "Toggles builds (step-by-step reveal) of a Markdown zone. 'steps' = the top-level blocks (paragraphs/bullets/images) appear one per arrow/click in presentation mode; 'none' = everything at once (default). Only Markdown zones without 'split'.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
-                "mode": { "type": "string", "enum": ["none", "steps"], "description": "steps = schrittweise, none = sofort" }
+                "mode": { "type": "string", "enum": ["none", "steps"], "description": "steps = step by step, none = at once" }
             }, "required": ["id", "mode"] }
         },
         {
             "name": "list_assets",
-            "description": "Listet die in der Präsentation hinterlegten Assets (Bilder) mit Dateiname + MIME-Typ. Referenziere ein Asset im Inhalt als 'assets/<name>', z.B. Markdown ![](assets/logo.png) oder HTML <img src=\"assets/logo.png\">. Der Mensch legt Assets in der App ab (Import/Settings).",
+            "description": "Lists the assets (images) stored in the presentation with file name + MIME type. Reference an asset in content as 'assets/<name>', e.g. Markdown ![](assets/logo.png) or HTML <img src=\"assets/logo.png\">. The human adds assets in the app (import/settings).",
             "inputSchema": obj()
         },
         {
             "name": "list_components",
-            "description": "Listet fertige, token-bewusste HTML-Komponenten (Kennzahlen-Karten, Diagramme: Balken/Linie/Donut, Fortschritt, Zitat, Zeitstrahl, Vergleich, Hinweis-Box, Icons) mit Typ, Label, Beschreibung und Parametern. Mit insert_component in eine Zone einsetzen. Schneller Weg zu hochwertigen, themebaren Inhalten ohne eigenes HTML.",
+            "description": "Lists ready-made, token-aware HTML components (KPI cards, charts: bar/line/donut, progress, quote, timeline, comparison, callout box, icons) with type, label, description and parameters. Insert one into a zone with insert_component. The fast route to high-quality, themeable content without your own HTML.",
             "inputSchema": obj()
         },
         {
             "name": "insert_component",
-            "description": "Erzeugt eine fertige, token-bewusste HTML-Komponente und setzt sie in eine Zone (die Zone wird zu content_type 'html'). Die Komponente nutzt ausschließlich Token-CSS-Variablen und bleibt damit über die Token-Sidebar global themebar. Verfügbare Typen + Parameter via list_components. Tipp: vorher create_zone, dann hier einsetzen.",
+            "description": "Creates a ready-made, token-aware HTML component and inserts it into a zone (the zone becomes content_type 'html'). The component uses only token CSS variables and therefore stays globally themeable via the token sidebar. Available types + parameters via list_components. Tip: create_zone first, then insert here.",
             "inputSchema": { "type": "object", "properties": {
-                "zone_id": s("UUID der Ziel-Zone"),
-                "type": s("Komponententyp, z.B. 'bar_chart', 'stat_cards', 'timeline', 'comparison' (siehe list_components)"),
-                "params": { "type": "object", "description": "Parameter der Komponente (Struktur je Typ, siehe list_components), z.B. { \"items\": [{ \"label\": \"Q1\", \"value\": 40 }] }" },
-                "mode": { "type": "string", "enum": ["replace", "append"], "description": "replace (Default): Zoneninhalt ersetzen; append: an bestehendes HTML der Zone anhängen" },
-                "data_id": s("Optional: data-id für Auto-Animate (Übergang 'auto'). Komponenten mit gleichem data-id auf benachbarten Folien morphen ineinander (FLIP).")
+                "zone_id": s("UUID of the target zone"),
+                "type": s("Component type, e.g. 'bar_chart', 'stat_cards', 'timeline', 'comparison' (see list_components)"),
+                "params": { "type": "object", "description": "Component parameters (structure per type, see list_components), e.g. { \"items\": [{ \"label\": \"Q1\", \"value\": 40 }] }" },
+                "mode": { "type": "string", "enum": ["replace", "append"], "description": "replace (default): replace the zone content; append: append to the zone's existing HTML" },
+                "data_id": s("Optional: data-id for Auto-Animate (transition 'auto'). Components with the same data-id on adjacent slides morph into each other (FLIP).")
             }, "required": ["zone_id", "type"] }
         },
         {
             "name": "get_slide_count",
-            "description": "Gibt die Anzahl der Zones (Slides) zurück.",
+            "description": "Returns the number of zones (slides).",
             "inputSchema": obj()
         },
         {
             "name": "set_active_slide",
-            "description": "Springt im Präsentationsmodus zu einem bestimmten Slide.",
-            "inputSchema": { "type": "object", "properties": { "index": { "type": "number", "description": "0-basierter Index des Slides" } }, "required": ["index"] }
+            "description": "Jumps to a specific slide in presentation mode.",
+            "inputSchema": { "type": "object", "properties": { "index": { "type": "number", "description": "0-based index of the slide" } }, "required": ["index"] }
         },
         {
             "name": "set_transition",
-            "description": "Setzt den präsentationsweiten Folienübergang (Animation beim Folienwechsel im Präsentationsmodus und im HTML-Export). 'none' = reines Scrollen (Default).",
+            "description": "Sets the presentation-wide slide transition (animation on slide change in presentation mode and in the HTML export). 'none' = plain scrolling (default).",
             "inputSchema": { "type": "object", "properties": {
-                "kind": { "type": "string", "enum": ["none", "fade", "slide", "zoom", "auto"], "description": "none (kein Übergang), fade (Überblenden), slide (horizontal Schieben), zoom (Ein-/Auszoomen), auto (Auto-Animate: Elemente mit gleichem data-id zwischen benachbarten Folien morphen per FLIP; restliche Inhalte schalten hart um — am besten bei gleichem Hintergrund). data-id setzt du in HTML-Zonen oder via insert_component(data_id)." },
-                "duration_ms": { "type": "number", "description": "Dauer des Übergangs in Millisekunden (Default 500)" }
+                "kind": { "type": "string", "enum": ["none", "fade", "slide", "zoom", "auto"], "description": "none (no transition), fade, slide (horizontal), zoom (zoom in/out), auto (Auto-Animate: elements with the same data-id morph between adjacent slides via FLIP; the rest cuts hard — best with the same background). Set data-id in HTML zones or via insert_component(data_id)." },
+                "duration_ms": { "type": "number", "description": "Transition duration in milliseconds (default 500)" }
             }, "required": ["kind"] }
         },
         {
             "name": "set_presentation_title",
-            "description": "Benennt die Präsentation um (meta.title).",
-            "inputSchema": { "type": "object", "properties": { "title": s("Neuer Titel der Präsentation") }, "required": ["title"] }
+            "description": "Renames the presentation (meta.title).",
+            "inputSchema": { "type": "object", "properties": { "title": s("New presentation title") }, "required": ["title"] }
         },
         {
             "name": "set_logo",
-            "description": "Setzt das Marken-Logo (erscheint in einer Ecke jeder Folie, auch im Export). 'asset' muss ein bereits vorhandenes Bild-Asset sein (siehe list_assets — die KI lädt keine Dateien hoch).",
+            "description": "Sets the brand logo (appears in a corner of every slide, including in exports). 'asset' must be an already existing image asset (see list_assets — the AI does not upload files).",
             "inputSchema": { "type": "object", "properties": {
-                "asset": s("Dateiname eines vorhandenen Bild-Assets, z.B. 'img-ab12.png'"),
-                "position": { "type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right"], "description": "Ecke (Default bottom-right)" }
+                "asset": s("File name of an existing image asset, e.g. 'img-ab12.png'"),
+                "position": { "type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right"], "description": "Corner (default bottom-right)" }
             }, "required": ["asset"] }
         },
         {
             "name": "clear_logo",
-            "description": "Entfernt das Marken-Logo (meta.logo).",
+            "description": "Removes the brand logo (meta.logo).",
             "inputSchema": obj()
         },
         {
             "name": "register_font",
-            "description": "Registriert eine bereits als Asset vorhandene Schriftdatei (woff2/woff/ttf/otf) als Schriftfamilie (presentation.fonts) — danach in den Font-Tokens nutzbar (set_token font-heading|font-body). 'asset' siehe list_assets.",
+            "description": "Registers a font file already present as an asset (woff2/woff/ttf/otf) as a font family (presentation.fonts) — then usable in the font tokens (set_token font-heading|font-body). 'asset' see list_assets.",
             "inputSchema": { "type": "object", "properties": {
-                "family": s("Familienname, z.B. 'Cal Sans'"),
-                "asset": s("Dateiname eines vorhandenen Font-Assets, z.B. 'font-ab12.woff2'")
+                "family": s("Family name, e.g. 'Cal Sans'"),
+                "asset": s("File name of an existing font asset, e.g. 'font-ab12.woff2'")
             }, "required": ["family", "asset"] }
         },
         {
             "name": "set_zone_label",
-            "description": "Benennt eine Zone/Folie um (Editor-Anzeigename in der Folienliste — NICHT die Überschrift auf der Folie; die setzt du via Markdown-Inhalt).",
+            "description": "Renames a zone/slide (editor display name in the slide list — NOT the heading on the slide; you set that via the Markdown content).",
             "inputSchema": { "type": "object", "properties": {
-                "id": s("UUID der Zone"),
-                "label": s("Neuer Anzeigename")
+                "id": s("UUID of the zone"),
+                "label": s("New display name")
             }, "required": ["id", "label"] }
         }
     ])

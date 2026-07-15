@@ -76,6 +76,54 @@ export const COMPONENT_ICONS: Record<string, string> = {
   gallery: 'collections',
 }
 
+/**
+ * Deutsche Anzeige-Texte (Label + Beschreibung) je Komponententyp für die
+ * MENSCHLICHE Palette-UI. Der Rust-`list_components`-Katalog ist auf Englisch
+ * (AI-facing, MCP-Localization) und bleibt Single Source für Typenliste, Params
+ * und Fallback. Hier überschreiben wir nur die Anzeige für den (deutschen)
+ * Editor. Fehlt ein Typ (neue Rust-Komponente) → Fallback auf den englischen
+ * Rust-Text, damit sie trotzdem erscheint.
+ */
+export const COMPONENT_CATALOG_DE: Record<string, { label: string; description: string }> = {
+  stat_cards: { label: 'Kennzahlen-Karten', description: 'Reihe großer KPI-Karten (Wert + Beschriftung).' },
+  bar_chart: { label: 'Balkendiagramm', description: 'Horizontale Balken, automatisch skaliert.' },
+  line_chart: { label: 'Liniendiagramm', description: 'Linienverlauf (Trend über Zeit) als SVG, token-bewusst.' },
+  donut_chart: { label: 'Donut-/Kreisdiagramm', description: 'Anteile als Donut mit Legende (Prozente automatisch).' },
+  progress: { label: 'Fortschrittsbalken', description: 'Beschriftete Prozent-Balken (0–100).' },
+  quote: { label: 'Zitat', description: 'Großes zentriertes Zitat mit Quelle.' },
+  timeline: { label: 'Zeitstrahl', description: 'Vertikaler Zeitstrahl mit Punkten.' },
+  comparison: { label: 'Vergleich (zwei Spalten)', description: 'Zwei gegenübergestellte Listen-Spalten.' },
+  callout: { label: 'Hinweis-Box', description: 'Hervorgehobener Kasten mit Titel und Text.' },
+  icon: {
+    label: 'Icon (Inline-SVG)',
+    description:
+      'Token-gefärbtes Symbol (optional mit Beschriftung). Namen: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.',
+  },
+  toc: {
+    label: 'Inhaltsverzeichnis (Sprung-Links)',
+    description:
+      'Klickbare Folienübersicht — jeder Eintrag springt zur Zielfolie (Zonen-Link, Spec §23). target = Zonen-ID ODER 1-basierte Foliennummer; ein Rücksprung-Link auf die Inhalts-Folie bringt zurück.',
+  },
+  data_table: {
+    label: 'Tabelle',
+    description: 'Datentabelle, token-gestylt, gestreifte Zeilen. Max ~8 Zeilen (sonst Überlauf der 720px-Bühne).',
+  },
+  big_number: { label: 'Große Kennzahl', description: 'Eine herausragende Zahl (KPI-Hero) mit Label, optional Untertitel.' },
+  feature_grid: {
+    label: 'Feature-Raster',
+    description: 'Karten mit Icon + Titel + Text (2–3 nebeneinander). Icon-Namen wie bei „icon“.',
+  },
+  process_steps: {
+    label: 'Prozess-Schritte',
+    description: 'Nummerierte Schritte mit Pfeilen (horizontal). Am besten 3–5 Schritte.',
+  },
+  pricing: { label: 'Preistabelle', description: '2–4 Preis-Karten; eine via featured:true hervorgehoben.' },
+  gallery: {
+    label: 'Bild-Galerie',
+    description: 'Bildraster aus vorhandenen Assets (Namen aus list_assets); columns 1–4. Ohne Bilder werden Platzhalter gezeigt.',
+  },
+}
+
 /** Icon-Namen der Rust-`icon`-Komponente (für das Auswahl-Feld). */
 export const ICON_NAMES = [
   'check', 'close', 'arrow_right', 'arrow_up', 'plus', 'minus', 'star', 'heart',

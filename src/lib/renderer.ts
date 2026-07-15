@@ -859,8 +859,11 @@ function editScript(directEdit: boolean): string {
     // (Karten, data-id-Wrapper) plattzumachen.
     var INLINE_OK = {a:1,abbr:1,b:1,bdi:1,bdo:1,br:1,cite:1,code:1,data:1,dfn:1,em:1,i:1,kbd:1,mark:1,q:1,rp:1,rt:1,ruby:1,s:1,samp:1,small:1,span:1,strong:1,sub:1,sup:1,time:1,u:1,'var':1,wbr:1,font:1,big:1,tt:1};
     function isInlineEditable(el) {
-      var kids = el.children;
-      for (var i = 0; i < kids.length; i++) if (!INLINE_OK[kids[i].tagName.toLowerCase()]) return false;
+      // TIEF prüfen (jedes Nachfahre-Element): ein nicht-inline Element (z.B. <img>) in
+      // einem <a>/<span>-Wrapper würde beim Commit still verworfen → solche Blöcke NICHT
+      // inline editieren (Quell-Editor stattdessen). Muss mit dom-edit.ts übereinstimmen.
+      var all = el.getElementsByTagName('*');
+      for (var i = 0; i < all.length; i++) if (!INLINE_OK[all[i].tagName.toLowerCase()]) return false;
       return true;
     }
 
@@ -1441,13 +1444,26 @@ function patchScript(): string {
       var frame = section.closest ? section.closest('.slideo-frame') : null;
       if (!frame) return;
       // Neues Frame-HTML parsen und NUR den Inhalt in den bestehenden Frame-Knoten
-      // übernehmen (Knoten-Identität bleibt → slides/zoneIndex bleiben gültig). Zonen-
-      // HTML enthält keine <script> (die sind page-level) → innerHTML ist im WKWebView ok.
+      // übernehmen (Knoten-Identität bleibt → slides/zoneIndex bleiben gültig).
       var tpl = document.createElement('template');
       tpl.innerHTML = d.frameHtml;
       var newFrame = tpl.content.querySelector('.slideo-frame');
       if (!newFrame) return;
       frame.innerHTML = newFrame.innerHTML;
+      // Per innerHTML eingefügte <script> werden vom Browser NICHT ausgeführt (HTML-Spec).
+      // HTML-Zonen dürfen aber bewusst Inline-JS enthalten (Canvas-Charts, Animationen) →
+      // nach dem Swap neu erzeugen+ersetzen, sonst bleibt eine interaktive Zone nach einem
+      // Patch leer, bis ein unabhängiger Voll-Reload kommt.
+      var scripts = frame.querySelectorAll('script');
+      for (var si = 0; si < scripts.length; si++) {
+        var oldS = scripts[si];
+        var reS = document.createElement('script');
+        for (var ai = 0; ai < oldS.attributes.length; ai++) {
+          reS.setAttribute(oldS.attributes[ai].name, oldS.attributes[ai].value);
+        }
+        reS.textContent = oldS.textContent;
+        if (oldS.parentNode) oldS.parentNode.replaceChild(reS, oldS);
+      }
     }
   });
 })();
@@ -1668,11 +1684,18 @@ export function renderFullPage(presentation: Presentation, options: RenderOption
 
   // Präsentation passt jede Folie ins Fenster (fit-both, Letterbox); die Vorschau
   // skaliert auf volle Breite (fit-width, scrollend) — Default-Frame-CSS.
+  // Der Vorschau-Gutter `.slideo-frame + .slideo-frame { margin-top }` (SLIDE_CSS) schlägt
+  // per Spezifität (0,2,0) das `margin:0` (0,1,0) der Präsentations-Frames → im Deck-Modus
+  // säße jede Nicht-Erst-Folie ~10px tiefer. Hier gleich-spezifisch zurücksetzen; da snapCss
+  // NACH SLIDE_CSS steht, gewinnt es per Quell-Reihenfolge. Nur im Präsentationsmodus (die
+  // Vorschau behält ihren Gutter).
+  const presentGutterReset = '.slideo-frame + .slideo-frame { margin-top: 0; }\n'
   const snapCss = !present
     ? ''
     : deck
-      ? transitionCss(kind, duration)
-      : `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+      ? presentGutterReset + transitionCss(kind, duration)
+      : presentGutterReset +
+        `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
 .slideo-frame { width: 100%; height: 100vh; aspect-ratio: auto; margin: 0; scroll-snap-align: start; scroll-snap-stop: always; }
 html, body { height: 100%; overflow-x: hidden; }`
 

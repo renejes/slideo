@@ -86,21 +86,21 @@ fn analyze_markdown(md: &str, base: f64) -> Estimate {
     if max_w > STAGE_W - 64.0 {
         ow = true;
         issues.push(format!(
-            "Eine Überschrift ist ~{max_w:.0}px breit und überschreitet die Folie (1280px) — kürzen oder Schrift kleiner."
+            "A heading is ~{max_w:.0}px wide and exceeds the slide (1280px) — shorten it or use a smaller font."
         ));
     } else if max_w > SAFE_W {
         issues.push(format!(
-            "Eine Überschrift (~{max_w:.0}px) reicht über die Safe-Area-Breite (1152px) hinaus."
+            "A heading (~{max_w:.0}px) extends beyond the safe-area width (1152px)."
         ));
     }
     if height > STAGE_H - 64.0 {
         oh = true;
         issues.push(format!(
-            "Geschätzte Inhaltshöhe ~{height:.0}px überschreitet die Folie (720px) — Inhalt auf mehrere Folien teilen."
+            "Estimated content height ~{height:.0}px exceeds the slide (720px) — split the content across several slides."
         ));
     } else if height > SAFE_H {
         issues.push(format!(
-            "Geschätzte Inhaltshöhe ~{height:.0}px reicht über die Safe-Area (592px) hinaus — ggf. straffen."
+            "Estimated content height ~{height:.0}px extends beyond the safe area (592px) — consider tightening."
         ));
     }
     Estimate { width: max_w, height, overflows_width: ow, overflows_height: oh, issues }
@@ -152,18 +152,18 @@ fn analyze_html(html: &str) -> Estimate {
     if max_right > STAGE_W {
         ow = true;
         issues.push(format!(
-            "Ein Element reicht bis ~{max_right:.0}px rechts und wird bei 1280px abgeschnitten."
+            "An element reaches ~{max_right:.0}px on the right and will be clipped at 1280px."
         ));
     }
     if max_bottom > STAGE_H {
         oh = true;
         issues.push(format!(
-            "Ein Element reicht bis ~{max_bottom:.0}px unten und wird bei 720px abgeschnitten."
+            "An element reaches ~{max_bottom:.0}px at the bottom and will be clipped at 720px."
         ));
     }
     if max_font > 220.0 {
         issues.push(format!(
-            "Sehr große font-size (~{max_font:.0}px) — prüfen, ob die Headline in die Folie passt."
+            "Very large font-size (~{max_font:.0}px) — check whether the headline fits the slide."
         ));
     }
     Estimate { width: max_right, height: max_bottom, overflows_width: ow, overflows_height: oh, issues }
@@ -231,7 +231,7 @@ pub fn analyze(zone: &Value, tokens: &Value) -> Value {
         "overflows_height": est.overflows_height,
         "fits": !est.overflows_width && !est.overflows_height,
         "issues": est.issues,
-        "note": "Heuristische Schätzung (kein echtes Rendering) — Bühne 1280×720, Safe-Area x64–1216 / y64–656."
+        "note": "Heuristic estimate (no real rendering) — stage 1280×720, safe area x64–1216 / y64–656."
     })
 }
 

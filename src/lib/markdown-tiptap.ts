@@ -36,15 +36,24 @@ export function splitMarkdownBlocks(markdown: string): string[] {
   const lines = src.split('\n')
   const tokens = md.parse(src, {})
   const blocks: string[] = []
+  const covered = new Array(lines.length).fill(false)
   for (const t of tokens) {
     // Jeder Top-Level-Block erzeugt genau ein öffnendes/selbst-schließendes
     // Token auf Ebene 0 mit Zeilenbereich; schließende Tokens (nesting -1) skippen.
     if (t.level === 0 && t.nesting !== -1 && t.map) {
       const [start, end] = t.map
+      for (let i = start; i < end; i++) covered[i] = true
       const block = lines.slice(start, end).join('\n').replace(/\s+$/, '')
       if (block.trim()) blocks.push(block)
     }
   }
+  // Nicht abgedeckte, nicht-leere Zeilen bewahren: Link-Referenz-Definitionen (`[id]: url`)
+  // konsumiert markdown-it in env.references und emittiert KEIN Token → sie gingen sonst
+  // beim Split verloren und jeder Referenz-Link bräche. Als eigenen Block anhängen (die
+  // Position einer Referenz-Def ist fürs Rendering bedeutungslos → beim Rejoin resolviert
+  // markdown-it die Referenzen dokumentweit weiterhin korrekt).
+  const orphan = lines.filter((l, i) => !covered[i] && l.trim())
+  if (orphan.length) blocks.push(orphan.join('\n'))
   if (blocks.length === 0 && src.trim()) return [src.trim()]
   return blocks
 }

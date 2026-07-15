@@ -13,7 +13,7 @@ fn all() -> Value {
         {
             "name": "editorial",
             "label": "Editorial",
-            "description": "Hell, serif, redaktionell — ruhige Typo mit Terrakotta-Akzent.",
+            "description": "Light, serif, editorial — calm typography with a terracotta accent.",
             "tokens": {
                 "color-primary": "#1f1d1b", "color-secondary": "#6b6357",
                 "color-bg": "#faf8f4", "color-surface": "#efece6", "color-text": "#1f1d1b",
@@ -24,7 +24,7 @@ fn all() -> Value {
         {
             "name": "dark-tech",
             "label": "Dark Tech",
-            "description": "Dunkel, sachlich — Blau/Cyan-Akzente auf tiefem Nachtblau.",
+            "description": "Dark, factual — blue/cyan accents on deep night blue.",
             "tokens": {
                 "color-primary": "#3b82f6", "color-secondary": "#94a3b8",
                 "color-bg": "#0b0f17", "color-surface": "#151b27", "color-text": "#e6edf6",
@@ -35,7 +35,7 @@ fn all() -> Value {
         {
             "name": "warm",
             "label": "Warm",
-            "description": "Warmes Creme mit Orange — einladend und freundlich.",
+            "description": "Warm cream with orange — inviting and friendly.",
             "tokens": {
                 "color-primary": "#c2410c", "color-secondary": "#9a8478",
                 "color-bg": "#fff7ed", "color-surface": "#ffedd5", "color-text": "#3b2f2a",
@@ -46,7 +46,7 @@ fn all() -> Value {
         {
             "name": "minimal",
             "label": "Minimal",
-            "description": "Schwarz-Weiß, maximale Zurückhaltung — keine Eckenradien.",
+            "description": "Black & white, maximum restraint — no corner radii.",
             "tokens": {
                 "color-primary": "#111111", "color-secondary": "#8a8a8a",
                 "color-bg": "#ffffff", "color-surface": "#f4f4f4", "color-text": "#111111",
@@ -57,7 +57,7 @@ fn all() -> Value {
         {
             "name": "corporate",
             "label": "Corporate",
-            "description": "Professionell — Marineblau auf Weiß, klare Blautöne.",
+            "description": "Professional — navy on white, clean blues.",
             "tokens": {
                 "color-primary": "#1e3a8a", "color-secondary": "#64748b",
                 "color-bg": "#ffffff", "color-surface": "#eef2f7", "color-text": "#0f172a",

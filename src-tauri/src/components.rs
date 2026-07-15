@@ -40,9 +40,9 @@ fn clamp_pct(v: f64) -> f64 {
 
 fn stat_cards(params: &Value) -> String {
     let fallback = vec![
-        json!({ "value": "98%", "label": "Zufriedenheit" }),
-        json!({ "value": "3.2x", "label": "Wachstum" }),
-        json!({ "value": "12k", "label": "Nutzer" }),
+        json!({ "value": "98%", "label": "Satisfaction" }),
+        json!({ "value": "3.2x", "label": "Growth" }),
+        json!({ "value": "12k", "label": "Users" }),
     ];
     let cards = items(params, &fallback)
         .iter()
@@ -100,8 +100,8 @@ fn bar_chart(params: &Value) -> String {
 fn progress(params: &Value) -> String {
     let fallback = vec![
         json!({ "label": "Design", "percent": 90 }),
-        json!({ "label": "Entwicklung", "percent": 70 }),
-        json!({ "label": "Test", "percent": 45 }),
+        json!({ "label": "Development", "percent": 70 }),
+        json!({ "label": "QA", "percent": 45 }),
     ];
     let rows = items(params, &fallback)
         .iter()
@@ -121,8 +121,8 @@ fn progress(params: &Value) -> String {
 }
 
 fn quote(params: &Value) -> String {
-    let text = str_field(params, "text", "Großartige Ideen brauchen Mut, nicht Erlaubnis.");
-    let author = str_field(params, "author", "Unbekannt");
+    let text = str_field(params, "text", "Great ideas need courage, not permission.");
+    let author = str_field(params, "author", "Unknown");
     format!(
         "<figure style=\"max-width:46rem;margin:0 auto;text-align:center;font-family:var(--font-heading)\">\
 <blockquote style=\"font-size:2rem;line-height:1.3;color:var(--color-text);margin:0;font-weight:600\">&ldquo;{}&rdquo;</blockquote>\
@@ -134,9 +134,9 @@ fn quote(params: &Value) -> String {
 
 fn timeline(params: &Value) -> String {
     let fallback = vec![
-        json!({ "title": "2024", "text": "Gründung" }),
-        json!({ "title": "2025", "text": "Erste 1.000 Nutzer" }),
-        json!({ "title": "2026", "text": "Internationaler Start" }),
+        json!({ "title": "2024", "text": "Founded" }),
+        json!({ "title": "2025", "text": "First 1,000 users" }),
+        json!({ "title": "2026", "text": "International launch" }),
     ];
     let rows = items(params, &fallback)
         .iter()
@@ -165,7 +165,7 @@ fn column(side: &Value, fallback_title: &str) -> String {
                 .map(|s| format!("<li style=\"margin:.3rem 0\">{}</li>", esc(s)))
                 .collect::<String>()
         })
-        .unwrap_or_else(|| "<li>Punkt</li>".to_string());
+        .unwrap_or_else(|| "<li>Point</li>".to_string());
     format!(
         "<div style=\"flex:1;background:var(--color-surface);border-radius:var(--border-radius);padding:1.5rem\">\
 <div style=\"font-family:var(--font-heading);font-weight:700;color:var(--color-text);font-size:1.3rem;margin-bottom:.6rem\">{}</div>\
@@ -180,14 +180,14 @@ fn comparison(params: &Value) -> String {
     let right = params.get("right").unwrap_or(&empty);
     format!(
         "<div style=\"display:flex;gap:1.25rem;max-width:52rem;margin:0 auto;font-family:var(--font-body)\">{}{}</div>",
-        column(left, "Vorher"),
-        column(right, "Nachher")
+        column(left, "Before"),
+        column(right, "After")
     )
 }
 
 fn callout(params: &Value) -> String {
-    let title = str_field(params, "title", "Wichtig");
-    let text = str_field(params, "text", "Die zentrale Botschaft dieser Folie.");
+    let title = str_field(params, "title", "Important");
+    let text = str_field(params, "text", "The key message of this slide.");
     format!(
         "<div style=\"max-width:44rem;margin:0 auto;background:var(--color-surface);border-left:4px solid var(--color-accent);border-radius:var(--border-radius);padding:1.25rem 1.5rem;font-family:var(--font-body)\">\
 <div style=\"font-family:var(--font-heading);font-weight:700;color:var(--color-text);font-size:1.2rem;margin-bottom:.3rem\">{}</div>\
@@ -201,9 +201,9 @@ fn line_chart(params: &Value) -> String {
     let fallback = vec![
         json!({ "label": "Jan", "value": 12 }),
         json!({ "label": "Feb", "value": 19 }),
-        json!({ "label": "Mär", "value": 15 }),
+        json!({ "label": "Mar", "value": 15 }),
         json!({ "label": "Apr", "value": 27 }),
-        json!({ "label": "Mai", "value": 34 }),
+        json!({ "label": "May", "value": 34 }),
     ];
     let data = items(params, &fallback);
     let max = data
@@ -265,8 +265,8 @@ fn slice_color(i: usize) -> (&'static str, f64) {
 
 fn donut_chart(params: &Value) -> String {
     let fallback = vec![
-        json!({ "label": "Direkt", "value": 45 }),
-        json!({ "label": "Suche", "value": 30 }),
+        json!({ "label": "Direct", "value": 45 }),
+        json!({ "label": "Search", "value": 30 }),
         json!({ "label": "Social", "value": 25 }),
     ];
     let data = items(params, &fallback);
@@ -370,7 +370,7 @@ fn icon(params: &Value) -> Result<String, String> {
     let size = num_field(params, "size", 6.0).max(1.0).min(24.0);
     let label = str_field(params, "label", "");
     let body = icon_path(&name)
-        .ok_or_else(|| format!("Unbekanntes Icon: '{name}' (verfügbar: {ICON_NAMES})"))?;
+        .ok_or_else(|| format!("Unknown icon: '{name}' (available: {ICON_NAMES})"))?;
     let label_html = if label.is_empty() {
         String::new()
     } else {
@@ -401,9 +401,9 @@ fn safe_goto(t: &str) -> String {
 /// params: items: [{ label: string, target: string }].
 fn toc(params: &Value) -> String {
     let fallback = vec![
-        json!({ "label": "Einleitung", "target": "2" }),
-        json!({ "label": "Hauptteil", "target": "3" }),
-        json!({ "label": "Fazit", "target": "4" }),
+        json!({ "label": "Introduction", "target": "2" }),
+        json!({ "label": "Main", "target": "3" }),
+        json!({ "label": "Conclusion", "target": "4" }),
     ];
     let rows = items(params, &fallback)
         .iter()
@@ -445,7 +445,7 @@ fn data_table(params: &Value) -> String {
         .and_then(|v| v.as_array())
         .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
         .filter(|v: &Vec<String>| !v.is_empty())
-        .unwrap_or_else(|| vec!["Merkmal".into(), "Variante A".into(), "Variante B".into()]);
+        .unwrap_or_else(|| vec!["Feature".into(), "Variant A".into(), "Variant B".into()]);
     let rows: Vec<Vec<String>> = params
         .get("rows")
         .and_then(|v| v.as_array())
@@ -502,7 +502,7 @@ fn data_table(params: &Value) -> String {
 /// Große Kennzahl (KPI-Hero): eine herausragende Zahl + Label. params: value, label, sub?.
 fn big_number(params: &Value) -> String {
     let value = str_field(params, "value", "+42%");
-    let label = str_field(params, "label", "Wachstum im letzten Quartal");
+    let label = str_field(params, "label", "Growth last quarter");
     let sub = str_field(params, "sub", "");
     let sub_html = if sub.is_empty() {
         String::new()
@@ -525,9 +525,9 @@ fn big_number(params: &Value) -> String {
 /// Feature-Raster: Karten mit Icon + Titel + Text. params: items: [{ icon?, title, text }].
 fn feature_grid(params: &Value) -> String {
     let fallback = vec![
-        json!({ "icon": "bolt", "title": "Schnell", "text": "In Sekunden startklar." }),
-        json!({ "icon": "shield", "title": "Sicher", "text": "Läuft komplett lokal." }),
-        json!({ "icon": "star", "title": "Einfach", "text": "Keine Lernkurve." }),
+        json!({ "icon": "bolt", "title": "Fast", "text": "Ready in seconds." }),
+        json!({ "icon": "shield", "title": "Secure", "text": "Runs fully local." }),
+        json!({ "icon": "star", "title": "Simple", "text": "No learning curve." }),
     ];
     let cards = items(params, &fallback)
         .iter()
@@ -557,9 +557,9 @@ fn feature_grid(params: &Value) -> String {
 /// Prozess-Schritte: nummerierte Kreise mit Pfeilen (horizontal). params: items: [{ title, text }].
 fn process_steps(params: &Value) -> String {
     let fallback = vec![
-        json!({ "title": "Entdecken", "text": "Bedarf verstehen" }),
-        json!({ "title": "Entwerfen", "text": "Lösung skizzieren" }),
-        json!({ "title": "Liefern", "text": "Umsetzen & messen" }),
+        json!({ "title": "Discover", "text": "Understand the need" }),
+        json!({ "title": "Design", "text": "Sketch the solution" }),
+        json!({ "title": "Deliver", "text": "Ship & measure" }),
     ];
     let data = items(params, &fallback);
     let n = data.len();
@@ -593,9 +593,9 @@ fn process_steps(params: &Value) -> String {
 /// params: tiers: [{ name, price, period?, features: string[], featured?: bool }].
 fn pricing(params: &Value) -> String {
     let fallback = vec![
-        json!({ "name": "Start", "price": "0€", "period": "/Monat", "features": ["1 Projekt", "Basis-Support"] }),
-        json!({ "name": "Pro", "price": "19€", "period": "/Monat", "features": ["Unbegrenzt", "Priorisierter Support", "Export"], "featured": true }),
-        json!({ "name": "Team", "price": "49€", "period": "/Monat", "features": ["Alles aus Pro", "5 Sitze", "SSO"] }),
+        json!({ "name": "Start", "price": "$0", "period": "/mo", "features": ["1 project", "Basic support"] }),
+        json!({ "name": "Pro", "price": "$19", "period": "/mo", "features": ["Unlimited", "Priority support", "Export"], "featured": true }),
+        json!({ "name": "Team", "price": "$49", "period": "/mo", "features": ["Everything in Pro", "5 seats", "SSO"] }),
     ];
     let tiers = params
         .get("tiers")
@@ -685,57 +685,57 @@ fn gallery(params: &Value) -> String {
 /// Metadaten aller Komponenten (für `list_components` und die spätere UI-Palette).
 pub fn list() -> Value {
     json!([
-        { "type": "stat_cards", "label": "Kennzahlen-Karten",
-          "description": "Reihe großer KPI-Karten (Wert + Beschriftung).",
+        { "type": "stat_cards", "label": "Stat cards",
+          "description": "Row of large KPI cards (value + label).",
           "params": "items: [{ value: string, label: string }]" },
-        { "type": "bar_chart", "label": "Balkendiagramm",
-          "description": "Horizontale Balken, automatisch skaliert.",
+        { "type": "bar_chart", "label": "Bar chart",
+          "description": "Horizontal bars, automatically scaled.",
           "params": "items: [{ label: string, value: number }], max?: number" },
-        { "type": "line_chart", "label": "Liniendiagramm",
-          "description": "Linienverlauf (Trend über Zeit) als SVG, token-bewusst.",
+        { "type": "line_chart", "label": "Line chart",
+          "description": "Line trend over time as SVG, token-aware.",
           "params": "items: [{ label: string, value: number }]" },
-        { "type": "donut_chart", "label": "Donut-/Kreisdiagramm",
-          "description": "Anteile als Donut mit Legende (Prozente automatisch).",
+        { "type": "donut_chart", "label": "Donut / pie chart",
+          "description": "Shares as a donut with legend (percentages automatic).",
           "params": "items: [{ label: string, value: number }]" },
-        { "type": "progress", "label": "Fortschrittsbalken",
-          "description": "Beschriftete Prozent-Balken (0–100).",
+        { "type": "progress", "label": "Progress bars",
+          "description": "Labeled percentage bars (0–100).",
           "params": "items: [{ label: string, percent: number }]" },
-        { "type": "quote", "label": "Zitat",
-          "description": "Großes zentriertes Zitat mit Quelle.",
+        { "type": "quote", "label": "Quote",
+          "description": "Large centered quote with source.",
           "params": "text: string, author: string" },
-        { "type": "timeline", "label": "Zeitstrahl",
-          "description": "Vertikaler Zeitstrahl mit Punkten.",
+        { "type": "timeline", "label": "Timeline",
+          "description": "Vertical timeline with dots.",
           "params": "items: [{ title: string, text: string }]" },
-        { "type": "comparison", "label": "Vergleich (zwei Spalten)",
-          "description": "Zwei gegenübergestellte Listen-Spalten.",
+        { "type": "comparison", "label": "Comparison (two columns)",
+          "description": "Two opposing list columns.",
           "params": "left: { title: string, items: string[] }, right: { title: string, items: string[] }" },
-        { "type": "callout", "label": "Hinweis-Box",
-          "description": "Hervorgehobener Kasten mit Titel und Text.",
+        { "type": "callout", "label": "Callout box",
+          "description": "Highlighted box with title and text.",
           "params": "title: string, text: string" },
-        { "type": "icon", "label": "Icon (Inline-SVG)",
-          "description": "Token-gefärbtes Symbol (optional mit Beschriftung). Namen: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.",
-          "params": "name: string, color?: string (z.B. var(--color-accent)), size?: number (rem), label?: string" },
-        { "type": "toc", "label": "Inhaltsverzeichnis (Sprung-Links)",
-          "description": "Klickbare Folienübersicht — jeder Eintrag springt zur Zielfolie (Zonen-Link, Spec §23). target = Zonen-ID ODER 1-basierte Foliennummer; ein Rücksprung-Link auf die Inhalts-Folie bringt zurück.",
-          "params": "items: [{ label: string, target: string }]  (target = Zonen-ID oder Foliennummer)" },
-        { "type": "data_table", "label": "Tabelle",
-          "description": "Datentabelle, token-gestylt, gestreifte Zeilen. Max ~8 Zeilen (sonst Überlauf der 720px-Bühne).",
+        { "type": "icon", "label": "Icon (inline SVG)",
+          "description": "Token-colored symbol (optionally with a label). Names: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.",
+          "params": "name: string, color?: string (e.g. var(--color-accent)), size?: number (rem), label?: string" },
+        { "type": "toc", "label": "Table of contents (jump links)",
+          "description": "Clickable slide overview — each entry jumps to the target slide (zone link, Spec §23). target = zone id OR 1-based slide number; a back link to the contents slide returns.",
+          "params": "items: [{ label: string, target: string }]  (target = zone id or slide number)" },
+        { "type": "data_table", "label": "Table",
+          "description": "Data table, token-styled, striped rows. Max ~8 rows (else overflow of the 720px stage).",
           "params": "columns: string[], rows: string[][]" },
-        { "type": "big_number", "label": "Große Kennzahl",
-          "description": "Eine herausragende Zahl (KPI-Hero) mit Label, optional Untertitel.",
+        { "type": "big_number", "label": "Big number",
+          "description": "One standout number (KPI hero) with label, optional subtitle.",
           "params": "value: string, label: string, sub?: string" },
-        { "type": "feature_grid", "label": "Feature-Raster",
-          "description": "Karten mit Icon + Titel + Text (2–3 nebeneinander). Icon-Namen wie bei 'icon'.",
+        { "type": "feature_grid", "label": "Feature grid",
+          "description": "Cards with icon + title + text (2–3 side by side). Icon names as in 'icon'.",
           "params": "items: [{ icon?: string, title: string, text: string }]" },
-        { "type": "process_steps", "label": "Prozess-Schritte",
-          "description": "Nummerierte Schritte mit Pfeilen (horizontal). Am besten 3–5 Schritte.",
+        { "type": "process_steps", "label": "Process steps",
+          "description": "Numbered steps with arrows (horizontal). Best with 3–5 steps.",
           "params": "items: [{ title: string, text: string }]" },
-        { "type": "pricing", "label": "Preistabelle",
-          "description": "2–4 Preis-Karten; eine via featured:true hervorgehoben.",
+        { "type": "pricing", "label": "Pricing table",
+          "description": "2–4 pricing cards; one highlighted via featured:true.",
           "params": "tiers: [{ name: string, price: string, period?: string, features: string[], featured?: bool }]" },
-        { "type": "gallery", "label": "Bild-Galerie",
-          "description": "Bildraster aus vorhandenen Assets (Namen aus list_assets); columns 1–4. Ohne Bilder werden Platzhalter gezeigt.",
-          "params": "images: string[] (Asset-Namen), columns?: number (1–4)" }
+        { "type": "gallery", "label": "Image gallery",
+          "description": "Image grid from existing assets (names from list_assets); columns 1–4. Without images, placeholders are shown.",
+          "params": "images: string[] (asset names), columns?: number (1–4)" }
     ])
 }
 
@@ -793,7 +793,7 @@ pub fn render(kind: &str, params: &Value) -> Result<String, String> {
         "process_steps" => process_steps(params),
         "pricing" => pricing(params),
         "gallery" => gallery(params),
-        other => return Err(format!("Unbekannte Komponente: '{other}' (siehe list_components)")),
+        other => return Err(format!("Unknown component: '{other}' (see list_components)")),
     };
     Ok(html)
 }

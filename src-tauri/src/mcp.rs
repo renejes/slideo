@@ -89,17 +89,17 @@ fn handle_message(method: &str, params: &Value, id: &Option<Value>) -> Option<Va
 fn handle_prompt_get(params: &Value, id: &Option<Value>) -> Value {
     let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("");
     if name != "slideo_guide" {
-        return error(id, -32602, "Unbekannter Prompt");
+        return error(id, -32602, "Unknown prompt");
     }
-    let thema = params
+    let topic = params
         .get("arguments")
-        .and_then(|a| a.get("thema"))
+        .and_then(|a| a.get("topic"))
         .and_then(|v| v.as_str());
-    let text = tools::build_guide(thema);
+    let text = tools::build_guide(topic);
     result(
         id,
         json!({
-            "description": "Slideo-Leitfaden",
+            "description": "Slideo guide",
             "messages": [
                 { "role": "user", "content": { "type": "text", "text": text } }
             ]
@@ -121,7 +121,7 @@ fn handle_tool_call(params: &Value, id: &Option<Value>) -> Value {
         Err(e) => result(
             id,
             json!({
-                "content": [{ "type": "text", "text": format!("Fehler: {e}") }],
+                "content": [{ "type": "text", "text": format!("Error: {e}") }],
                 "isError": true
             }),
         ),
@@ -189,12 +189,12 @@ mod tests {
 
         let got = handle_message(
             "prompts/get",
-            &json!({ "name": "slideo_guide", "arguments": { "thema": "KI-Trends 2026" } }),
+            &json!({ "name": "slideo_guide", "arguments": { "topic": "AI trends 2026" } }),
             &Some(json!(3)),
         )
         .unwrap();
         let text = got["result"]["messages"][0]["content"]["text"].as_str().unwrap();
-        assert!(text.contains("KI-Trends 2026"));
+        assert!(text.contains("AI trends 2026"));
         assert!(text.contains("set_tokens_bulk"));
     }
 }

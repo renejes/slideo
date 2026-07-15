@@ -112,6 +112,26 @@ fn read_json(path: &Path) -> Option<Value> {
     serde_json::from_str(&text).ok()
 }
 
+/// Wie `read_json`, unterscheidet aber „Datei fehlt" (`Ok(None)`) von
+/// „Datei da, aber nicht lesbar/parsebar" (`Err`). Nötig für die schreibenden
+/// Pfade: `write_json` ersetzt die Zieldatei ATOMAR und VOLLSTÄNDIG — ein
+/// Rückfall auf `{}` bei einer bloß transient unlesbaren Fremd-Config
+/// (z.B. `~/.claude.json` mitten im nicht-atomaren Schreiben durch Claude Code)
+/// würde deren gesamten Inhalt (Projekte, History, andere MCP-Server, Auth)
+/// vernichten. Nur eine wirklich FEHLENDE Datei darf frisch mit `{}` starten.
+fn read_json_checked(path: &Path) -> Result<Option<Value>, String> {
+    match std::fs::read_to_string(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("Config nicht lesbar ({}): {e}", path.display())),
+        Ok(text) => serde_json::from_str(&text).map(Some).map_err(|e| {
+            format!(
+                "Config ({}) ist kein gültiges JSON: {e} — abgebrochen, um keinen Datenverlust an einer fremden Config zu riskieren.",
+                path.display()
+            )
+        }),
+    }
+}
+
 fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     let dir = path
         .parent()
@@ -160,9 +180,16 @@ fn desired_entry(exe: &str) -> Value {
 /// Setzt `mcpServers.slideo` in einer Claude-Config-Datei (idempotent).
 /// `mcpServers` und alle anderen Einträge bleiben erhalten.
 fn set_mcp_server(path: &Path, exe: &str) -> Result<(), String> {
-    let mut config = read_json(path).unwrap_or_else(|| json!({}));
+    // WICHTIG: bei existierender-aber-unparsbarer Datei NICHT auf `{}` zurückfallen —
+    // write_json ersetzt die Datei komplett und würde sonst fremde Config vernichten.
+    // Nur eine fehlende Datei startet frisch. Spiegelt remove_mcp_server/meta_unregister
+    // („unparsbar → lieber nichts kaputtmachen").
+    let mut config = read_json_checked(path)?.unwrap_or_else(|| json!({}));
     if !config.is_object() {
-        config = json!({});
+        return Err(format!(
+            "Config ({}) ist kein JSON-Objekt — abgebrochen, um keinen Datenverlust an einer fremden Config zu riskieren.",
+            path.display()
+        ));
     }
     let desired = desired_entry(exe);
     let root = config.as_object_mut().unwrap();

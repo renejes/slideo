@@ -222,12 +222,16 @@ function addLogo(slide: any, presentation: Presentation, assets: AssetMap) {
   if (!logo || !data) return
   const w = 1.4
   const h = 0.7
-  const pos = {
+  const corners: Record<string, { x: number; y: number }> = {
     'top-left': { x: 0.4, y: 0.3 },
     'top-right': { x: PAGE_W - w - 0.4, y: 0.3 },
     'bottom-left': { x: 0.4, y: PAGE_H - h - 0.3 },
     'bottom-right': { x: PAGE_W - w - 0.4, y: PAGE_H - h - 0.3 },
-  }[logo.position]
+  }
+  // Default = unten-rechts (App-Default). Ein hand-editiertes/geteiltes .slideo kann eine
+  // Nicht-Ecke tragen (schemafreies Format) → nicht den GESAMTEN PPTX-Export crashen lassen
+  // (HTML/PDF degradieren dort ebenfalls grazil).
+  const pos = corners[logo.position] ?? corners['bottom-right']
   slide.addImage({ data, x: pos.x, y: pos.y, w, h, sizing: { type: 'contain', w, h } })
 }
 

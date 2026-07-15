@@ -414,6 +414,37 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   absolut positionierten Kindern** bekommt in WebKit **keine Höhe** (kollabiert → „nur Titel") → der Übersicht-Kasten nutzt
   den **`padding-bottom:56.25%`-Trick**. **Kein Schema-Eingriff.** typecheck/build grün, GUI-bestätigt (Speaker-Vorschau +
   Übersicht-Thumbnails).
+- **Pre-Release Bug-Review + Fixes (2026-07-15, umgesetzt — [bug-review-2026-07.md](docs/done/bug-review-2026-07.md)):**
+  Multi-Agent-Review der Gesamt-App (13 Spuren, jeder Fund adversarial gegengeprüft) → **10 bestätigte Bugs, 0 Critical,
+  8 refutiert**. Alle 10 gefixt: **(B1)** `set_mcp_server` überschrieb bei Parse-Fehler die **ganze** fremde Config
+  (`~/.claude.json`/`claude_desktop_config.json`) → `read_json_checked` unterscheidet „fehlt" (frisch) von „unparsbar"
+  (Err, Datei unangetastet — spiegelt die Geschwister-Funktionen). **(B2)** `write_presentation` truncatete das `.slideo`
+  **vor** dem Schreiben → jetzt **Temp + atomarer `rename`** (Original bleibt bei I/O-Fehler unversehrt); **(B9)** dito für
+  History-`index.json`. **(B3)** Inline-Text-Edit (§20) löschte still verschachtelte Bilder (`<a><img>`) → `isInlineEditable`
+  prüft jetzt **tief** (beide gespiegelten Stellen dom-edit.ts/renderer.ts; solche Blöcke → Quell-Editor). **(B5)**
+  `reorder_zones` dedupliziert `ordered_ids` (`HashSet`, keine doppelte UUID); **(B6)** `replace_in_zone` lehnt leeres
+  `search` ab. **(B4)** `addLogo` (PPTX) fällt bei Nicht-Ecke auf unten-rechts zurück statt den ganzen Export zu crashen.
+  **(B7)** In-Place-`patch-zone` erzeugt `<script>` nach dem `innerHTML`-Swap neu (interaktive HTML-Zonen bleiben nach
+  Edit nicht leer); **(B8)** Vorschau-Gutter `.slideo-frame + .slideo-frame` wird im Präsentationsmodus gleich-spezifisch
+  zurückgesetzt (kein ~10 px-Versatz bei Transitions). **(B10)** `splitMarkdownBlocks` bewahrt nicht-abgedeckte Zeilen
+  (Link-Referenz-Definitionen). **Kein Schema-Eingriff** (`version` „1.0"). Headless grün (cargo check/test **42**, typecheck,
+  vite build, 4 injizierte Iframe-Skripte `node --check`, B10-Repro). **GUI-Check ausstehend** (B3/B7/B8 laufzeitabhängig).
+  Marktanalyse/Marketing separat: [marketing-strategy.md](docs/marketing-strategy.md).
+- **MCP-Texte auf Englisch lokalisiert (2026-07-15, umgesetzt):** Die gesamte **AI-facing** MCP-Oberfläche ist
+  jetzt Englisch — `server_instructions` + `slideo_guide` ([tools.rs](src-tauri/src/tools.rs)), alle 37
+  Tool-/Parameter-Beschreibungen (`tool_schemas`), der `list_components`-Katalog + Komponenten-**Platzhalter**
+  ([components.rs](src-tauri/src/components.rs)), die `list_presets`-Beschreibungen ([presets.rs](src-tauri/src/presets.rs)),
+  die Overflow-Hinweise ([overflow.rs](src-tauri/src/overflow.rs)) und **alle an die KI zurückgegebenen
+  Fehlermeldungen** (tools/mcp/ipc). Prompt-Argument `thema`→`topic` (mcp.rs-Extraktion + Test angepasst).
+  **Bewusst deutsch belassen:** Dev-**Kommentare** (nicht AI-sichtbar, Repo-Konvention), die **Frontend-UI**
+  (App-Chrome) und die **geteilten Datei-I/O-Fehler** in [reader.rs](src-tauri/src/file/reader.rs)/[writer.rs](src-tauri/src/file/writer.rs)
+  (primär in der deutschen Frontend-UI sichtbar; nur bei seltenem I/O-Fehler AI-sichtbar). **Palette-Trennung:**
+  der Rust-`list_components`-Katalog ist jetzt AI-facing Englisch, aber die **menschliche Komponenten-Palette**
+  überlagert die Anzeige (Label + Beschreibung) mit **`COMPONENT_CATALOG_DE`** ([component-forms.ts](src/lib/component-forms.ts),
+  keyed per `type`, Fallback auf den englischen Rust-Text bei fehlendem Typ) → Palette bleibt deutsch, Rust bleibt
+  Single Source für Typenliste/Params ([ComponentPaletteModal.tsx](src/components/modals/ComponentPaletteModal.tsx) `displayMeta`).
+  Headless grün (cargo test **42**, cargo build, typecheck, vite build). **WICHTIG: greift erst nach `cargo build`
+  + Neustart des MCP-Clients (Claude Desktop/Code) — sonst läuft das alte, deutsche MCP-Binary.** App-Chrome unberührt.
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität
