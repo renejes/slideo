@@ -8,9 +8,17 @@
 
 - **Trial:** Beim ersten Start wird ein Zeitstempel lokal gespeichert (`<config>/slideo/license.json`).
   30 Tage lang ist die App voll nutzbar — **kein Polar-Kontakt, keine Karte, keine Telemetrie**.
-- **Nach Ablauf → read-only:** Öffnen + Exportieren bleibt möglich; **Erstellen/Bearbeiten/Speichern**
-  ist gesperrt (auch über den **MCP-/KI-Kanal** — sonst wäre die Demo trivial umgehbar). Eine Leiste unter
-  der Topbar ([LicenseBar](../src/components/ui/LicenseBar.tsx)) weist darauf hin.
+- **Nach Ablauf → read-only:** Öffnen, **Speichern** und Exportieren bleiben möglich; **Erstellen und
+  Bearbeiten** sind gesperrt (auch über den **MCP-/KI-Kanal** — sonst wäre die Demo trivial umgehbar).
+  Eine Leiste unter der Topbar ([LicenseBar](../src/components/ui/LicenseBar.tsx)) weist darauf hin.
+  *Speichern ist bewusst erlaubt* (`save_presentation` steht auf der Read-only-Allowlist in
+  [tools.rs](../src-tauri/src/tools.rs) `is_read_only_tool`): es schreibt nur, was ohnehin im Store
+  steht, und ein gesperrtes Speichern würde den Close-Guard in eine Schleife schicken. Bis zum Review
+  2026-08 behauptete dieser Abschnitt das Gegenteil (Befund S28) — Doku und Code widersprachen sich.
+- **Ohne konfigurierte Polar-Werte wird NIE limitiert** (Befund B9): solange `POLAR_ORG_ID` ein
+  Platzhalter ist, liefert `compute()` den Zustand `unconfigured` und erlaubt volles Bearbeiten.
+  Sonst wäre jeder Build ohne Konfiguration eine 30-Tage-Bombe ohne Kaufweg. Der ignorierte Test
+  `konfiguration_ist_im_release_gesetzt` (`cargo test -- --ignored`) ist das Release-Gate dagegen.
 - **Lizenz:** Der Nutzer kauft auf Polar (System-Browser), kopiert seinen `SLIDEO_…`-Schlüssel aus dem
   Polar-Kundenportal und fügt ihn im **Lizenz-Modal** ([LicenseModal](../src/components/modals/LicenseModal.tsx))
   ein. Der Client ruft **activate** (bindet das Gerät, Limit 3) → **validate** und cached das Ergebnis lokal.
@@ -77,11 +85,16 @@ kein Gerät. **Vor dem Scharfstellen** in der Polar-**Sandbox** gegenprüfen, da
 
 ## Verhalten in Kürze
 
-| Zustand | Bearbeiten | Öffnen/Export | MCP-Mutationen |
+| Zustand | Bearbeiten | Öffnen/Speichern/Export | MCP-Mutationen |
 |---|---|---|---|
+| **Unkonfiguriert** (Polar-Platzhalter) | ✅ | ✅ | ✅ |
 | Trial (Tag 1–30) | ✅ | ✅ | ✅ |
 | Trial abgelaufen / widerrufen / abgelaufen / **Upgrade nötig** | ❌ (read-only) | ✅ | ❌ (gesperrt) |
 | Lizenziert | ✅ | ✅ | ✅ |
+
+Im read-only-Zustand sind der Markdown- **und** beide CodeMirror-Editoren tatsächlich gesperrt
+(`setEditable` bzw. ein `Compartment`) — vorher nahmen sie Eingaben entgegen, die der Store still
+verwarf (Befund B2).
 
 Geräte-Umzug: im Lizenz-Modal **„Gerät freigeben"** (gibt den Aktivierungs-Slot zurück) oder im
 Polar-Kundenportal deaktivieren.

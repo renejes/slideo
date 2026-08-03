@@ -52,6 +52,7 @@ pub fn save_presentation(
 #[tauri::command]
 pub fn sync_presentation(presentation: Option<Value>, state: State<'_, AppState>) {
     *crate::state::lock_recover(&state.presentation) = presentation;
+    state.bump_sync(); // Flush-Handshake: der MCP-Server darf jetzt mutieren (B7)
 }
 
 /// Spiegelt die Asset-Map ins Backend (separat, da Assets selten/größer sind).

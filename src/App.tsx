@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
-import { isTauri } from '@/lib/tauri'
+import { isTauri, recoveryScan, recoveryDiscard } from '@/lib/tauri'
+import { confirmDialog } from '@/lib/dialog'
 import { startMcpBridge } from '@/lib/mcp-bridge'
 import { getMcpStatus } from '@/lib/mcp-registration'
 import { Icon } from '@/components/ui/Icon'
@@ -58,6 +59,38 @@ export default function App() {
       setMcpPrompted(true)
     }
   }, [mcpUnconfigured, presentation, mcpPrompted])
+
+  // Crash-Recovery anbieten (Review 2026-08, Befund B4). Eine verwaiste Sicherung
+  // bedeutet: die letzte Sitzung endete NICHT über „Speichern" oder sauberes Beenden.
+  // Bewusst als Rückfrage statt automatischem Laden — der Nutzer soll nie überrascht
+  // ein anderes Deck vorfinden als das, das er zuletzt gespeichert hat.
+  useEffect(() => {
+    if (!isTauri()) return
+    let cancelled = false
+    void recoveryScan()
+      .then(async (info) => {
+        if (cancelled || !info) return
+        const wann = info.modified ? new Date(info.modified).toLocaleString('de-DE') : 'unbekannt'
+        const wo = info.original_path ?? 'nie gespeichert'
+        const ok = await confirmDialog(
+          `Die letzte Sitzung wurde nicht ordentlich beendet.\n\n` +
+            `„${info.title}" · ${info.zone_count} Folien · zuletzt geändert ${wann}\n` +
+            `Datei: ${wo}\n\n` +
+            `Diesen Stand wiederherstellen?`,
+          'Ungesicherte Arbeit gefunden',
+        )
+        if (cancelled) return
+        if (ok) {
+          await usePresentationStore.getState().restoreRecovery(info)
+        } else {
+          await recoveryDiscard(info.session).catch(() => {})
+        }
+      })
+      .catch((e) => console.warn('[slideo] Recovery-Suche fehlgeschlagen:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Globale Shortcuts: Cmd/Ctrl+S speichern, Cmd/Ctrl+N neu, Cmd/Ctrl+Z rückgängig.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useLicenseStore } from '@/store/license'
 import {
   EditorView,
   keymap,
@@ -7,7 +8,7 @@ import {
   Decoration,
   type DecorationSet,
 } from '@codemirror/view'
-import { EditorState, StateField, StateEffect } from '@codemirror/state'
+import { Compartment, EditorState, StateField, StateEffect } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { html } from '@codemirror/lang-html'
 import { useUiStore } from '@/store/ui'
@@ -73,6 +74,14 @@ export function HtmlEditor({ zoneId, initialHtml, onChange, onFocus }: HtmlEdito
   const onFocusRef = useRef(onFocus)
   onFocusRef.current = onFocus
 
+  // Read-only nach Trial-Ablauf: der Editor wird WIRKLICH gesperrt (Befund B2).
+  // Ein Compartment ist noetig, weil die EditorState-Extensions nur beim Mount
+  // gesetzt werden — ohne ihn liesse sich weiter tippen, waehrend der Store die
+  // Aenderung still verwirft.
+  const editableRef = useRef(new Compartment())
+  const editingAllowed = useLicenseStore((s) => s.status?.editing_allowed ?? true)
+  const editingAllowedRef = useRef(editingAllowed)
+
   useEffect(() => {
     if (!hostRef.current) return
 
@@ -86,6 +95,7 @@ export function HtmlEditor({ zoneId, initialHtml, onChange, onFocus }: HtmlEdito
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           html(),
+          editableRef.current.of(EditorView.editable.of(editingAllowedRef.current)),
           revealField,
           lightTheme,
           EditorView.lineWrapping,
@@ -109,6 +119,17 @@ export function HtmlEditor({ zoneId, initialHtml, onChange, onFocus }: HtmlEdito
     // Bewusst nur beim Mount erstellen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+
+  // Sperre bei Statuswechsel nachziehen (der Editor wird nur beim Mount erstellt).
+  useEffect(() => {
+    editingAllowedRef.current = editingAllowed
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: editableRef.current.reconfigure(EditorView.editable.of(editingAllowed)),
+    })
+  }, [editingAllowed])
 
   // Externe Inhaltsänderungen (Bild-Import, MCP-Live-Edits) übernehmen.
   // Geschützt: nur wenn sich der Inhalt wirklich unterscheidet (kein Cursor-Sprung beim Tippen).

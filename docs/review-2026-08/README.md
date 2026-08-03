@@ -29,6 +29,26 @@ Die Hypothese „Slideo ist DSGVO-konform, weil man Ollama einbinden kann, die a
 - **Technisch ungeprüft.** Ollama ist selbst kein MCP-Client; es braucht zusätzlich einen (LM Studio, Goose, Cherry Studio …). Und ein Deck kostet heute 50–150 Tool-Calls über 37 Tools ([tools.rs](../../src-tauri/src/tools.rs) — `create_zone` legt genau *eine* Folie ohne Style/Notes an). Ob ein lokal lauffähiges Modell das trägt, ist **offen und in einem Nachmittag testbar**: LM Studio + 30B-Modell + „bau ein 8-Folien-Deck über X", dann zählen, wie viele Folien korrekt entstehen. Maßnahme #34 (`apply_slides` + vollständiges `create_zone`) senkt diese Hürde erheblich und ist damit die Voraussetzung, unter der die Ollama-These überhaupt gewinnen kann.
 - **Belastbar bleibt** das Delta gegen Cloud-Offline-Modi: Canva Offline (~06/2026, gratis) braucht Vor-Markierung, läuft nach 14 Tagen ab und sperrt offline *alle* KI-Werkzeuge, Exporte und neue Designs; Gamma hat keinen Offline-Modus. Formulierung deshalb: **„kein Konto, kein Sync, kein Ablaufdatum, die Datei liegt auf deiner Platte"** — nicht „funktioniert offline".
 
+## Umsetzungsstand
+
+| Stage | Inhalt | Stand |
+|---|---|---|
+| **Stage 1** | #1 Testnetz · #2 Neu-Dialog · #3 Lizenz-Sackgasse · #8 Link-Extension · #9 isImg · #10 catch_unwind · #12 toter Code | ✅ umgesetzt (Commit `047ecf9`) |
+| **Stage 2** | #4 Effect-Redesign · #5 Flush-Handshake · #6 Autosave + Recovery · #7 mutate→boolean · #15 Undo-Granularität | ✅ umgesetzt |
+| Stage 3–5 | Table Stakes · Auslieferbarkeit · Keil | offen |
+
+Headless grün nach Stage 2: **60 Vitest-Tests** (vorher 0), **51 cargo-Tests** (vorher 42), typecheck, vite build.
+**GUI-Verifikation steht für beide Stages aus** — insbesondere: Crash-Recovery-Dialog nach hartem Beenden,
+Read-only-Sperre der drei Editoren, MCP-`open_presentation` mit Assets, Flush-Handshake unter Tipplast.
+
+Abweichungen vom Plan (bewusst):
+- `src/lib/print.ts` **nicht** gelöscht — entgegen der Annahme in Track 3 ist es der aktive PDF-Pfad im Browser-Dev-Modus.
+- Der Flush-Handshake wartet **async** (`tokio::time::sleep` in `handle_connection`) statt blockierend in
+  `process_request` — dort hätte ein `std::thread::sleep` einen Tokio-Worker bis zu 250 ms lahmgelegt und
+  Befund S13 verschärft, statt B7 zu lösen.
+- `zone_ids` wird über den `Effect` durchgereicht, aber noch nicht ausgewertet — die Provenance-Anzeige ist
+  Maßnahme #36 (Stage 5).
+
 ## Was als Nächstes zu entscheiden ist
 
 Siehe [optimierung.md](optimierung.md) Abschnitt E. Kurzfassung der fünf Gabelungen:

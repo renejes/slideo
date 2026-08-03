@@ -138,12 +138,50 @@ async fn handle_connection(stream: tokio::net::TcpStream, app: AppHandle) {
         if line.trim().is_empty() {
             continue;
         }
+        // Flush-Handshake VOR der (synchronen) Verarbeitung — und bewusst hier im
+        // async-Kontext (Review 2026-08, Befund B7 + S13): `process_request` läuft auf
+        // einem Tokio-Worker; ein blockierendes `std::thread::sleep` darin würde den
+        // Worker für bis zu 250 ms lahmlegen. `tokio::time::sleep` gibt ihn frei.
+        flush_frontend_state(&line, &app).await;
         let response = process_request(&line, &app);
         let mut out = response.to_string();
         out.push('\n');
         if write_half.write_all(out.as_bytes()).await.is_err() {
             break;
         }
+    }
+}
+
+/// Flush-Handshake vor jeder Mutation (Review 2026-08, Befund B7).
+///
+/// Das Frontend spiegelt seinen Store debounced (400 ms) nach Rust. Ohne diesen
+/// Handshake mutierte ein Tool-Call eine bis zu 400 ms alte Kopie und emittierte das
+/// GANZE Deck zurück; `applyExternalPresentation` ersetzte den Store komplett — die in
+/// diesem Fenster getippten Zeichen waren weg, ohne jede Konflikterkennung, und Undo
+/// stellte denselben veralteten Stand wieder her. Ausgerechnet der Modus, den das
+/// Produkt bewirbt („Mensch und Agent am selben Deck"), war der unsicherste.
+///
+/// Deshalb: um sofortige Spiegelung bitten und kurz warten, bis der Sync-Zähler
+/// vorrückt. Bewusst mit knappem Deckel — hört niemand zu (Fenster zu, Frontend
+/// beschäftigt), geht es nach 250 ms trotzdem weiter. Ein Tool-Call darf nicht daran
+/// scheitern, dass das UI gerade nicht antwortet.
+async fn flush_frontend_state(line: &str, app: &AppHandle) {
+    // Nur für mutierende Tools — ein Read darf nicht 250 ms warten.
+    let method = serde_json::from_str::<Value>(line)
+        .ok()
+        .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(String::from));
+    let Some(method) = method else { return };
+    if tools::is_read_only_tool(&method) {
+        return;
+    }
+    let state = app.state::<AppState>();
+    let before = state.sync_seq();
+    let _ = app.emit("slideo:flush-sync", ());
+    for _ in 0..50 {
+        if state.sync_seq() != before {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
 }
 
@@ -205,11 +243,44 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
             drop(pres);
             drop(file_path);
             drop(assets);
+            let zone_ids = outcome.zone_ids;
             match outcome.effect {
                 Effect::Presentation => {
                     if let Some(p) = pres_snapshot {
-                        let _ = app.emit("mcp:presentation", p);
+                        // zoneIds fährt mit (Vorarbeit S2 + Provenance-UI): das Frontend
+                        // weiß damit, WAS die KI angefasst hat, statt nur DASS sie es tat.
+                        let _ = app.emit(
+                            "mcp:presentation",
+                            json!({ "presentation": p, "zoneIds": zone_ids }),
+                        );
                     }
+                }
+                // Deckwechsel: Presentation + Pfad + Assets in EINEM Event, damit das
+                // Frontend nicht in einen Zustand geraten kann, in dem es Deck B zeigt,
+                // aber auf Datei A verweist (Befund B3).
+                Effect::Opened { path, assets: loaded } => {
+                    // Auch den Backend-Spiegel nachziehen (Befund B3d): `tools::handle`
+                    // bekommt die Assets nur geliehen und kann sie nicht selbst setzen.
+                    // Ohne das läse ein direkt folgendes `list_assets`/`save_presentation`
+                    // weiterhin die Assets des vorherigen Decks.
+                    let state = app.state::<AppState>();
+                    state.set_assets(loaded.clone());
+                    if let Some(p) = pres_snapshot {
+                        let _ = app.emit(
+                            "mcp:opened",
+                            json!({
+                                "presentation": p,
+                                "path": path.as_ref().map(|p| p.to_string_lossy().to_string()),
+                                "assets": loaded,
+                            }),
+                        );
+                    }
+                }
+                Effect::Saved { path } => {
+                    let _ = app.emit(
+                        "mcp:saved",
+                        json!({ "path": path.to_string_lossy().to_string() }),
+                    );
                 }
                 Effect::ActiveSlide(index) => {
                     let _ = app.emit("mcp:active-slide", index);

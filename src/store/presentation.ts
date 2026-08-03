@@ -6,6 +6,7 @@ import {
   type ContentType,
   type DesignTokens,
   type AssetMap,
+  type Asset,
   type TransitionKind,
   type RevealMode,
   type LogoPosition,
@@ -43,6 +44,10 @@ import {
   exportPptxFile,
   createSnapshot as createSnapshotCmd,
   restoreSnapshot as restoreSnapshotCmd,
+  recoveryWrite,
+  recoveryClear,
+  recoveryTake,
+  type RecoveryInfo,
   isTauri,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
@@ -175,7 +180,23 @@ interface PresentationState {
   prevSlide: () => void
 
   // MCP: extern (über den MCP-Server) gelieferten State anwenden
-  applyExternalPresentation: (presentation: Presentation) => void
+  applyExternalPresentation: (presentation: Presentation, zoneIds?: string[]) => void
+  /**
+   * Der MCP-Server hat ein ANDERES Deck geöffnet bzw. angelegt (Befund B3).
+   * Zieht Presentation, Dateipfad UND Assets gemeinsam nach — vorher wurde nur
+   * die Presentation übernommen, sodass der Store weiter auf die alte Datei zeigte
+   * und ein Cmd+S das fremde Deck überschrieb.
+   */
+  applyExternalOpen: (presentation: Presentation, path: string | null, assets: Asset[]) => void
+  /** Der MCP-Server hat gespeichert → Pfad übernehmen, Dirty-Punkt löschen (Befund M5). */
+  applyExternalSave: (path: string) => void
+
+  /**
+   * Übernimmt eine beim Start gefundene Crash-Sicherung (Befund B4). Setzt den
+   * ursprünglichen Dateipfad wieder und markiert dirty — der Nutzer entscheidet
+   * per Cmd+S, ob der wiederhergestellte Stand die Datei ersetzen soll.
+   */
+  restoreRecovery: (info: RecoveryInfo) => Promise<void>
 }
 
 const now = () => new Date().toISOString()
@@ -242,6 +263,24 @@ function renumber(zones: Zone[]): Zone[] {
 const PAST_CAP = 50
 const clone = (p: Presentation): Presentation => JSON.parse(JSON.stringify(p))
 
+// ───────────────────────── Crash-Recovery (Review 2026-08, Befund B4) ─────────────────────────
+//
+// Bis hierher wurde ausschließlich bei explizitem Cmd+S geschrieben. Das Risikofenster
+// war exakt die Kernschleife des Produkts: ein Agent baut zehn Minuten lang über 100+
+// Tool-Calls ein Deck, die WebView stürzt ab — alles weg. Die Versionshistorie half
+// nicht, weil sie einen Dateipfad braucht und nur aus `savePresentation` heraus lief.
+//
+// Bewusst KEIN „echtes" Autosave in die Nutzerdatei: das würde ein explizites
+// Speichermodell (mit Dirty-Punkt und Close-Guard) durch ein implizites ersetzen und
+// nebenbei jedes „ausprobieren und verwerfen" unmöglich machen. Stattdessen eine
+// Sicherungskopie neben der Konfiguration, die nach dem nächsten echten Speichern
+// verschwindet und nur nach einem Absturz beim Start auftaucht.
+const AUTOSAVE_IDLE_MS = 3000 // nach dieser Ruhe schreiben
+const AUTOSAVE_MAX_WAIT_MS = 30000 // spätestens nach dieser Zeit, auch bei Dauerlast
+
+/** ID dieser Sitzung — zwei parallel laufende Instanzen dürfen sich nicht überschreiben. */
+const SESSION_ID = typeof crypto !== 'undefined' ? crypto.randomUUID() : 'dev-session'
+
 export const usePresentationStore = create<PresentationState>((set, get) => {
   // Bild-Anzeige im Editor: `assets/<name>` → aktuelle Data-URI auflösen.
   setAssetResolver((name) => get().assets[name])
@@ -251,11 +290,81 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     set({ past: [...get().past, clone(p)].slice(-PAST_CAP) })
   }
 
+  // --- Undo-Granularität (Review 2026-08, Befund H29/S6) ---
+  //
+  // Jede MCP-Mutation pushte bisher einen Ganz-Deck-Klon. Ein „bau mir ein Deck"-Lauf
+  // sind 50–150 Tool-Calls → der 50er-Ring war danach restlos mit KI-Zwischenschritten
+  // gefüllt und der Stand VOR dem KI-Lauf — der einzige, zu dem der Mensch je zurück
+  // will — war herausgedrängt. Dazu kostete jeder Push ein synchrones
+  // JSON.parse(JSON.stringify(deck)) auf dem UI-Thread.
+  //
+  // Lösung: eine KI-„Runde" ist ein Undo-Schritt. Nur der erste Call einer Runde legt
+  // einen Snapshot an; Folgeaufrufe innerhalb von AI_ROUND_MS verlängern sie nur.
+  const AI_ROUND_MS = 1200
+  let aiRoundUntil = 0
+
+  /** Snapshot für eine KI-Mutation — koalesziert zusammenhängende Tool-Calls. */
+  function pushAiHistory(p: Presentation): void {
+    const nowMs = Date.now()
+    if (nowMs >= aiRoundUntil) pushHistory(p)
+    aiRoundUntil = nowMs + AI_ROUND_MS
+  }
+
+  // --- Autosave-Zeitgeber (Befund B4) ---
+  let autosaveIdle: ReturnType<typeof setTimeout> | null = null
+  let autosaveDeadline: ReturnType<typeof setTimeout> | null = null
+
+  function cancelAutosave(): void {
+    if (autosaveIdle) clearTimeout(autosaveIdle)
+    if (autosaveDeadline) clearTimeout(autosaveDeadline)
+    autosaveIdle = null
+    autosaveDeadline = null
+  }
+
+  /** Schreibt die Sicherungskopie dieser Sitzung (still, fire-and-forget). */
+  function writeRecovery(): void {
+    cancelAutosave()
+    const { presentation, assets, filePath, isDirty } = get()
+    if (!presentation || !isDirty || !isTauri()) return
+    void recoveryWrite(SESSION_ID, presentation, mapToAssets(assets), filePath).catch((e) =>
+      console.warn('[slideo] Recovery-Sicherung fehlgeschlagen:', e),
+    )
+  }
+
+  /**
+   * Plant eine Sicherung: nach 3 s Ruhe — spätestens aber 30 s nach der ersten
+   * ungesicherten Änderung. Ohne die Deadline würde ein Agent, der im Sekundentakt
+   * Tool-Calls feuert, den Idle-Timer endlos zurücksetzen und nie sichern — also
+   * genau im gefährlichsten Fall gar nichts schreiben.
+   */
+  function scheduleAutosave(): void {
+    if (!isTauri()) return
+    if (autosaveIdle) clearTimeout(autosaveIdle)
+    autosaveIdle = setTimeout(writeRecovery, AUTOSAVE_IDLE_MS)
+    if (!autosaveDeadline) {
+      autosaveDeadline = setTimeout(writeRecovery, AUTOSAVE_MAX_WAIT_MS)
+    }
+  }
+
+  /** Nach einem echten Speichern ist die Sicherung überflüssig. */
+  function clearRecovery(): void {
+    cancelAutosave()
+    if (!isTauri()) return
+    void recoveryClear(SESSION_ID).catch(() => {})
+  }
+
   /**
    * Mutiert die aktuelle Presentation, markiert dirty und stempelt `modified`.
    * `recordHistory=false` für hochfrequente Texteingaben (Editor hat eigenes Undo).
+   *
+   * **Gibt zurück, ob wirklich mutiert wurde** (Review 2026-08, Befund S11). Vorher
+   * lieferte `mutate` `void` und schluckte die eigene Ablehnung — Aufrufer meldeten
+   * danach bedingungslos Erfolg. `addFont` zeigte im read-only-Zustand roten UND
+   * grünen Toast und ließ ein verwaistes Asset zurück (M54); dasselbe Muster in
+   * `setLogo`, `insertAssetIntoZone` und `applyPreset`. Jede Aufrufstelle, die etwas
+   * meldet, MUSS den Rückgabewert prüfen.
    */
-  function mutate(fn: (p: Presentation) => Presentation, recordHistory = true): void {
+  function mutate(fn: (p: Presentation) => Presentation, recordHistory = true): boolean {
     // Lizenz-Gate: nach Ablauf der Demo ohne Lizenz ist Slideo schreibgeschützt
     // (Öffnen + Exportieren bleibt möglich). Hochfrequente Tipp-Mutationen
     // (recordHistory=false) still ablehnen, damit keine Toast-Flut entsteht.
@@ -263,20 +372,26 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       if (recordHistory) {
         notify('Testphase abgelaufen — Slideo ist schreibgeschützt. Aktiviere eine Lizenz zum Weiterbearbeiten.', 'error')
       }
-      return
+      return false
     }
     const p = get().presentation
-    if (!p) return
+    if (!p) return false
     if (recordHistory) pushHistory(p)
     const next = fn(p)
     next.meta = { ...next.meta, modified: now() }
     set({ presentation: next, isDirty: true })
+    scheduleAutosave()
+    return true
   }
 
   return {
     past: [],
 
     undo: () => {
+      // Gate auch hier (Befund M20): ohne das konnte ein abgelaufener Nutzer das Deck
+      // weiter durch die Historie rollen und dirty machen — Bearbeiten über die Rückwärts-
+      // taste, während jede Vorwärts-Bearbeitung abgelehnt wurde.
+      if (!useLicenseStore.getState().editingAllowed()) return
       const past = get().past
       if (past.length === 0) return
       const previous = past[past.length - 1]
@@ -354,6 +469,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         const assetList = mapToAssets(get().assets)
         await savePresentationFile(target, presentation, assetList)
         set({ filePath: target, isDirty: false })
+        // Der Stand ist jetzt echt auf Platte → die Sitzungs-Sicherung darf weg,
+        // sonst bietet der nächste Start eine Wiederherstellung für nichts an.
+        clearRecovery()
         notify('Gespeichert.', 'success')
         // Auto-Snapshot (Versionshistorie §19.9): still + im Backend dedupliziert;
         // Fehler dürfen das Speichern nicht stören (fire-and-forget).
@@ -526,10 +644,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     },
 
     updateZoneLabel: (id, label) => {
-      mutate((p) => ({
-        ...p,
-        zones: p.zones.map((z) => (z.id === id ? { ...z, label } : z)),
-      }))
+      // recordHistory=false (Befund S6): das Feld wird pro Tastendruck geschrieben —
+      // vorher klonte jeder Anschlag das ganze Deck in die Undo-Historie.
+      mutate(
+        (p) => ({
+          ...p,
+          zones: p.zones.map((z) => (z.id === id ? { ...z, label } : z)),
+        }),
+        false,
+      )
     },
 
     updateZoneNotes: (id, notes) => {
@@ -758,6 +881,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     },
 
     addAssetToLibrary: (dataUri) => {
+      // Lizenz-Gate auch hier (Befund S28): Assets sind Teil des Decks, wurden aber
+      // an `mutate` vorbei geschrieben — im read-only-Zustand wuchs die Datei weiter.
+      if (!useLicenseStore.getState().editingAllowed()) return ''
       const { mime } = parseDataUri(dataUri)
       const filename = `img-${shortId()}.${mimeToExt(mime)}`
       set({ assets: { ...get().assets, [filename]: dataUri }, isDirty: true })
@@ -765,6 +891,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     },
 
     removeAsset: (name) => {
+      if (!useLicenseStore.getState().editingAllowed()) return
       const next = { ...get().assets }
       delete next[name]
       set({ assets: next, isDirty: true })
@@ -774,17 +901,26 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const ext = extFromName(fileName) || 'woff2'
       const family = familyFromName(fileName)
       const asset = `font-${shortId()}.${ext}`
-      set({ assets: { ...get().assets, [asset]: dataUri }, isDirty: true })
-      mutate((p) => ({ ...p, fonts: [...(p.fonts ?? []), { family, asset }] }))
+      // Reihenfolge umgedreht (Befund M54): erst die gegatete Mutation, dann das Asset.
+      // Vorher lief das Asset-Schreiben ungated VOR dem abgelehnten `mutate` — Ergebnis
+      // war ein roter UND ein grüner Toast plus ein verwaistes Font-Asset im Deck.
+      const ok = mutate((p) => ({ ...p, fonts: [...(p.fonts ?? []), { family, asset }] }))
+      if (!ok) return
+      set({ assets: { ...get().assets, [asset]: dataUri } })
       notify(`Schrift „${family}" hinzugefügt — in der Schriftart-Auswahl wählbar.`, 'success')
     },
 
     setLogo: (dataUri) => {
       const asset = get().addAssetToLibrary(dataUri)
-      mutate((p) => ({
+      if (!asset) return // Gate hat abgelehnt — kein Erfolgs-Toast (M54)
+      const ok = mutate((p) => ({
         ...p,
         meta: { ...p.meta, logo: { asset, position: p.meta.logo?.position ?? 'bottom-right' } },
       }))
+      if (!ok) {
+        get().removeAsset(asset) // nichts Verwaistes zurücklassen
+        return
+      }
       notify('Logo gesetzt — erscheint auf jeder Folie.', 'success')
     },
 
@@ -826,7 +962,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         return
       }
 
-      mutate((p) => ({
+      const inserted = mutate((p) => ({
         ...p,
         zones: p.zones.map((z) => {
           if (z.id !== zoneId) return z
@@ -849,11 +985,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           return { ...z, markdown }
         }),
       }))
+      if (!inserted) return // read-only → kein Erfolgs-Toast über einer Ablehnung (M54)
       notify(kind === 'image' ? 'Bild eingefügt.' : 'Medium eingefügt.', 'success')
     },
 
     setToken: (key, value) => {
-      mutate((p) => ({ ...p, tokens: { ...p.tokens, [key]: value } }))
+      // recordHistory=false (Befund S6): der Farbwähler feuert bei jeder Mausbewegung.
+      // Der Sprung zurück auf ein ganzes Theme bleibt über `applyPreset`/`resetTokens`
+      // (beide mit Historie) erreichbar.
+      mutate((p) => ({ ...p, tokens: { ...p.tokens, [key]: value } }), false)
     },
 
     setTokensBulk: (tokens) => {
@@ -870,7 +1010,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         notify(`Theme „${name}" nicht gefunden.`, 'error')
         return
       }
-      mutate((p) => ({ ...p, tokens: { ...p.tokens, ...preset.tokens } }))
+      if (!mutate((p) => ({ ...p, tokens: { ...p.tokens, ...preset.tokens } }))) return
       notify(`Theme „${preset.label}" angewendet.`, 'success')
     },
 
@@ -922,6 +1062,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     restoreSnapshot: async (id) => {
       const { filePath } = get()
       if (!isTauri() || !filePath) return
+      if (!useLicenseStore.getState().editingAllowed()) {
+        notify('Testphase abgelaufen — Wiederherstellen ist schreibgeschützt.', 'error')
+        return
+      }
       try {
         const { presentation, assets } = await restoreSnapshotCmd(filePath, id)
         presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
@@ -953,10 +1097,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     nextSlide: () => get().setActiveSlide(get().activeSlideIndex + 1),
     prevSlide: () => get().setActiveSlide(get().activeSlideIndex - 1),
 
-    applyExternalPresentation: (presentation) => {
-      // MCP-Änderung undoable machen.
+    // `zoneIds` (welche Zonen der Tool-Aufruf angefasst hat) kommt seit dem
+    // Effect-Redesign mit, wird hier aber noch nicht ausgewertet — die
+    // Provenance-Anzeige („KI hat Folie 4 geändert") ist Maßnahme #36. Bewusst
+    // durchgereicht statt weggeworfen: die Daten sind da, die UI kommt später.
+    applyExternalPresentation: (presentation, _zoneIds) => {
+      // MCP-Änderung undoable machen — aber pro RUNDE, nicht pro Tool-Call (H29).
       const current = get().presentation
-      if (current) pushHistory(current)
+      if (current) pushAiHistory(current)
       const zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
       const next = { ...presentation, zones }
       // aktive Zone beibehalten, falls noch vorhanden, sonst erste Zone
@@ -966,6 +1114,68 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         isDirty: true,
         activeZoneId: keepActive ? get().activeZoneId : (zones[0]?.id ?? null),
       })
+      // KI-Edits laufen NICHT durch `mutate` → hier explizit sichern. Genau diese
+      // Sitzung (Agent baut minutenlang ein Deck) war der teuerste Verlustfall.
+      scheduleAutosave()
+    },
+
+    applyExternalOpen: (presentation, path, assets) => {
+      // Deckwechsel: KEIN pushHistory — das alte Deck gehört zu einer anderen Datei,
+      // ein Undo dorthin würde die beiden Decks vermischen (genau die Klasse Fehler,
+      // die B3 verursacht hat). Stattdessen sauberer Schnitt, wie loadPresentation.
+      const zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+      set({
+        presentation: { ...presentation, zones },
+        filePath: path,
+        assets: assetsToMap(assets),
+        // Frisch geladen bzw. angelegt: das Deck steht so noch nicht auf Platte,
+        // wenn es kein Pfad hat (create_presentation) — sonst ist es deckungsgleich.
+        isDirty: path === null,
+        past: [],
+        activeZoneId: zones[0]?.id ?? null,
+        mode: 'editor',
+        activeSlideIndex: 0,
+      })
+      clearRecovery()
+      notify(
+        path ? 'Präsentation von der KI geöffnet.' : 'Neue Präsentation von der KI angelegt.',
+        'info',
+      )
+    },
+
+    applyExternalSave: (path) => {
+      set({ filePath: path, isDirty: false })
+      clearRecovery()
+    },
+
+    restoreRecovery: async (info) => {
+      try {
+        const { presentation, assets } = await recoveryTake(info.session)
+        presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+        set({
+          presentation,
+          // Ursprungspfad zurücksetzen, damit Cmd+S wieder die richtige Datei trifft.
+          filePath: info.original_path,
+          assets: assetsToMap(assets),
+          // Bewusst dirty: der Stand ist NICHT der auf Platte. Der Nutzer entscheidet,
+          // ob er ihn übernimmt — automatisches Zurückschreiben wäre genau die Art
+          // Überraschung, die dieses Feature verhindern soll.
+          isDirty: true,
+          past: [],
+          activeZoneId: presentation.zones[0]?.id ?? null,
+          mode: 'editor',
+          activeSlideIndex: 0,
+        })
+        notify(
+          info.original_path
+            ? 'Stand wiederhergestellt — zum Übernehmen speichern (Cmd/Strg+S).'
+            : 'Stand wiederhergestellt — noch ungespeichert, bitte speichern (Cmd/Strg+S).',
+          'success',
+        )
+      } catch (e) {
+        console.error('[slideo] restore_recovery fehlgeschlagen:', e)
+        notify(`Wiederherstellen fehlgeschlagen: ${errMsg(e)}`, 'error')
+      }
     },
   }
 })

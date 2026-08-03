@@ -268,3 +268,44 @@ export function licenseDeactivate(): Promise<LicenseStatus> {
 export function licenseOpenCheckout(): Promise<void> {
   return invoke<void>('license_open_checkout')
 }
+
+// ───────────────────────── Crash-Recovery (Review 2026-08, Befund B4) ─────────────────────────
+
+/** Metadaten einer beim Start gefundenen, verwaisten Sicherung. */
+export interface RecoveryInfo {
+  session: string
+  original_path: string | null
+  title: string
+  zone_count: number
+  modified: string | null
+}
+
+/** Schreibt die Sicherung dieser Sitzung (atomar, überschreibt die vorherige). */
+export function recoveryWrite(
+  session: string,
+  presentation: Presentation,
+  assets: Asset[],
+  originalPath: string | null,
+): Promise<void> {
+  return invoke<void>('recovery_write', { session, presentation, assets, originalPath })
+}
+
+/** Löscht die Sicherung dieser Sitzung (nach erfolgreichem Speichern). */
+export function recoveryClear(session: string): Promise<void> {
+  return invoke<void>('recovery_clear', { session })
+}
+
+/** Sucht beim Start nach einer verwaisten Sicherung der letzten Sitzung. */
+export function recoveryScan(): Promise<RecoveryInfo | null> {
+  return invoke<RecoveryInfo | null>('recovery_scan')
+}
+
+/** Lädt eine gefundene Sicherung und entfernt sie. */
+export function recoveryTake(session: string): Promise<LoadResult> {
+  return invoke<LoadResult>('recovery_take', { session })
+}
+
+/** Verwirft eine gefundene Sicherung ungelesen. */
+export function recoveryDiscard(session: string): Promise<void> {
+  return invoke<void>('recovery_discard', { session })
+}

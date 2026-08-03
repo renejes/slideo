@@ -2,6 +2,7 @@ use crate::file::Asset;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Sperrt einen Mutex und erholt sich von Vergiftung (Review 2026-08, Befund S12).
@@ -35,9 +36,27 @@ pub struct AppState {
     /// dekodierte Bytes). Vermeidet das base64-Dekodieren pro Request (v.a. bei großen,
     /// wiederholt angefragten Videos). Wird bei jeder Asset-Änderung invalidiert.
     pub asset_cache: Mutex<HashMap<String, Arc<(String, Vec<u8>)>>>,
+    /// Zählt jede Spiegelung des Frontend-States nach Rust (`sync_presentation`).
+    ///
+    /// Grundlage des Flush-Handshakes (Review 2026-08, Befund B7): der Store spiegelt
+    /// debounced nach Rust, ein Tool-Call mutierte also eine bis zu 400 ms alte Kopie
+    /// und schickte sie als Ganzes zurück — die zuletzt getippten Zeichen waren weg,
+    /// ohne Konflikterkennung. Vor einer Mutation wartet `ipc.rs` jetzt kurz darauf,
+    /// dass dieser Zähler vorrückt, das Frontend also seinen frischen Stand geliefert hat.
+    pub sync_seq: AtomicU64,
 }
 
 impl AppState {
+    /// Meldet, dass das Frontend seinen Stand gespiegelt hat (Flush-Handshake, B7).
+    pub fn bump_sync(&self) {
+        self.sync_seq.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// Aktueller Stand des Sync-Zählers.
+    pub fn sync_seq(&self) -> u64 {
+        self.sync_seq.load(Ordering::SeqCst)
+    }
+
     /// Setzt die Asset-Liste und invalidiert den Decode-Cache (Audit P7) — in einem
     /// Schritt, damit der Cache nie veraltete Bytes zu einem neuen Asset gleichen Namens
     /// liefert. Einziger Schreibpfad für `assets`.

@@ -13,6 +13,7 @@ mod mcp_registration;
 mod overflow;
 mod present;
 mod presets;
+mod recovery;
 mod state;
 mod tools;
 
@@ -122,6 +123,11 @@ pub fn run() {
             commands::create_snapshot,
             commands::restore_snapshot,
             commands::delete_snapshot,
+            recovery::recovery_write,
+            recovery::recovery_clear,
+            recovery::recovery_scan,
+            recovery::recovery_take,
+            recovery::recovery_discard,
             commands::mcp_status,
             commands::mcp_set_target,
             license::license_status,

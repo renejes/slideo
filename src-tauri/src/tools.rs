@@ -11,11 +11,27 @@ use serde_json::{json, Value};
 use std::path::PathBuf;
 
 /// Welche UI-Aktualisierung ein Tool-Aufruf auslöst.
+///
+/// Review 2026-08, Befund B3/M5/S14/S36: bis dahin kannte dieses Enum nur
+/// „Presentation hat sich geändert" — Dateipfad und Assets blieben unerwähnt.
+/// `open_presentation`/`create_presentation` setzten den Pfad in Rust, das
+/// Frontend erfuhr davon nie, und das nächste Cmd+S schrieb Deck B über Datei A.
+/// `save_presentation` meldete gar nichts, also blieb der Dirty-Punkt stehen.
+/// Deshalb transportiert das Enum jetzt den vollständigen Zustandswechsel.
 pub enum Effect {
     /// Keine UI-Änderung nötig (reiner Read).
     None,
     /// Die Presentation hat sich geändert → Frontend neu spiegeln.
     Presentation,
+    /// Ein anderes Deck ist jetzt offen (neu angelegt oder aus einer Datei geladen).
+    /// Trägt Pfad UND Assets, weil das Frontend beides mitziehen muss.
+    Opened {
+        path: Option<PathBuf>,
+        assets: Vec<Asset>,
+    },
+    /// Erfolgreich auf Platte geschrieben → Frontend darf `isDirty` löschen und
+    /// den (ggf. neuen) Pfad übernehmen.
+    Saved { path: PathBuf },
     /// Im Präsentationsmodus zu Slide-Index springen.
     ActiveSlide(i64),
 }
@@ -23,10 +39,19 @@ pub enum Effect {
 pub struct ToolOutcome {
     pub result: Value,
     pub effect: Effect,
+    /// IDs der Zonen, die dieser Aufruf angefasst hat. Leer = deckweit/unbekannt.
+    /// Speist die Agenten-Provenance in der UI („KI hat Folie 4 geändert") und ist
+    /// die Vorarbeit für zonen-genaue statt Ganz-Deck-Synchronisation (Befund S2).
+    pub zone_ids: Vec<String>,
 }
 
 fn ok(result: Value, effect: Effect) -> Result<ToolOutcome, String> {
-    Ok(ToolOutcome { result, effect })
+    Ok(ToolOutcome { result, effect, zone_ids: Vec::new() })
+}
+
+/// Wie `ok`, aber mit der angefassten Zone.
+fn ok_zone(result: Value, effect: Effect, zone_id: impl Into<String>) -> Result<ToolOutcome, String> {
+    Ok(ToolOutcome { result, effect, zone_ids: vec![zone_id.into()] })
 }
 
 fn now_iso() -> String {
@@ -165,15 +190,30 @@ pub fn handle(
             let title = req_str(params, "title")?;
             *pres = Some(new_presentation(&title));
             *file_path = None;
-            ok(json!({ "title": title }), Effect::Presentation)
+            // Effect::Opened statt Presentation (Befund B3): das Frontend muss seinen
+            // filePath auf null ziehen und die Assets des Vorgängerdecks verwerfen —
+            // sonst zeigt es das neue Deck, speichert aber in die alte Datei.
+            ok(
+                json!({ "title": title }),
+                Effect::Opened { path: None, assets: Vec::new() },
+            )
         }
         "open_presentation" => {
             let path = req_str(params, "path")?;
             let pb = PathBuf::from(&path);
             let value = file::read_presentation(&pb).map_err(|e| format!("{e:#}"))?;
+            // Assets MITLESEN (Befund B3d): vorher tat das nur der Tauri-Command, nicht
+            // dieser Pfad. Folge war schlimmer als „Bilder kaputt": `list_assets` meldete
+            // die Assets des VORHERIGEN Decks, die KI referenzierte nicht existierende
+            // Bilder, und ein MCP-`save_presentation` schrieb den falschen Asset-Satz
+            // atomar über die Zieldatei — deren eingebettete Medien waren damit weg.
+            let loaded = file::read_assets(&pb).unwrap_or_default();
             *pres = Some(value);
-            *file_path = Some(pb);
-            ok(json!({ "path": path }), Effect::Presentation)
+            *file_path = Some(pb.clone());
+            ok(
+                json!({ "path": path, "assets": loaded.len() }),
+                Effect::Opened { path: Some(pb), assets: loaded },
+            )
         }
         "save_presentation" => {
             let p = pres.as_ref().ok_or("No presentation open")?;
@@ -183,7 +223,13 @@ pub fn handle(
                 .ok_or("No save path known (provide 'path')")?;
             file::write_presentation(&target, p, assets).map_err(|e| format!("{e:#}"))?;
             *file_path = Some(target.clone());
-            ok(json!({ "saved": target.to_string_lossy() }), Effect::None)
+            // Effect::Saved statt None (Befund M5): sonst blieb der Dirty-Punkt nach einem
+            // KI-Save stehen, der Close-Guard fragte grundlos, und ein menschliches Cmd+S
+            // öffnete einen Speichern-unter-Dialog und legte eine ZWEITE Datei an.
+            ok(
+                json!({ "saved": target.to_string_lossy() }),
+                Effect::Saved { path: target },
+            )
         }
         "get_presentation_meta" => {
             let p = pres.as_ref().ok_or("No presentation open")?;
@@ -328,7 +374,7 @@ pub fn handle(
                 zone["markdown"] = json!(content);
             }
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
         "append_to_zone" => {
             let id = req_str(params, "id")?;
@@ -347,7 +393,7 @@ pub fn handle(
             };
             zone[field] = json!(joined);
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
         "replace_in_zone" => {
             let id = req_str(params, "id")?;
@@ -467,7 +513,7 @@ pub fn handle(
                 zones[idx]["custom_css"] = json!(css);
             }
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
         "get_zone_style" => {
             let id = req_str(params, "id")?;
@@ -484,7 +530,7 @@ pub fn handle(
             let idx = zone_index(zones, &id)?;
             zones[idx]["custom_css"] = json!(css);
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
 
         // ----- Notes -----
@@ -496,7 +542,7 @@ pub fn handle(
             let idx = zone_index(zones, &id)?;
             zones[idx]["notes"] = json!(notes);
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
 
         // ----- Builds (Spec §19.1) -----
@@ -511,7 +557,7 @@ pub fn handle(
             let idx = zone_index(zones, &id)?;
             zones[idx]["reveal"] = json!(mode);
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
 
         // ----- Assets -----
@@ -660,7 +706,7 @@ pub fn handle(
             let idx = zone_index(zones, &id)?;
             zones[idx]["label"] = json!(label);
             touch_modified(p);
-            ok(json!({ "ok": true }), Effect::Presentation)
+            ok_zone(json!({ "ok": true }), Effect::Presentation, id)
         }
 
         other => Err(format!("Unknown tool: {other}")),
@@ -1065,6 +1111,118 @@ mod tests {
 
     fn call(method: &str, params: Value, pres: &mut Option<Value>, fp: &mut Option<PathBuf>) -> Value {
         handle(method, &params, pres, fp, &[]).expect(method).result
+    }
+
+    /// Wie `call`, liefert aber das ganze Outcome (fuer Effect-/zone_ids-Pruefungen).
+    fn call_out(
+        method: &str,
+        params: Value,
+        pres: &mut Option<Value>,
+        fp: &mut Option<PathBuf>,
+        assets: &[Asset],
+    ) -> ToolOutcome {
+        handle(method, &params, pres, fp, assets).expect(method)
+    }
+
+    // ---- Effect-Redesign (Review 2026-08, Befund B3/M5/S36) ----
+
+    #[test]
+    fn create_presentation_meldet_deckwechsel_statt_nur_aenderung() {
+        let (mut pres, mut fp) = (None, Some(PathBuf::from("/tmp/alt.slideo")));
+        let out = call_out("create_presentation", json!({ "title": "Neu" }), &mut pres, &mut fp, &[]);
+        // Ohne Effect::Opened erfuhr das Frontend nie, dass der Pfad jetzt None ist —
+        // das naechste Cmd+S schrieb das neue Deck in /tmp/alt.slideo.
+        match out.effect {
+            Effect::Opened { path, assets } => {
+                assert!(path.is_none(), "neues Deck hat keinen Pfad");
+                assert!(assets.is_empty(), "neues Deck erbt keine Assets");
+            }
+            _ => panic!("create_presentation muss Effect::Opened liefern"),
+        }
+        assert!(fp.is_none());
+    }
+
+    #[test]
+    fn open_presentation_liefert_pfad_und_assets_mit() {
+        use base64::Engine;
+        // Deck MIT Asset schreiben ...
+        let deck = json!({
+            "version": "1.0",
+            "meta": { "title": "MitBild", "created": "2026-01-01T00:00:00Z", "modified": "2026-01-01T00:00:00Z" },
+            "tokens": default_tokens(),
+            "zones": [ make_zone(0, "Slide 1", "# Hi") ]
+        });
+        let asset = Asset {
+            name: "bild.png".into(),
+            mime: "image/png".into(),
+            data: base64::engine::general_purpose::STANDARD.encode([1u8, 2, 3]),
+        };
+        let mut path = std::env::temp_dir();
+        path.push("slideo_effect_open_test.slideo");
+        file::write_presentation(&path, &deck, std::slice::from_ref(&asset)).expect("write");
+
+        // ... und ueber MCP oeffnen, waehrend ein ANDERES Deck offen ist.
+        let (mut pres, mut fp) = (Some(json!({"zones": []})), Some(PathBuf::from("/tmp/anderes.slideo")));
+        let out = call_out(
+            "open_presentation",
+            json!({ "path": path.to_string_lossy() }),
+            &mut pres,
+            &mut fp,
+            &[],
+        );
+        match out.effect {
+            Effect::Opened { path: p, assets } => {
+                assert_eq!(p.as_deref(), Some(path.as_path()));
+                // Befund B3d: ohne read_assets meldete list_assets die Assets des
+                // VORHERIGEN Decks und ein MCP-Save strippte die echten aus der Datei.
+                assert_eq!(assets.len(), 1);
+                assert_eq!(assets[0].name, "bild.png");
+            }
+            _ => panic!("open_presentation muss Effect::Opened liefern"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn save_presentation_meldet_den_pfad_zurueck() {
+        let (mut pres, mut fp) = (None, None);
+        call("create_presentation", json!({ "title": "S" }), &mut pres, &mut fp);
+        let mut path = std::env::temp_dir();
+        path.push("slideo_effect_save_test.slideo");
+        let out = call_out(
+            "save_presentation",
+            json!({ "path": path.to_string_lossy() }),
+            &mut pres,
+            &mut fp,
+            &[],
+        );
+        // Vorher Effect::None -> der Dirty-Punkt blieb nach einem KI-Save stehen (M5).
+        match out.effect {
+            Effect::Saved { path: p } => assert_eq!(p, path),
+            _ => panic!("save_presentation muss Effect::Saved liefern"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn zonen_tools_melden_die_angefasste_zone() {
+        let (mut pres, mut fp) = (None, None);
+        call("create_presentation", json!({ "title": "Z" }), &mut pres, &mut fp);
+        let zones = call("get_all_zones", json!({}), &mut pres, &mut fp);
+        let id = zones[0]["id"].as_str().unwrap().to_string();
+
+        let out = call_out(
+            "set_zone_content",
+            json!({ "id": id, "content_type": "markdown", "content": "# Neu" }),
+            &mut pres,
+            &mut fp,
+            &[],
+        );
+        assert_eq!(out.zone_ids, vec![id.clone()]);
+
+        // Deckweite Tools tragen bewusst keine Zonen-ID.
+        let out2 = call_out("set_token", json!({ "key": "color-bg", "value": "#fff" }), &mut pres, &mut fp, &[]);
+        assert!(out2.zone_ids.is_empty());
     }
 
     #[test]

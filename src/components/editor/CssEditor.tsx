@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { useLicenseStore } from '@/store/license'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { css } from '@codemirror/lang-css'
 
@@ -29,6 +30,14 @@ export function CssEditor({ initialCss, onChange }: CssEditorProps) {
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
+  // Read-only nach Trial-Ablauf: der Editor wird WIRKLICH gesperrt (Befund B2).
+  // Ein Compartment ist noetig, weil die EditorState-Extensions nur beim Mount
+  // gesetzt werden — ohne ihn liesse sich weiter tippen, waehrend der Store die
+  // Aenderung still verwirft.
+  const editableRef = useRef(new Compartment())
+  const editingAllowed = useLicenseStore((s) => s.status?.editing_allowed ?? true)
+  const editingAllowedRef = useRef(editingAllowed)
+
   useEffect(() => {
     if (!hostRef.current) return
     const view = new EditorView({
@@ -40,6 +49,7 @@ export function CssEditor({ initialCss, onChange }: CssEditorProps) {
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           css(),
+          editableRef.current.of(EditorView.editable.of(editingAllowedRef.current)),
           lightTheme,
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
@@ -55,6 +65,17 @@ export function CssEditor({ initialCss, onChange }: CssEditorProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+
+  // Sperre bei Statuswechsel nachziehen (der Editor wird nur beim Mount erstellt).
+  useEffect(() => {
+    editingAllowedRef.current = editingAllowed
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({
+      effects: editableRef.current.reconfigure(EditorView.editable.of(editingAllowed)),
+    })
+  }, [editingAllowed])
 
   // Externe Änderungen (z.B. MCP set_zone_css) übernehmen, ohne Cursor-Sprung.
   useEffect(() => {
