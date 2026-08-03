@@ -46,7 +46,15 @@
         "role": "Editor",
         "mimeType": "application/x-slideo"
       }
-    ]
+    ],
+    "copyright": "© 2026 René Jesser",
+    "category": "Productivity",
+    "shortDescription": "Lokales Praesentations-Studio mit eigenem KI-Agenten (MCP)",
+    "longDescription": "Slideo ist ein lokales, offline laufendes Praesentations-Studio. Es bringt keine eigene KI mit, sondern stellt deinem MCP-faehigen KI-Client Werkzeuge bereit, mit denen er das Deck baut - du verfeinerst es direkt in der Live-Vorschau. Decks sind .slideo-Dateien auf deiner Platte.",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": null
+    }
   },
   "plugins": {}
 }
