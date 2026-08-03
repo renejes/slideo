@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { usePresentationStore } from '@/store/presentation'
+import { confirmDialog } from '@/lib/dialog'
 import { parseDataUri, mediaKind } from '@/lib/assets'
 import { Icon } from './Icon'
 
@@ -11,6 +12,20 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
   const hasPresentation = usePresentationStore((s) => s.presentation !== null)
   const addAssetToLibrary = usePresentationStore((s) => s.addAssetToLibrary)
   const removeAsset = usePresentationStore((s) => s.removeAsset)
+  const countAssetRefs = usePresentationStore((s) => s.countAssetRefs)
+
+  // Löschen bestätigen und benutzte Assets benennen (Review 2026-08, Befund H3):
+  // vorher entfernte ein hover-sichtbarer 24px-Papierkorb das Asset sofort,
+  // unbestätigt, referenz-ungeprüft und nicht rückgängig zu machen — Folien
+  // renderten danach still ein kaputtes Bild, eine registrierte Schrift lud nicht
+  // mehr, das Logo verschwand.
+  async function confirmRemove(name: string) {
+    const refs = countAssetRefs(name)
+    const msg = refs
+      ? `„${name}" wird an ${refs} Stelle${refs === 1 ? '' : 'n'} im Deck verwendet.\n\nTrotzdem entfernen? (Rückgängig mit Cmd/Strg+Z)`
+      : `„${name}" entfernen? (Rückgängig mit Cmd/Strg+Z)`
+    if (await confirmDialog(msg)) removeAsset(name)
+  }
   const fileRef = useRef<HTMLInputElement>(null)
   const entries = Object.entries(assets)
   const picking = !!onPick
@@ -75,7 +90,7 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
               name={name}
               dataUri={dataUri}
               onPick={onPick}
-              onRemove={() => removeAsset(name)}
+              onRemove={() => void confirmRemove(name)}
             />
           ))}
         </div>

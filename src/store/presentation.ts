@@ -21,6 +21,7 @@ import { exportPdfViaPrint } from '@/lib/print'
 import { findPreset } from '@/lib/presets'
 import type { DeckTemplate } from '@/lib/templates'
 import { setAssetResolver } from '@/lib/asset-resolver'
+import { normalizePresentation } from '@/lib/normalize'
 import {
   assetsToMap,
   mapToAssets,
@@ -32,6 +33,7 @@ import {
   extFromName,
 } from '@/lib/assets'
 import { useLicenseStore } from './license'
+import { useSettingsStore } from './settings'
 import {
   loadPresentationFile,
   savePresentationFile,
@@ -68,9 +70,9 @@ interface PresentationState {
   activeSlideIndex: number
 
   // Undo-/Redo-History (strukturelle/Design-Änderungen; Texteingaben haben Editor-Undo)
-  past: Presentation[]
+  past: HistoryEntry[]
   /** Zurückgenommene Stände (Review 2026-08, Befund H1 — Redo fehlte komplett). */
-  future: Presentation[]
+  future: HistoryEntry[]
   undo: () => void
   redo: () => void
 
@@ -160,6 +162,8 @@ interface PresentationState {
   /** Ein bereits in der Library liegendes Asset (per Name) in eine Zone einfügen. */
   insertAssetIntoZone: (zoneId: string, assetName: string) => void
   addAssetToLibrary: (dataUri: string) => string
+  /** Wie oft ein Asset im Deck referenziert wird (Folien, Logo, Fonts) — Befund H3. */
+  countAssetRefs: (name: string) => number
   removeAsset: (name: string) => void
   /** Lädt eine Schriftdatei als Asset + registriert sie als Font (Spec §19.4). */
   addFont: (dataUri: string, fileName: string) => void
@@ -282,6 +286,25 @@ function renumber(zones: Zone[]): Zone[] {
 const PAST_CAP = 50
 const clone = (p: Presentation): Presentation => JSON.parse(JSON.stringify(p))
 
+/**
+ * Ein Undo-/Redo-Stand (Review 2026-08, Befund S1/H3/M53).
+ *
+ * Vorher hielt die Historie NUR die Presentation, während `assets` ein
+ * Geschwisterfeld war, das mit rohem `set()` mutiert wurde. Folgen: ein gelöschtes
+ * Asset war unwiederbringlich (H3), ein Undo nach Snapshot-Restore ließ das Deck
+ * auf die falschen Assets zeigen (M53), und Font-/Logo-Upload konnte ein verwaistes
+ * Asset hinterlassen (M54).
+ *
+ * Die Asset-Map wird bewusst als **Referenz** geführt, nicht tief geklont: der
+ * Store ersetzt das Objekt bei jeder Asset-Änderung ohnehin (deshalb funktioniert
+ * auch der Identitätsvergleich in `classifyPreviewChange`), und ein Deep-Clone
+ * würde bei Video-Assets zweistellige MB pro Undo-Schritt kosten.
+ */
+interface HistoryEntry {
+  presentation: Presentation
+  assets: AssetMap
+}
+
 // ───────────────────────── Crash-Recovery (Review 2026-08, Befund B4) ─────────────────────────
 //
 // Bis hierher wurde ausschließlich bei explizitem Cmd+S geschrieben. Das Risikofenster
@@ -309,7 +332,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     // Eine neue Aktion nach einem Undo verwirft den Redo-Zweig — Standardverhalten
     // jedes linearen Undo-Stacks; ohne das könnte Redo einen Stand einspielen, der
     // zu einer inzwischen abgezweigten Historie gehört.
-    set({ past: [...get().past, clone(p)].slice(-PAST_CAP), future: [] })
+    const entry: HistoryEntry = { presentation: clone(p), assets: get().assets }
+    set({ past: [...get().past, entry].slice(-PAST_CAP), future: [] })
   }
 
   // --- Undo-Granularität (Review 2026-08, Befund H29/S6) ---
@@ -415,35 +439,47 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       // weiter durch die Historie rollen und dirty machen — Bearbeiten über die Rückwärts-
       // taste, während jede Vorwärts-Bearbeitung abgelehnt wurde.
       if (!useLicenseStore.getState().editingAllowed()) return
-      const { past, presentation: current } = get()
+      const { past, presentation: current, assets: currentAssets } = get()
       if (past.length === 0) return
       const previous = past[past.length - 1]
-      const keepActive = previous.zones.some((z) => z.id === get().activeZoneId)
+      const keepActive = previous.presentation.zones.some((z) => z.id === get().activeZoneId)
       set({
         past: past.slice(0, -1),
-        // Aktuellen Stand für Redo aufheben (H1).
-        future: current ? [clone(current), ...get().future].slice(0, PAST_CAP) : get().future,
-        presentation: previous,
+        // Aktuellen Stand für Redo aufheben (H1) — inklusive Assets (S1).
+        future: current
+          ? [{ presentation: clone(current), assets: currentAssets }, ...get().future].slice(0, PAST_CAP)
+          : get().future,
+        presentation: previous.presentation,
+        // Assets mitziehen: ein gelöschtes Bild kommt so zurück (H3), und ein Undo
+        // nach Snapshot-Restore zeigt nicht mehr auf die falschen Assets (M53).
+        assets: previous.assets,
         isDirty: true,
-        activeZoneId: keepActive ? get().activeZoneId : (previous.zones[0]?.id ?? null),
+        activeZoneId: keepActive
+          ? get().activeZoneId
+          : (previous.presentation.zones[0]?.id ?? null),
       })
       scheduleAutosave()
     },
 
     redo: () => {
       if (!useLicenseStore.getState().editingAllowed()) return
-      const { future, presentation: current } = get()
+      const { future, presentation: current, assets: currentAssets } = get()
       if (future.length === 0) return
       const next = future[0]
-      const keepActive = next.zones.some((z) => z.id === get().activeZoneId)
+      const keepActive = next.presentation.zones.some((z) => z.id === get().activeZoneId)
       set({
         // NICHT über pushHistory (das würde `future` leeren) — hier wird der
         // Redo-Zweig ja gerade abgelaufen, nicht verworfen.
-        past: current ? [...get().past, clone(current)].slice(-PAST_CAP) : get().past,
+        past: current
+          ? [...get().past, { presentation: clone(current), assets: currentAssets }].slice(-PAST_CAP)
+          : get().past,
         future: future.slice(1),
-        presentation: next,
+        presentation: next.presentation,
+        assets: next.assets,
         isDirty: true,
-        activeZoneId: keepActive ? get().activeZoneId : (next.zones[0]?.id ?? null),
+        activeZoneId: keepActive
+          ? get().activeZoneId
+          : (next.presentation.zones[0]?.id ?? null),
       })
       scheduleAutosave()
     },
@@ -478,8 +514,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
     loadPresentation: async (path) => {
       try {
-        const { presentation, assets } = await loadPresentationFile(path)
-        presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+        const raw = await loadPresentationFile(path)
+        const { presentation, fromNewerVersion } = normalizePresentation(raw.presentation)
+        const assets = raw.assets
+        if (fromNewerVersion) {
+          notify(
+            'Diese Datei stammt aus einer neueren Slideo-Version — sie wird bestmöglich geöffnet, aber Unbekanntes kann fehlen.',
+            'info',
+          )
+        }
         set({
           presentation,
           filePath: path,
@@ -491,6 +534,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           mode: 'editor',
           activeSlideIndex: 0,
         })
+        useSettingsStore.getState().rememberRecent(path, presentation.meta.title)
         notify('Präsentation geöffnet.', 'success')
       } catch (e) {
         console.error('[slideo] load_presentation fehlgeschlagen:', e)
@@ -518,6 +562,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         // Der Stand ist jetzt echt auf Platte → die Sitzungs-Sicherung darf weg,
         // sonst bietet der nächste Start eine Wiederherstellung für nichts an.
         clearRecovery()
+        useSettingsStore.getState().rememberRecent(target, presentation.meta.title)
         notify('Gespeichert.', 'success')
         // Auto-Snapshot (Versionshistorie §19.9): still + im Backend dedupliziert;
         // Fehler dürfen das Speichern nicht stören (fire-and-forget).
@@ -957,11 +1002,34 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       return filename
     },
 
+    countAssetRefs: (name) => {
+      const p = get().presentation
+      if (!p) return 0
+      const ref = `assets/${name}`
+      let n = 0
+      for (const z of p.zones) {
+        if (z.markdown.includes(ref)) n++
+        if (z.html?.includes(ref)) n++
+        if (z.custom_css.includes(ref)) n++
+      }
+      if (p.meta.logo?.asset === name) n++
+      if (p.fonts?.some((f) => f.asset === name)) n++
+      return n
+    },
+
     removeAsset: (name) => {
       if (!useLicenseStore.getState().editingAllowed()) return
+      const current = get().presentation
+      // Über `mutate` gehen, damit das Löschen in der Historie landet (Befund H3/S1):
+      // vorher lief es über ein rohes `set()`, war also weder undoable noch dirty-
+      // korrekt — ein versehentlich gelöschtes Bild war unwiederbringlich, während
+      // jede Folie, die es referenzierte, still ein kaputtes Bild renderte.
+      // Die Presentation selbst bleibt unverändert; der Snapshot fängt die Assets.
+      if (current) pushHistory(current)
       const next = { ...get().assets }
       delete next[name]
       set({ assets: next, isDirty: true })
+      scheduleAutosave()
     },
 
     addFont: (dataUri, fileName) => {
@@ -1140,8 +1208,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         return
       }
       try {
-        const { presentation, assets } = await restoreSnapshotCmd(filePath, id)
-        presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+        const rawSnap = await restoreSnapshotCmd(filePath, id)
+        const presentation = normalizePresentation(rawSnap.presentation).presentation
+        const assets = rawSnap.assets
         const current = get().presentation
         if (current) pushHistory(current) // Wiederherstellen ist per Undo umkehrbar
         set({
@@ -1178,8 +1247,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       // MCP-Änderung undoable machen — aber pro RUNDE, nicht pro Tool-Call (H29).
       const current = get().presentation
       if (current) pushAiHistory(current)
-      const zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
-      const next = { ...presentation, zones }
+      const next = normalizePresentation(presentation).presentation
+      const zones = next.zones
       // aktive Zone beibehalten, falls noch vorhanden, sonst erste Zone
       const keepActive = zones.some((z) => z.id === get().activeZoneId)
       set({
@@ -1192,13 +1261,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       scheduleAutosave()
     },
 
-    applyExternalOpen: (presentation, path, assets) => {
+    applyExternalOpen: (rawPresentation, path, assets) => {
+      const presentation = normalizePresentation(rawPresentation).presentation
       // Deckwechsel: KEIN pushHistory — das alte Deck gehört zu einer anderen Datei,
       // ein Undo dorthin würde die beiden Decks vermischen (genau die Klasse Fehler,
       // die B3 verursacht hat). Stattdessen sauberer Schnitt, wie loadPresentation.
-      const zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+      const zones = presentation.zones
       set({
-        presentation: { ...presentation, zones },
+        presentation,
         filePath: path,
         assets: assetsToMap(assets),
         // Frisch geladen bzw. angelegt: das Deck steht so noch nicht auf Platte,
@@ -1224,8 +1294,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
     restoreRecovery: async (info) => {
       try {
-        const { presentation, assets } = await recoveryTake(info.session)
-        presentation.zones = renumber([...presentation.zones].sort((a, b) => a.order - b.order))
+        const rawRec = await recoveryTake(info.session)
+        const presentation = normalizePresentation(rawRec.presentation).presentation
+        const assets = rawRec.assets
         set({
           presentation,
           // Ursprungspfad zurücksetzen, damit Cmd+S wieder die richtige Datei trifft.

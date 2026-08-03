@@ -8,6 +8,7 @@ import { getMcpStatus } from '@/lib/mcp-registration'
 import { Icon } from '@/components/ui/Icon'
 import { Toaster } from '@/components/ui/Toaster'
 import { CloseGuard } from '@/components/CloseGuard'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Topbar } from '@/components/ui/Topbar'
 import { NewPresentationModal } from '@/components/modals/NewPresentationModal'
 import { SettingsModal } from '@/components/modals/SettingsModal'
@@ -23,6 +24,7 @@ import { AssetManagerModal } from '@/components/modals/AssetManagerModal'
 import { LicenseModal } from '@/components/modals/LicenseModal'
 import { LicenseBar } from '@/components/ui/LicenseBar'
 import { useLicenseStore } from '@/store/license'
+import { useSettingsStore } from '@/store/settings'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 
 export default function App() {
@@ -157,7 +159,9 @@ export default function App() {
   if (mode === 'presentation' && presentation) {
     return (
       <>
-        <PresentationMode />
+        <ErrorBoundary fallbackTitle="Der Präsentationsmodus konnte nicht gestartet werden">
+          <PresentationMode />
+        </ErrorBoundary>
         <Toaster />
         <CloseGuard />
       </>
@@ -171,7 +175,11 @@ export default function App() {
       {presentation ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <OnboardingNudge />
-          <EditorShell />
+          {/* Netz um die Editor-Shell (Befund M49) — ein Renderfehler darf nicht den
+              ganzen Bildschirm weiß machen; Topbar und Datei-Aktionen bleiben nutzbar. */}
+          <ErrorBoundary>
+            <EditorShell />
+          </ErrorBoundary>
         </div>
       ) : (
         <EmptyState onNew={openNew} onHelp={() => openModal('help')} />
@@ -194,6 +202,8 @@ export default function App() {
 
 function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }) {
   const openDialog = usePresentationStore((s) => s.openPresentationDialog)
+  const loadPresentation = usePresentationStore((s) => s.loadPresentation)
+  const recent = useSettingsStore((s) => s.recent)
   const tauri = isTauri()
 
   return (
@@ -246,6 +256,39 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
             Öffnen
           </button>
         </div>
+
+        {/* Zuletzt geöffnet (Review 2026-08, Befund M22): ohne diese Liste musste
+            man am Tag 2 den Finder durchsuchen — es gab keine Zuletzt-Liste, kein
+            Reopen-Last-File und keine fileAssociations. */}
+        {tauri && recent.length > 0 && (
+          <div className="mt-7 border-t border-chrome-border pt-5 text-left">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-chrome-faint">
+              Zuletzt geöffnet
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {recent.map((r) => (
+                <li key={r.path}>
+                  <button
+                    onClick={() => void loadPresentation(r.path)}
+                    title={r.path}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-chrome-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+                  >
+                    <Icon
+                      name="description"
+                      size={16}
+                      weight={400}
+                      className="shrink-0 text-chrome-faint"
+                    />
+                    <span className="truncate text-[13px] text-chrome-text">{r.title}</span>
+                    <span className="ml-auto shrink-0 truncate text-[11px] text-chrome-faint" dir="rtl">
+                      {r.path.replace(/^.*[/\\]/, '')}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )
