@@ -65,6 +65,13 @@ Abweichungen vom Plan (bewusst):
 
 Siehe [optimierung.md](optimierung.md) Abschnitt E. Kurzfassung der fünf Gabelungen:
 
+**Produktziel (entschieden 2026-08-03): erst kostenlos/Beta, später Einmallizenz verkaufen.**
+Damit gilt Stage 4 in voller Breite (Notarisierung, Windows-Signatur, i18n, Auto-Updater) und Polar
+wird später scharfgestellt. ⚠️ **Latente Entscheidung:** sobald `POLAR_ORG_ID` gesetzt wird, schaltet
+sich automatisch das *heutige* Modell ein — 30 Tage, danach read-only. Das ist NICHT das aus dem
+Review empfohlene Modell (unbegrenzte Demo mit Folien-Limit, siehe E1). Vor dem Verkaufsstart also
+noch einmal bewusst wählen.
+
 Entschieden am **2026-08-03**:
 
 | | Entscheidung | Empfehlung aus dem Review | **Getroffen** |
