@@ -262,6 +262,28 @@ pub fn handle(
             touch_modified(p);
             ok(json!({ "id": new_id }), Effect::Presentation)
         }
+        "duplicate_zone" => {
+            // Gegenstueck zum menschlichen Cmd/Ctrl+D (Review 2026-08, Befund H2).
+            // Ohne dieses Tool brauchte die KI drei Calls (get_zone_content +
+            // create_zone + set_zone_content) und verlor dabei Stil, Notizen,
+            // Custom-CSS und den Reveal-Modus.
+            let id = req_str(params, "id")?;
+            let p = pres_mut(pres)?;
+            let zones = zones_mut(p)?;
+            let idx = zone_index(zones, &id)?;
+            let mut copy = zones[idx].clone();
+            // NEUE UUID — sonst kollidieren Zonen-Links (§23) und der Patch-Klassifikator
+            // der Vorschau, der Zonen ueber ihre ID identifiziert.
+            let new_id = uuid::Uuid::new_v4().to_string();
+            copy["id"] = json!(new_id);
+            if let Some(label) = copy.get("label").and_then(|l| l.as_str()) {
+                copy["label"] = json!(format!("{label} (Kopie)"));
+            }
+            zones.insert(idx + 1, copy);
+            renumber(zones);
+            touch_modified(p);
+            ok_zone(json!({ "id": new_id }), Effect::Presentation, new_id.clone())
+        }
         "delete_zone" => {
             let id = req_str(params, "id")?;
             let p = pres_mut(pres)?;
@@ -910,6 +932,11 @@ pub fn tool_schemas() -> Value {
                 "after_id": s("UUID of the zone to insert after. Omit to append at the end."),
                 "markdown": s("Optional initial content as Markdown")
             }, "required": ["label"] }
+        },
+        {
+            "name": "duplicate_zone",
+            "description": "Duplicate a slide (including style, notes, custom CSS and reveal mode) directly after the original. The copy gets a new id.",
+            "inputSchema": { "type": "object", "properties": { "id": s("UUID of the zone to duplicate") }, "required": ["id"] }
         },
         {
             "name": "delete_zone",

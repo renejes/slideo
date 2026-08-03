@@ -100,13 +100,23 @@ export default function App() {
       const key = e.key.toLowerCase()
       if (key === 's') {
         e.preventDefault()
-        void save()
+        // Cmd/Ctrl+Shift+S = Speichern unter (Befund H7): `savePresentationAsDialog`
+        // existierte, war aber aus der UI unerreichbar — wer eine Variante
+        // ausprobieren wollte, musste raus zum Finder.
+        if (e.shiftKey) void usePresentationStore.getState().savePresentationAsDialog()
+        else void save()
       } else if (key === 'n') {
         e.preventDefault()
         openNew()
       } else if (key === 'f') {
         e.preventDefault()
         openModal('find')
+      } else if (key === 'd') {
+        // Folie duplizieren (Befund H2) — in jeder vergleichbaren App Cmd/Ctrl+D.
+        const active = usePresentationStore.getState().activeZoneId
+        if (!active) return
+        e.preventDefault()
+        usePresentationStore.getState().duplicateZone(active)
       } else if (key === 'z' || key === 'y') {
         // In Editoren (Tiptap/CodeMirror, Inputs) deren eigenes Undo/Redo nicht stören.
         const ae = document.activeElement as HTMLElement | null

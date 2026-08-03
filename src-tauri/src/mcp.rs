@@ -147,8 +147,8 @@ mod tests {
         let tools = resp["result"]["tools"].as_array().unwrap();
         assert_eq!(
             tools.len(),
-            37,
-            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components + Marke/Meta/Fonts + Layout-Heuristik (check_zone_overflow/validate_deck) erwartet"
+            38,
+            "Spec §5 + zone_css/notes/reveal + assets + presets + transition + components + Marke/Meta/Fonts + Layout-Heuristik + duplicate_zone (Review 2026-08 #16) erwartet"
         );
         assert!(tools.iter().any(|t| t["name"] == "check_zone_overflow"));
         assert!(tools.iter().any(|t| t["name"] == "validate_deck"));

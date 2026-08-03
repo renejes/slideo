@@ -21,6 +21,7 @@ export function EditorCanvas() {
   const presentation = usePresentationStore((s) => s.presentation)
   const reorderZones = usePresentationStore((s) => s.reorderZones)
   const createZone = usePresentationStore((s) => s.createZone)
+  const activeZoneId = usePresentationStore((s) => s.activeZoneId)
 
   // Drag erst nach kleiner Bewegung starten, damit Klicks/Selektion normal funktionieren.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
@@ -54,12 +55,16 @@ export function EditorCanvas() {
           </SortableContext>
         </DndContext>
 
+        {/* Einfügen nach der AKTIVEN Folie statt immer ans Ende (Befund M60):
+            `createZone(afterId)` konnte das längst, der Button reichte aber stets
+            die letzte Zone durch — zwischen Folie 4 und 5 einfügen hieß anhängen
+            und durch 25 Karten hochziehen. */}
         <button
-          onClick={() => createZone(zones[zones.length - 1]?.id)}
+          onClick={() => createZone(activeZoneId ?? zones[zones.length - 1]?.id)}
           className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-chrome-border-strong py-3.5 text-[13px] font-medium text-chrome-muted transition-colors hover:border-chrome-accent hover:bg-chrome-accent-soft hover:text-chrome-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
         >
           <Icon name="add" size={18} />
-          Slide hinzufügen
+          Folie hinzufügen
         </button>
       </div>
     </div>

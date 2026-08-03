@@ -22,6 +22,8 @@ export function Topbar() {
   const filePath = usePresentationStore((s) => s.filePath)
   const openDialog = usePresentationStore((s) => s.openPresentationDialog)
   const save = usePresentationStore((s) => s.savePresentation)
+  const saveAs = usePresentationStore((s) => s.savePresentationAsDialog)
+  const setTitle = usePresentationStore((s) => s.setPresentationTitle)
   const exportHtml = usePresentationStore((s) => s.exportHtml)
   const exportPdf = usePresentationStore((s) => s.exportPdf)
   const exportPptx = usePresentationStore((s) => s.exportPptx)
@@ -45,7 +47,21 @@ export function Topbar() {
       {presentation && (
         <div className="flex min-w-0 items-center gap-2 text-[13px]">
           <span className="text-chrome-faint">/</span>
-          <span className="truncate text-chrome-secondary">{presentation.meta.title}</span>
+          {/* Titel inline umbenennbar (Review 2026-08, Befund H8): bis dahin konnte
+              NUR die KI das Deck umbenennen (`set_presentation_title`) — der Mensch
+              hatte kein UI dafür, obwohl der Titel Export-Dateinamen, Standalone-
+              <title>, Print und PPTX treibt. */}
+          <input
+            value={presentation.meta.title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
+            }}
+            title="Titel der Präsentation — zum Umbenennen klicken"
+            aria-label="Titel der Präsentation"
+            spellCheck={false}
+            className="min-w-0 max-w-[22rem] flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-chrome-secondary outline-none transition-colors hover:border-chrome-border focus:border-chrome-accent focus:bg-white focus:text-chrome-text focus:ring-2 focus:ring-chrome-accent/30"
+          />
           {isDirty && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-chrome-warn"
@@ -65,10 +81,15 @@ export function Topbar() {
           Öffnen
         </button>
         <button
-          onClick={() => save()}
+          onClick={(e) => (e.shiftKey || e.altKey ? void saveAs() : void save())}
           className={ghost}
           disabled={!presentation || !tauri}
-          title={fileHint ?? (filePath ? `Speichern: ${filePath}` : 'Speichern unter …')}
+          title={
+            fileHint ??
+            (filePath
+              ? `Speichern: ${filePath}\nMit Shift/Alt: Speichern unter … (Cmd/Strg+Shift+S)`
+              : 'Speichern unter …')
+          }
         >
           <Icon name="save" size={18} />
           Speichern

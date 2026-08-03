@@ -89,6 +89,14 @@ interface PresentationState {
 
   // Zones
   createZone: (afterId?: string, markdown?: string) => string
+  /**
+   * Dupliziert eine Folie samt Stil, Notizen, CSS und Reveal-Modus direkt dahinter
+   * (Review 2026-08, Befund H2). Fehlte komplett — weder UI noch MCP —, obwohl es
+   * die haeufigste Bewegung beim Editieren ueber einen KI-Entwurf ist. Die Kopie
+   * bekommt eine NEUE UUID (sonst kollidieren Zonen-Links und der Patch-Klassifikator).
+   * Gibt die ID der Kopie zurueck (leer, wenn abgelehnt).
+   */
+  duplicateZone: (id: string) => string
   deleteZone: (id: string) => void
   updateZoneMarkdown: (id: string, markdown: string) => void
   updateZoneHtml: (id: string, html: string) => void
@@ -171,6 +179,14 @@ interface PresentationState {
   createSnapshot: (label?: string) => Promise<boolean>
   /** Stellt einen Snapshot wieder her (undoable; Dateipfad bleibt — zum Übernehmen speichern). */
   restoreSnapshot: (id: string) => Promise<void>
+
+  /**
+   * Benennt das Deck um (Review 2026-08, Befund H8). Schreiber waren bisher nur
+   * `makePresentation` und das MCP-Tool `set_presentation_title` — der Agent hatte
+   * also mehr Hoheit über den Namen des Decks als sein Besitzer, obwohl `meta.title`
+   * Topbar, Export-Dateinamen, Standalone-<title>, Print und PPTX treibt.
+   */
+  setPresentationTitle: (title: string) => void
 
   // Präsentation (deck-weit)
   setTransition: (kind: TransitionKind, durationMs?: number) => void
@@ -608,6 +624,27 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       return createdId
     },
 
+    duplicateZone: (id) => {
+      let newId = ''
+      mutate((p) => {
+        const idx = p.zones.findIndex((z) => z.id === id)
+        if (idx < 0) return p
+        const src = p.zones[idx]
+        newId = newId || newId
+        const copy: Zone = {
+          ...JSON.parse(JSON.stringify(src)),
+          id: crypto.randomUUID(),
+          label: `${src.label} (Kopie)`,
+        }
+        newId = copy.id
+        const zones = [...p.zones]
+        zones.splice(idx + 1, 0, copy)
+        return { ...p, zones: renumber(zones) }
+      })
+      if (newId) set({ activeZoneId: newId })
+      return newId
+    },
+
     deleteZone: (id) => {
       mutate((p) => ({ ...p, zones: renumber(p.zones.filter((z) => z.id !== id)) }))
       if (get().activeZoneId === id) {
@@ -1042,6 +1079,12 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       }
       if (!mutate((p) => ({ ...p, tokens: { ...p.tokens, ...preset.tokens } }))) return
       notify(`Theme „${preset.label}" angewendet.`, 'success')
+    },
+
+    setPresentationTitle: (title) => {
+      const clean = title.trim()
+      if (!clean) return
+      mutate((p) => (p.meta.title === clean ? p : { ...p, meta: { ...p.meta, title: clean } }))
     },
 
     setTransition: (kind, durationMs) => {

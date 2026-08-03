@@ -30,6 +30,15 @@ interface UiState {
   openAssets: (mode: AssetMode, zoneId?: string) => void
   /** Direktbearbeiten in der Vorschau (Auswahl-Layer für HTML-Zonen, Spec §20). */
   previewEdit: boolean
+  /**
+   * Zonen, deren Inhalt aus der 1280×720-Bühne läuft, mit dem Überstand in
+   * Bühnen-Pixeln (Review 2026-08, Befund H5c). Gemessen im Vorschau-Iframe am
+   * ECHTEN Layout (sldCheckFit) — also inklusive Umbruch, Padding, custom_css,
+   * Split-Spalten und geladener Schriften, die die Rust-Heuristik alle nicht sieht.
+   * Reine Laufzeit-Anzeige, nie persistiert, kein Schema-Eingriff.
+   */
+  overflowZones: Record<string, number>
+  setOverflowZones: (zones: Record<string, number>) => void
   setPreviewEdit: (on: boolean) => void
   togglePreviewEdit: () => void
   /** Aktuelle „Klick → Quelle"-Markierung (oder null). */
@@ -46,6 +55,17 @@ export const useUiStore = create<UiState>((set) => ({
   assetPickZoneId: null,
   openAssets: (mode, zoneId) => set({ modal: 'assets', assetMode: mode, assetPickZoneId: zoneId ?? null }),
   previewEdit: false,
+  overflowZones: {},
+  setOverflowZones: (overflowZones) =>
+    // Identität stabil halten, wenn sich nichts geändert hat — sonst rendert jede
+    // Messung (resize, fonts.ready, jeder Patch) alle Folienkarten neu.
+    set((s) => {
+      const a = s.overflowZones
+      const ak = Object.keys(a)
+      const bk = Object.keys(overflowZones)
+      if (ak.length === bk.length && bk.every((k) => a[k] === overflowZones[k])) return s
+      return { overflowZones }
+    }),
   setPreviewEdit: (previewEdit) => set({ previewEdit }),
   togglePreviewEdit: () => set((s) => ({ previewEdit: !s.previewEdit })),
   htmlReveal: null,

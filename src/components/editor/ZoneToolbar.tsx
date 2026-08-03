@@ -3,6 +3,7 @@ import { ZONE_LAYOUTS, TEXT_ALIGNS } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { confirmDialog } from '@/lib/dialog'
+import { notify } from '@/store/toast'
 import { Icon } from '@/components/ui/Icon'
 
 interface ZoneToolbarProps {
@@ -22,7 +23,29 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
   const setZoneReveal = usePresentationStore((s) => s.setZoneReveal)
   const setZoneContentType = usePresentationStore((s) => s.setZoneContentType)
   const deleteZone = usePresentationStore((s) => s.deleteZone)
+  const duplicateZone = usePresentationStore((s) => s.duplicateZone)
+  const zoneCount = usePresentationStore((s) => s.presentation?.zones.length ?? 0)
   const setActiveZone = usePresentationStore((s) => s.setActiveZone)
+
+  // Löschen bestätigen (Review 2026-08, Befund M3): ein nackter Trash-Icon-Klick
+  // entfernte die Folie sofort. Undo gibt es zwar (Cmd/Z), aber nur mit Fokus
+  // AUSSERHALB eines Editors — und es gibt keinen Undo-Knopf, kein Menü und keinen
+  // Toast mit Rückgängig-Aktion. Dieselbe Datei bestätigt dagegen den weit weniger
+  // destruktiven HTML→Markdown-Wechsel. Bei nur einer Folie gar nicht erst löschen.
+  async function onDelete() {
+    if (zoneCount <= 1) {
+      notify('Die letzte Folie kann nicht gelöscht werden.', 'info')
+      return
+    }
+    const hasContent = zone.content_type === 'html' ? !!zone.html?.trim() : !!zone.markdown.trim()
+    if (hasContent) {
+      const ok = await confirmDialog(
+        `Folie „${zone.label}" wirklich löschen? (Rückgängig mit Cmd/Strg+Z)`,
+      )
+      if (!ok) return
+    }
+    deleteZone(zone.id)
+  }
   const openModal = useUiStore((s) => s.openModal)
   const openAssets = useUiStore((s) => s.openAssets)
 
@@ -141,11 +164,24 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
           {isHtml ? 'HTML' : 'Markdown'}
         </button>
 
+        {/* Folie duplizieren (Review 2026-08, Befund H2): fehlte komplett — weder
+            hier noch im MCP —, obwohl es die häufigste Bewegung beim Editieren über
+            einen KI-Entwurf ist. Bis dahin blieb nur „neu prompten" oder Markdown
+            von Hand kopieren. Cmd/Ctrl+D tut dasselbe. */}
         <button
-          onClick={() => deleteZone(zone.id)}
+          onClick={() => duplicateZone(zone.id)}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+          title="Folie duplizieren (Cmd/Strg+D)"
+          aria-label="Folie duplizieren"
+        >
+          <Icon name="content_copy" size={16} weight={400} />
+        </button>
+
+        <button
+          onClick={onDelete}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-danger/10 hover:text-chrome-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-danger/40"
-          title="Slide löschen"
-          aria-label="Slide löschen"
+          title="Folie löschen"
+          aria-label="Folie löschen"
         >
           <Icon name="delete" size={17} weight={400} />
         </button>

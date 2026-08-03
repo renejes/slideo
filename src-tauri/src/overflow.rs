@@ -10,7 +10,8 @@ use serde_json::{json, Value};
 
 const STAGE_W: f64 = 1280.0;
 const STAGE_H: f64 = 720.0;
-const SAFE_W: f64 = 1152.0; // x 64–1216
+// SAFE_W (1152px) wird seit dem Wegfall der Heading-Breiten-Warnung (H5b) nicht
+// mehr geprueft — Breite ist auf der festen Buehne unkritisch, weil Text umbricht.
 const SAFE_H: f64 = 592.0; // y 64–656
 
 /// Basis-Schriftgröße in px aus den Tokens (1rem = 16px).

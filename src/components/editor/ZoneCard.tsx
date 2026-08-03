@@ -37,6 +37,8 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
   const addMediaToZone = usePresentationStore((s) => s.addMediaToZone)
 
   const isHtml = zone.content_type === 'html'
+  // Überstand in Bühnen-px, 0 = passt (Befund H5c).
+  const overflowPx = useUiStore((s) => s.overflowZones[zone.id] ?? 0)
   const isActive = activeZoneId === zone.id
 
   // „Klick → Quelle" (Spec §20): bei Reveal für diese Zone die Card in den
@@ -147,6 +149,21 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
         </span>
         <ZoneToolbar zone={zone} />
       </div>
+
+      {/* Überlauf-Warnung (Review 2026-08, Befund H5c). Gemessen am ECHTEN Layout im
+          Vorschau-Iframe — die Rust-Heuristik, die die KI nutzt, sieht Umbruch,
+          Padding, custom_css und Split-Spalten gar nicht. Bis hierher wurde der
+          Überlauf schlicht geclippt und der Mensch erfuhr es nie; die KI hatte zwei
+          Tools dafür, der Besitzer des Decks keins. */}
+      {overflowPx > 0 && (
+        <div className="flex items-center gap-1.5 border-b border-chrome-warn/15 bg-chrome-warn-soft px-4 py-1.5 text-[12px]">
+          <Icon name="warning" size={14} weight={500} className="text-chrome-warn" />
+          <span className="font-semibold text-chrome-warn">Inhalt läuft über</span>
+          <span className="text-chrome-warn/70">
+            ~{overflowPx}px zu viel — wird in Präsentation und Export abgeschnitten.
+          </span>
+        </div>
+      )}
 
       {/* Custom-HTML-Hinweis */}
       {isHtml && (

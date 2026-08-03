@@ -284,6 +284,13 @@ body {
    Jetzt bleiben die Element-Margins der Folie unangetastet; nur die äußersten
    Kanten der Zone werden gekappt, exakt wie im Präsentationsmodus. */
 .slideo-block { position: relative; }
+/* Overflow-Markierung (Befund H5c): nur in der Vorschau sichtbar machen, NIE in
+   Praesentation/Export — dort waere sie im projizierten Bild. Der Renderer setzt
+   die Klasse per JS (sldCheckFit), das Styling haengt am editable-Modus. */
+.slideo-editable .slideo-zone.slideo-overflowing {
+  outline: 2px dashed rgba(197, 90, 45, 0.75);
+  outline-offset: -2px;
+}
 .slideo-content > .slideo-block:first-child > :first-child { margin-top: 0; }
 .slideo-content > .slideo-block:last-child > :last-child { margin-bottom: 0; }
 .slideo-block > .slideo-drag {
@@ -377,7 +384,53 @@ function navScript(
   }
   sldFit();
   window.addEventListener('resize', sldFit);
+
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slideo-frame'));
+  // ---- Overflow-Messung (Review 2026-08, Befund H5c) ----
+  //
+  // Bis hierher wurde Ueberlauf STILL geclippt (.slideo-zone overflow:hidden) und der
+  // Mensch erfuhr es nie: ein grep nach check_zone_overflow/validate_deck im Frontend
+  // fand null Treffer. Die KI hatte zwei Tools dafuer, deren Rust-Heuristik im
+  // HTML-Pfad praktisch blind ist — waehrend Slideo als einziger Anbieter das echte
+  // Layout jeder Folie bereits im Fenster rendert. Hier steht die Wahrheit.
+  //
+  // Bewusst getBoundingClientRect statt scrollHeight: der Inhalt ist zentriert
+  // (place-items:center), laeuft also auch nach OBEN heraus — scrollHeight sieht das
+  // nicht. Beide Rects sind Bildschirm-px im selben Massstab, der Vergleich ist
+  // deshalb skalierungsinvariant (§21).
+  function sldCheckFit() {
+    var out = [];
+    for (var i = 0; i < slides.length; i++) {
+      var zone = slides[i].querySelector('.slideo-zone');
+      var content = zone && zone.querySelector('.slideo-content');
+      if (!zone || !content) continue;
+      var zr = zone.getBoundingClientRect();
+      var cr = content.getBoundingClientRect();
+      if (!(zr.height > 0)) continue;
+      var over = Math.max(0, zr.top - cr.top) + Math.max(0, cr.bottom - zr.bottom);
+      var overPx = over / (window.__sldScale || 1);
+      // 2px Toleranz gegen Rundung/Subpixel — sonst warnt es bei perfekt passenden Folien.
+      if (overPx > 2) {
+        zone.classList.add('slideo-overflowing');
+        out.push({ id: (zone.id || '').replace(/^zone-/, ''), overflowPx: Math.round(overPx) });
+      } else {
+        zone.classList.remove('slideo-overflowing');
+      }
+    }
+    if (!STANDALONE) parent.postMessage({ type: 'slideo:overflow', zones: out }, '*');
+  }
+  var fitTimer = null;
+  function sldCheckFitSoon() {
+    if (fitTimer) clearTimeout(fitTimer);
+    fitTimer = setTimeout(sldCheckFit, 120);
+  }
+  window.addEventListener('resize', sldCheckFitSoon);
+  // Nach dem Font-Laden erneut messen: mit Fallback-Font passt eine Folie oft, mit
+  // der echten (Custom-)Schrift nicht mehr.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(sldCheckFitSoon);
+  sldCheckFitSoon();
+  window.__sldCheckFit = sldCheckFitSoon;
+
   var current = 0;
   var leaveTimer = null;
   var pendingMorph = null;
@@ -1777,7 +1830,7 @@ ${SLIDE_CSS}
 ${snapCss}
 </style>
 </head>
-<body>
+<body class="${editable ? 'slideo-editable' : ''}">
 ${sections}
 ${script}
 </body>

@@ -322,6 +322,13 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         })
         setElemSel({ zoneId: d.zoneId, path })
         reveal(d.zoneId, path)
+      } else if (d.type === 'slideo:overflow' && Array.isArray(d.zones)) {
+        // Gemessener Überlauf aus dem Iframe (Befund H5c) → Badge auf der Folienkarte.
+        const map: Record<string, number> = {}
+        for (const z of d.zones as { id: string; overflowPx: number }[]) {
+          if (z && typeof z.id === 'string') map[z.id] = z.overflowPx | 0
+        }
+        useUiStore.getState().setOverflowZones(map)
       } else if (d.type === 'slideo:undo') {
         // Cmd/Z aus dem Iframe (Fokus dort) → globalen Undo auslösen.
         usePresentationStore.getState().undo()
