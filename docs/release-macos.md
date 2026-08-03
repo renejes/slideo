@@ -88,8 +88,11 @@ tatsächlich fehlt. Nicht vorsorglich.
 - **Windows** braucht einen eigenen Signaturpfad (OV-Zertifikat mit HSM, ~150–300 $/Jahr; Azure
   Artifact Signing ist für *Einzelentwickler* auf USA/Kanada begrenzt — ein deutscher Einzelunternehmer
   braucht eine EU-Organisation oder ein klassisches OV-Zertifikat).
-- **Auto-Updater** (`tauri-plugin-updater`) — braucht ein eigenes Signaturschlüsselpaar
-  (`npm run tauri signer generate`) und einen Ort für das Update-Manifest. Bei einer Perpetual-Lizenz
-  ist der Wert nach Jahr eins genau dieser Updatepfad; ohne ihn ist das Angebot inkohärent.
+- **Auto-Updater** — **bewusst zurückgestellt (2026-08-03).** `tauri-plugin-updater` bräuchte ein
+  eigenes Signaturschlüsselpaar und einen Ort fürs Update-Manifest. Solange Slideo nicht verkauft wird,
+  ist manuelles Nachladen einer neuen `.dmg` vertretbar.
+  ⚠️ **Vor dem Verkaufsstart neu bewerten:** bei einer Perpetual-Lizenz ist der Wert nach Jahr eins
+  genau dieser Updatepfad — ohne ihn ist das Angebot inkohärent, und Bestandskunden erfahren nie von
+  einem Fix.
 - **Frischinstallations-Test** auf einem sauberen System: Gatekeeper, MCP-Registrierung in die
   Client-Config, erster Tool-Call (der neue Verbindungs-Chip zeigt es).
