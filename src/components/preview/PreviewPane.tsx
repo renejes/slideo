@@ -211,6 +211,13 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
       lastSel.current = null
     }
     function onMessage(e: MessageEvent) {
+      // Herkunftsprüfung (Review 2026-08, Befund S15): NUR das eigene Folien-Iframe
+      // darf hier steuern. Die Folien-Iframes führen bewusst untrusted KI-HTML mit
+      // `script-src 'unsafe-inline'` aus — ohne diesen Einzeiler könnte ein Inline-
+      // Skript in einer Zone `slideo:delete-element`, `slideo:freeze-zone` oder
+      // `slideo:undo` an den Parent posten. Auswirkung war begrenzt (nur Deck-Edits,
+      // undoable), der Check kostet aber nichts.
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       const d = e.data || {}
       const tag = typeof d.tag === 'string' ? (d.tag as string) : undefined
       if (d.type === 'slideo:preview-busy' && typeof d.busy === 'boolean') {

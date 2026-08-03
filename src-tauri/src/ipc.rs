@@ -86,6 +86,14 @@ fn write_discovery(port: u16, token: &str) {
     }
 }
 
+/// Entfernt die Discovery-Datei (Befund S32) — beim App-Exit aufgerufen, damit kein
+/// toter Port zurueckbleibt, gegen den sich ein spaeterer `slideo mcp` verbindet.
+pub fn cleanup_discovery() {
+    if let Some(path) = discovery_path() {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 /// Liest Port + Token aus der Discovery-Datei (Client-Seite).
 pub fn read_discovery() -> Option<(u16, String)> {
     let path = discovery_path()?;

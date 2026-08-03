@@ -77,6 +77,8 @@ export function ProjectorView() {
   useEffect(() => {
     if (!isTauri()) return
     function onMsg(e: MessageEvent) {
+      // Herkunftsprüfung (Befund S15) — siehe PreviewPane.
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       const d = e.data || {}
       if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
         void import('@tauri-apps/api/event').then(({ emit }) =>

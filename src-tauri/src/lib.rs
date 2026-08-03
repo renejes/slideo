@@ -137,6 +137,17 @@ pub fn run() {
             license::license_deactivate,
             license::license_open_checkout,
         ])
-        .run(tauri::generate_context!())
-        .expect("Fehler beim Starten der Slideo-App");
+        .build(tauri::generate_context!())
+        .expect("Fehler beim Starten der Slideo-App")
+        .run(|_app, event| {
+            // Discovery-Datei beim Beenden aufraeumen (Review 2026-08, Befund S32).
+            // Sie ueberlebte den App-Exit mit einem toten Port; ein danach gestarteter
+            // `slideo mcp` verband sich gegen ins Leere (oder gegen einen inzwischen
+            // recycelten fremden Port) statt sauber zu melden, dass die App nicht
+            // laeuft. Zusammen mit den fehlenden Client-Timeouts (M14, inzwischen
+            // gesetzt) wurde daraus ein Haenger statt eines Fehlers.
+            if let tauri::RunEvent::Exit = event {
+                ipc::cleanup_discovery();
+            }
+        });
 }
