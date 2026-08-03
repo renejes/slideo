@@ -22,8 +22,8 @@ pub fn load_presentation(path: String, state: State<'_, AppState>) -> Result<Loa
     let presentation = file::read_presentation(&pb).map_err(|e| format!("{e:#}"))?;
     let assets = file::read_assets(&pb).unwrap_or_default();
 
-    *state.presentation.lock().unwrap() = Some(presentation.clone());
-    *state.file_path.lock().unwrap() = Some(pb);
+    *crate::state::lock_recover(&state.presentation) = Some(presentation.clone());
+    *crate::state::lock_recover(&state.file_path) = Some(pb);
     state.set_assets(assets.clone()); // + Decode-Cache invalidieren (P7)
 
     Ok(LoadResult { presentation, assets })
@@ -39,8 +39,8 @@ pub fn save_presentation(
 ) -> Result<(), String> {
     let pb = PathBuf::from(&path);
     file::write_presentation(&pb, &presentation, &assets).map_err(|e| format!("{e:#}"))?;
-    *state.presentation.lock().unwrap() = Some(presentation);
-    *state.file_path.lock().unwrap() = Some(pb);
+    *crate::state::lock_recover(&state.presentation) = Some(presentation);
+    *crate::state::lock_recover(&state.file_path) = Some(pb);
     state.set_assets(assets); // + Decode-Cache invalidieren (P7)
     Ok(())
 }
@@ -51,7 +51,7 @@ pub fn save_presentation(
 /// (sonst Echo-Schleife mit den MCP-Events).
 #[tauri::command]
 pub fn sync_presentation(presentation: Option<Value>, state: State<'_, AppState>) {
-    *state.presentation.lock().unwrap() = presentation;
+    *crate::state::lock_recover(&state.presentation) = presentation;
 }
 
 /// Spiegelt die Asset-Map ins Backend (separat, da Assets selten/größer sind).
@@ -64,19 +64,19 @@ pub fn sync_assets(assets: Vec<Asset>, state: State<'_, AppState>) {
 /// Das Projector-Fenster rendert daraus die Folien; gespiegelt wird er vom Hauptfenster.
 #[tauri::command]
 pub fn get_presentation(state: State<'_, AppState>) -> Option<Value> {
-    state.presentation.lock().unwrap().clone()
+    crate::state::lock_recover(&state.presentation).clone()
 }
 
 /// Liefert die aktuellen Assets (für das Presenter-Zweitfenster).
 #[tauri::command]
 pub fn get_assets(state: State<'_, AppState>) -> Vec<Asset> {
-    state.assets.lock().unwrap().clone()
+    crate::state::lock_recover(&state.assets).clone()
 }
 
 /// Setzt den bekannten Dateipfad (z.B. nach "Neu"/Reset im Frontend).
 #[tauri::command]
 pub fn set_file_path(path: Option<String>, state: State<'_, AppState>) {
-    *state.file_path.lock().unwrap() = path.map(PathBuf::from);
+    *crate::state::lock_recover(&state.file_path) = path.map(PathBuf::from);
 }
 
 /// Schreibt eine fertige, eigenständige HTML-Page (Export/Teilen) an `path`.

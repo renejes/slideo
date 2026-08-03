@@ -56,7 +56,7 @@ function round2(n: number): number {
  * nur unverfängliche Zeichen, ≤64 (kein Attribut-Ausbruch). Spiegelt `safe_goto`
  * der Rust-`toc`-Komponente, damit Direktmanipulation & Komponente identisch sind.
  */
-function safeGoto(t: string): string {
+export function safeGoto(t: string): string {
   return (t || '').replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 64)
 }
 

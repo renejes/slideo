@@ -21,7 +21,10 @@ const STEPS: { icon: string; title: string; body: string }[] = [
   {
     icon: 'auto_awesome',
     title: '3 · Thema beschreiben',
-    body: 'Im KI-Agent z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Er nutzt Slideos 35 Folien-Werkzeuge.',
+    // Bewusst ohne Zahl (Befund M1/S30): eine hartkodierte Tool-Zahl driftet still von
+    // `tools::tool_schemas()` weg — hier stand 35, während es 37 waren. Wo die Zahl
+    // wirklich hilft (Setup-Modal), kommt sie jetzt zur Laufzeit aus `mcp_status`.
+    body: 'Im KI-Agent z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Er nutzt dafür Slideos Folien-Werkzeuge.',
   },
   {
     icon: 'arrow_selector_tool',

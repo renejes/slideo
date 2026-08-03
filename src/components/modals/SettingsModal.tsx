@@ -15,14 +15,26 @@ import {
 import { McpTargetCards, mcpTargetLabel } from '@/components/ui/McpTargetCards'
 import { AssetLibrary } from '@/components/ui/AssetLibrary'
 
-const APP_VERSION = '0.1.0'
-
 // Einstellungen — bewusst als Shell angelegt, wird nach und nach gefüllt.
 export function SettingsModal() {
   const closeModal = useUiStore((s) => s.closeModal)
   const defaultProjectDir = useSettingsStore((s) => s.defaultProjectDir)
   const setDefaultProjectDir = useSettingsStore((s) => s.setDefaultProjectDir)
   const tauri = isTauri()
+  // Version zur Laufzeit aus der Tauri-Config statt hartkodiert (Befund S30: das
+  // frühere `APP_VERSION = '0.1.0'` war eine dritte, driftende Wahrheit neben
+  // package.json und tauri.conf.json).
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  useEffect(() => {
+    if (!tauri) {
+      setAppVersion('dev')
+      return
+    }
+    void import('@tauri-apps/api/app')
+      .then((m) => m.getVersion())
+      .then(setAppVersion)
+      .catch(() => setAppVersion(null))
+  }, [tauri])
 
   async function choose() {
     const dir = await pickDirectory(defaultProjectDir)
@@ -76,14 +88,9 @@ export function SettingsModal() {
           <AssetLibrary />
         </Section>
 
-        {/* Platzhalter für künftige Bereiche */}
-        <Section title="Bald verfügbar">
-          <p className="py-1 text-[12px] text-chrome-muted">
-            Weitere Einstellungen (Theme, Fonts) folgen hier nach und nach.
-          </p>
-        </Section>
-
-        {/* Über */}
+        {/* Über. Die „Bald verfügbar"-Sektion ist entfallen (Befund M64): sie kündigte
+            Theme und Fonts an, die längst im Design-Overlay leben — sie versprach also
+            als Zukunft, was bereits ausgeliefert war. */}
         <Section title="Über">
           <div className="flex flex-col gap-1 py-1 text-[12px] text-chrome-muted">
             <div className="flex items-center gap-2">
@@ -91,9 +98,10 @@ export function SettingsModal() {
                 S
               </span>
               <span className="text-[13px] font-medium text-chrome-text">Slideo</span>
-              <span>v{APP_VERSION}</span>
+              <span>v{appVersion ?? '…'}</span>
             </div>
-            <p>Lokal, code-frei, MCP-nativ. KI-Anbindung via MCP-Server (Claude Desktop).</p>
+            {/* Herstellerneutral (Befund M64): Slideo spricht MCP, nicht „Claude". */}
+            <p>Lokal, code-frei, MCP-nativ — nutzbar mit jedem MCP-fähigen KI-Client.</p>
           </div>
         </Section>
       </div>

@@ -67,7 +67,10 @@ interface PresentationState {
   undo: () => void
 
   // Lifecycle
-  newPresentation: (title: string, template?: DeckTemplate) => void
+  /** Legt ein neues Deck an. Gibt `false` zurück, wenn das Lizenz-Gate ablehnt —
+   *  Aufrufer MÜSSEN das prüfen (Befund H14: sonst wurde das ALTE Deck unter dem
+   *  neuen Namen gespeichert). */
+  newPresentation: (title: string, template?: DeckTemplate) => boolean
   loadPresentation: (path: string) => Promise<void>
   openPresentationDialog: () => Promise<void>
   savePresentation: (path?: string) => Promise<void>
@@ -297,7 +300,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     newPresentation: (title, template) => {
       if (!useLicenseStore.getState().editingAllowed()) {
         notify('Testphase abgelaufen — bitte aktiviere eine Lizenz, um neue Präsentationen zu erstellen.', 'error')
-        return
+        return false
       }
       const presentation = makePresentation(title || 'Unbenannt', template)
       set({
@@ -310,6 +313,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         mode: 'editor',
         activeSlideIndex: 0,
       })
+      return true
     },
 
     loadPresentation: async (path) => {

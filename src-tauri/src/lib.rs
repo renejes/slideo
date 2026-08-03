@@ -46,7 +46,7 @@ pub fn run() {
             // pro Request (großer Hebel beim wiederholten Anfragen desselben Videos). Cache
             // wird bei jeder Asset-Änderung über AppState::set_assets geleert.
             let cached = {
-                let cache = state.asset_cache.lock().unwrap();
+                let cache = crate::state::lock_recover(&state.asset_cache);
                 cache.get(&name).cloned()
             };
             let entry = match cached {
@@ -58,7 +58,7 @@ pub fn run() {
                     // dazwischenfunken → der Cache erhält nie veraltete Bytes (Review-Fix der
                     // TOCTOU-Race). Lock-Reihenfolge assets→cache ist konsistent (kein
                     // Deadlock); der Decode läuft einmalig pro Asset, danach Cache-Treffer.
-                    let assets = state.assets.lock().unwrap();
+                    let assets = crate::state::lock_recover(&state.assets);
                     assets.iter().find(|a| a.name == name).map(|a| {
                         let bytes = base64::engine::general_purpose::STANDARD
                             .decode(a.data.as_bytes())

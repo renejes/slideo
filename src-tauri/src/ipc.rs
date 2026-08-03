@@ -175,11 +175,30 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
     }
 
     let state = app.state::<AppState>();
-    let mut pres = state.presentation.lock().unwrap();
-    let mut file_path = state.file_path.lock().unwrap();
-    let assets = state.assets.lock().unwrap();
+    let mut pres = crate::state::lock_recover(&state.presentation);
+    let mut file_path = crate::state::lock_recover(&state.file_path);
+    let assets = crate::state::lock_recover(&state.assets);
 
-    match tools::handle(method, &params, &mut pres, &mut file_path, &assets) {
+    // Panic-Deckel (Review 2026-08, Befund S12): `tools::handle` verarbeitet vom KI-Client
+    // gelieferte, beliebig geformte Parameter. Ein Panic darin würde ohne diesen Fang das
+    // Unwinding durch den Verbindungs-Thread tragen und drei Mutexe vergiftet zurücklassen
+    // → MCP *und* Speichern wären bis zum Neustart tot. Stattdessen: ein Fehler an den
+    // Client, der Server läuft weiter. AssertUnwindSafe ist hier vertretbar, weil die
+    // Guards nur JSON-/Pfad-Werte ohne Cross-Feld-Invarianten halten (siehe lock_recover).
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        tools::handle(method, &params, &mut pres, &mut file_path, &assets)
+    }));
+    let outcome = match outcome {
+        Ok(r) => r,
+        Err(_) => {
+            eprintln!("[slideo] PANIC in tools::handle('{method}') — abgefangen, Server läuft weiter");
+            return json!({
+                "error": format!("Internal error while handling '{method}'. The tool call was aborted; the presentation is unchanged or partially updated — verify with get_all_zones.")
+            });
+        }
+    };
+
+    match outcome {
         Ok(outcome) => {
             // Event-Payload klonen, bevor die Locks freigegeben werden.
             let pres_snapshot = pres.clone();

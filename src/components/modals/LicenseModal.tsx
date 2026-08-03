@@ -111,9 +111,13 @@ export function LicenseModal() {
       ) : (
         <div className="flex flex-col gap-4 py-1">
           {!configured && (
-            <div className="rounded-lg border border-chrome-warn/40 bg-chrome-warn/5 px-3 py-2 text-[12px] text-chrome-warn">
+            <div className="rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2 text-[12px] text-chrome-secondary">
               Lizenzierung ist in diesem Build noch nicht konfiguriert (Polar-Verbindung fehlt). Kaufen &amp;
-              Aktivieren sind erst nach der Einrichtung verfügbar.
+              Aktivieren sind erst nach der Einrichtung verfügbar —{' '}
+              <strong className="font-medium text-chrome-text">
+                Slideo bleibt so lange uneingeschränkt nutzbar
+              </strong>{' '}
+              und läuft nicht ab.
             </div>
           )}
 

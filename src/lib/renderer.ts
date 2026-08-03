@@ -23,7 +23,7 @@ function escapeAttr(value: string): string {
  * Selektor mit dem Scope; @media/@supports/@container/@layer werden rekursiv
  * gescoped; @keyframes/@font-face bleiben unangetastet.
  */
-function scopeCss(rawCss: string, scope: string): string {
+export function scopeCss(rawCss: string, scope: string): string {
   const css = rawCss.replace(/\/\*[\s\S]*?\*\//g, '') // Kommentare entfernen
   let out = ''
   let i = 0
@@ -709,7 +709,16 @@ function editScript(directEdit: boolean): string {
     // Resize gilt für Bilder in Markdown- UND HTML-Zonen. Der Commit verzweigt in
     // onResizeEnd: Markdown → slideo:resize-image (block-index), HTML → slideo:resize-element
     // (§20-Pfad, setzt die CSS-Breite am rohen zone.html).
-    return el && el.tagName === 'IMG' && el.closest('.slideo-content') && el.closest('.slideo-zone');
+    //
+    // WICHTIG (Review 2026-08, Befund H16): der Anfasser darf NUR dort erscheinen, wo
+    // der Commit auch ein Ziel findet. In zweispaltigen (split) Markdown-Zonen existieren
+    // keine .slideo-block-Wrapper (renderZoneSection wrappt nur bei editable && !isSplit)
+    // -> der Nutzer zog die Breite live, onResizeEnd fand keinen Block, postete nichts und
+    // die Aenderung fiel beim naechsten Patch still zurueck. Lieber kein Griff als ein
+    // Griff, der die Arbeit verwirft.
+    if (!el || el.tagName !== 'IMG') return false;
+    if (!el.closest('.slideo-content') || !el.closest('.slideo-zone')) return false;
+    return !!(el.closest('.slideo-zone-html') || el.closest('.slideo-block'));
   }
   function placeHandle(img) {
     var r = img.getBoundingClientRect();

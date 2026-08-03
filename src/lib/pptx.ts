@@ -71,7 +71,7 @@ function extractImages(content: string): string[] {
 }
 
 /** Markdown → vereinfachte Blockliste (Bilder vorher entfernt). */
-function parseBlocks(markdown: string): Block[] {
+export function parseBlocks(markdown: string): Block[] {
   const noImg = markdown
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/<img[^>]*>/gi, '')

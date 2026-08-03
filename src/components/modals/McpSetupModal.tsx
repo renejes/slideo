@@ -58,10 +58,13 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
       <div className="flex flex-col gap-3">
         <p className="text-[13px] leading-relaxed text-chrome-secondary">
           Slideo ist ein <span className="font-medium text-chrome-text">MCP-Server</span> und stellt deinem
-          KI-Agenten <span className="font-medium text-chrome-text">35 Folien-Werkzeuge</span> bereit (z.B. Claude
-          Desktop, Codex CLI) — der Agent baut & bearbeitet dein Deck, Slideo zeigt es live. Wähle, wo sich Slideo
-          registriert (erst <span className="font-medium text-chrome-text">nach deiner Auswahl</span>, immer nur
-          ein Ziel).
+          KI-Agenten{' '}
+          <span className="font-medium text-chrome-text">
+            {status?.toolCount ?? 37} Folien-Werkzeuge
+          </span>{' '}
+          bereit (z.B. Claude Desktop, Codex CLI) — der Agent baut & bearbeitet dein Deck, Slideo zeigt es live.
+          Wähle, wo sich Slideo registriert (erst{' '}
+          <span className="font-medium text-chrome-text">nach deiner Auswahl</span>, immer nur ein Ziel).
         </p>
         {status ? (
           <McpTargetCards

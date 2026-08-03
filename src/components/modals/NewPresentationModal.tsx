@@ -4,7 +4,7 @@ import { Icon } from '@/components/ui/Icon'
 import { usePresentationStore } from '@/store/presentation'
 import { useSettingsStore } from '@/store/settings'
 import { useUiStore } from '@/store/ui'
-import { isTauri } from '@/lib/tauri'
+import { isTauri, pickSavePath } from '@/lib/tauri'
 import { confirmDialog, getDesktopDir, joinPath, pickDirectory } from '@/lib/dialog'
 import { TEMPLATES, findTemplate } from '@/lib/templates'
 
@@ -58,11 +58,32 @@ export function NewPresentationModal() {
         )
         if (!ok) return // Modal bleibt offen
       }
-      newPresentation(name || 'Unbenannt', findTemplate(templateId))
 
-      if (tauri && location) {
-        const path = await joinPath(location, `${safeFileName(name)}.slideo`)
-        setDefaultProjectDir(location)
+      // Ziel ZUERST bestimmen (Befund B1): früher baute das Modal den Pfad selbst
+      // (`joinPath(ordner, safeFileName(name) + '.slideo')`) und rief savePresentation
+      // direkt — ohne Existenzprüfung. Der Writer renamed unbedingt drüber, und weil
+      // das Namensfeld mit „Meine Präsentation" vorbelegt ist, war die Kollision
+      // deterministisch: zweimal „Neu" bestätigen = erstes Deck weg, mit grünem
+      // „Gespeichert."-Toast. Der native Speichern-Dialog übernimmt jetzt sowohl die
+      // Überschreib-Rückfrage als auch die korrekte Behandlung von Umlauten im
+      // Dateinamen (nebenbei Befund L12: „Jahresrückblick" wurde zu „jahresr-ckblick").
+      let path: string | null = null
+      if (tauri) {
+        const suggestion = location
+          ? await joinPath(location, `${safeFileName(name)}.slideo`)
+          : `${safeFileName(name)}.slideo`
+        path = await pickSavePath(suggestion)
+        if (!path) return // Dialog abgebrochen → Modal bleibt offen, nichts passiert
+      }
+
+      // Erst wenn das Ziel feststeht, den Store anfassen — und den Rückgabewert prüfen
+      // (Befund H14: im read-only-Zustand lehnte newPresentation ab, create() lief
+      // trotzdem weiter und speicherte das ALTE Deck unter dem neuen Namen).
+      if (!newPresentation(name || 'Unbenannt', findTemplate(templateId))) return
+
+      if (path) {
+        const dir = path.replace(/[/\\][^/\\]*$/, '')
+        if (dir) setDefaultProjectDir(dir)
         await savePresentation(path)
       }
     } finally {
@@ -132,7 +153,7 @@ export function NewPresentationModal() {
                   dir="rtl"
                   title={location ?? ''}
                 >
-                  {location || 'Kein Ordner gewählt'}
+                  {location || 'Zuletzt genutzter Ordner'}
                 </span>
               </div>
               <button className={modalGhostBtn} onClick={chooseLocation}>
@@ -145,10 +166,11 @@ export function NewPresentationModal() {
               angelegt; speichern später per „Speichern".
             </p>
           )}
-          {tauri && location && (
+          {tauri && (
             <span className="text-[11px] text-chrome-muted">
-              Gespeichert als <code className="font-mono">{safeFileName(name)}.slideo</code> in
-              diesem Ordner.
+              „Erstellen" öffnet den Speichern-Dialog — vorbelegt mit{' '}
+              <code className="font-mono">{safeFileName(name)}.slideo</code> in diesem Ordner.
+              Dort lässt sich Name und Ort noch ändern.
             </span>
           )}
         </div>

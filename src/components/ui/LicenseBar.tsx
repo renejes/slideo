@@ -10,7 +10,12 @@ export function LicenseBar() {
   const openCheckout = useLicenseStore((s) => s.openCheckout)
   const openModal = useUiStore((s) => s.openModal)
 
+  // `unconfigured` (Polar-Werte noch Platzhalter) und `unknown` (license_status
+  // fehlgeschlagen) sind keine Nutzer-Zustände: beide erlauben volles Bearbeiten
+  // (Befund B9/S27) — dann darf die Leiste auch nichts fordern, wofür es keinen
+  // Weg gibt. Sie bleibt deshalb aus.
   if (!status || status.state === 'licensed') return null
+  if (status.state === 'unconfigured' || status.state === 'unknown') return null
 
   const readOnly = !status.editing_allowed // trial_expired | revoked | expired
   const days = status.trial_days_left ?? 0

@@ -155,7 +155,7 @@ fn cell() -> &'static Mutex<Store> {
 
 fn save(s: Store) -> Result<(), String> {
     write_to_disk(&s)?;
-    *cell().lock().unwrap() = s;
+    *crate::state::lock_recover(cell()) = s;
     Ok(())
 }
 
@@ -183,6 +183,19 @@ fn compute(s: &Store) -> LicenseStatus {
         key_display: s.key_display.clone(),
         expires_at: s.expires_at.clone(),
     };
+
+    // 0) SICHERUNG (Review 2026-08, Befund B9): Solange die Polar-Anbindung nicht
+    //    konfiguriert ist, darf NIE limitiert werden. Vorher lief der Trial trotzdem
+    //    ab, während Aktivieren UND Kaufen deaktiviert waren — die App war an Tag 31
+    //    dauerhaft schreibgeschützt, ohne jeden Ausweg. Eine vergessene Konstante
+    //    trennte einen Release von einer 30-Tage-Bombe beim Kunden.
+    //    Der Release-Test unten (`konfiguration_ist_im_release_gesetzt`) stellt sicher,
+    //    dass dieser Zweig nicht versehentlich zum Dauerzustand wird.
+    if !configured() {
+        out.state = "unconfigured".into();
+        out.editing_allowed = true;
+        return out;
+    }
 
     // 1) Lizenz vorhanden?
     if s.key.is_some() {
@@ -238,7 +251,7 @@ fn compute(s: &Store) -> LicenseStatus {
 
 /// Legt beim ersten Start den Trial-Beginn fest (idempotent, kein Netz).
 pub fn ensure_trial() {
-    let mut store = cell().lock().unwrap();
+    let mut store = crate::state::lock_recover(cell());
     if store.trial_start.is_none() {
         store.trial_start = Some(iso(now()));
         if store.fp.is_none() {
@@ -252,13 +265,13 @@ pub fn ensure_trial() {
 
 /// Aktueller Status (billig, kein Netz).
 pub fn status() -> LicenseStatus {
-    compute(&cell().lock().unwrap())
+    compute(&crate::state::lock_recover(cell()))
 }
 
 /// Ob Bearbeiten/Authoring erlaubt ist (Trial aktiv ODER gültige Lizenz).
 /// Auch vom MCP-Gate (ipc.rs) genutzt, um mutierende Tools nach Ablauf zu sperren.
 pub fn editing_allowed() -> bool {
-    compute(&cell().lock().unwrap()).editing_allowed
+    compute(&crate::state::lock_recover(cell())).editing_allowed
 }
 
 // ───────────────────────────── Polar-HTTP (unauthentifiziert) ─────────────────────────────
@@ -379,7 +392,7 @@ pub async fn activate(key: String) -> Result<LicenseStatus, String> {
     if status != "granted" {
         return Err(format!("Lizenz nicht gültig (Status: {status})."));
     }
-    let mut s = cell().lock().unwrap().clone();
+    let mut s = crate::state::lock_recover(cell()).clone();
     s.key = Some(key);
     s.key_display = v.get("display_key").and_then(|x| x.as_str()).map(String::from);
     s.activation_id = Some(activation_id);
@@ -399,7 +412,7 @@ pub async fn activate(key: String) -> Result<LicenseStatus, String> {
 /// Re-Validiert die Lizenz online (beim Start). Offline/Fehler ⇒ Cache behalten
 /// (nie hart sperren nur wegen fehlender Verbindung).
 pub async fn recheck() -> Result<LicenseStatus, String> {
-    let s0 = cell().lock().unwrap().clone();
+    let s0 = crate::state::lock_recover(cell()).clone();
     let (Some(key), Some(act)) = (s0.key.clone(), s0.activation_id.clone()) else {
         return Ok(status()); // keine Lizenz → reiner Trial-Status
     };
@@ -409,7 +422,7 @@ pub async fn recheck() -> Result<LicenseStatus, String> {
     let c = client()?;
     match http_validate(&c, &key, Some(&act)).await {
         Ok(v) => {
-            let mut s = cell().lock().unwrap().clone();
+            let mut s = crate::state::lock_recover(cell()).clone();
             s.status = v.get("status").and_then(|x| x.as_str()).map(String::from);
             // benefit_id nachziehen (nötig für den Versions-Gate; alte Caches ohne benefit_id
             // bekommen ihn hier). Fehlt er in der Antwort, bestehenden Wert behalten.
@@ -429,7 +442,7 @@ pub async fn recheck() -> Result<LicenseStatus, String> {
 
 /// Gibt dieses Gerät frei (Aktivierungs-Slot zurückgeben) und löscht die lokale Lizenz.
 pub async fn deactivate() -> Result<LicenseStatus, String> {
-    let s0 = cell().lock().unwrap().clone();
+    let s0 = crate::state::lock_recover(cell()).clone();
     if let (Some(key), Some(act)) = (s0.key.clone(), s0.activation_id.clone()) {
         if configured() {
             if let Ok(c) = client() {
@@ -437,7 +450,7 @@ pub async fn deactivate() -> Result<LicenseStatus, String> {
             }
         }
     }
-    let mut s = cell().lock().unwrap().clone();
+    let mut s = crate::state::lock_recover(cell()).clone();
     s.key = None;
     s.key_display = None;
     s.activation_id = None;
@@ -474,4 +487,72 @@ pub async fn license_deactivate() -> Result<LicenseStatus, String> {
 pub fn license_open_checkout() -> Result<(), String> {
     let url = checkout_url().ok_or("Der Kauf-Link ist noch nicht konfiguriert.")?;
     crate::commands::open_in_default_app(std::path::Path::new(url))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store_expired_trial() -> Store {
+        let mut s = Store::default();
+        // Trial-Start weit in der Vergangenheit → wäre normalerweise "trial_expired".
+        s.trial_start = Some(iso(now() - chrono::Duration::days(TRIAL_DAYS + 5)));
+        s
+    }
+
+    #[test]
+    fn unkonfiguriert_limitiert_nie() {
+        // Befund B9: ohne Polar-Konfiguration gibt es keinen Kaufweg — dann darf der
+        // Trial-Ablauf auch nicht sperren, sonst ist die App dauerhaft schreibgeschützt.
+        if configured() {
+            // In einem konfigurierten Build ist dieser Zweig unerreichbar; der Test
+            // unten deckt dann den Release-Fall ab.
+            return;
+        }
+        let out = compute(&store_expired_trial());
+        assert_eq!(out.state, "unconfigured");
+        assert!(out.editing_allowed, "unkonfiguriert darf NIE schreibschützen");
+        assert!(!out.configured);
+    }
+
+    #[test]
+    fn abgelaufener_trial_sperrt_nur_im_konfigurierten_build() {
+        if !configured() {
+            return; // s.o.
+        }
+        let out = compute(&store_expired_trial());
+        assert_eq!(out.state, "trial_expired");
+        assert!(!out.editing_allowed);
+        assert!(
+            out.checkout_available,
+            "ein sperrender Build MUSS einen Kaufweg anbieten"
+        );
+    }
+
+    #[test]
+    #[ignore = "Release-Gate: vor dem Signieren mit `cargo test -- --ignored` ausfuehren"]
+    fn konfiguration_ist_im_release_gesetzt() {
+        // Verhindert genau den Auslieferungsfehler aus B9: ein Build mit
+        // REPLACE_WITH_… geht nicht an Kunden.
+        assert!(
+            configured(),
+            "POLAR_ORG_ID ist noch ein Platzhalter — vor dem Release eintragen"
+        );
+        assert!(
+            checkout_url().is_some(),
+            "POLAR_CHECKOUT_URL ist noch ein Platzhalter — vor dem Release eintragen"
+        );
+    }
+
+    #[test]
+    fn laufender_trial_erlaubt_bearbeiten() {
+        let mut s = Store::default();
+        s.trial_start = Some(iso(now() - chrono::Duration::days(3)));
+        let out = compute(&s);
+        assert!(out.editing_allowed);
+        if configured() {
+            assert_eq!(out.state, "trial");
+            assert_eq!(out.trial_days_left, Some(TRIAL_DAYS - 3));
+        }
+    }
 }

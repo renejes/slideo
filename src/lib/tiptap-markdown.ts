@@ -17,7 +17,10 @@ export function editorToMarkdown(editor: Editor): string {
  * Editiertes Block-HTML (aus der Vorschau-Direktmanipulation, editor-cleanup Punkt 3b)
  * → Markdown. Konvertiert über eine **transiente** Tiptap-Instanz mit denselben
  * Extensions wie der Editor → exakt dieselben MD↔HTML-Regeln (eine Quelle der Wahrheit),
- * inkl. Inline-Marks (bold/italic/code/link) und Überschrift-Level. ProseMirrors
+ * inkl. Inline-Marks und Überschrift-Level. Welche Marks erhalten bleiben, entscheidet
+ * allein `baseExtensions()` — was dort fehlt, verwirft ProseMirror STILL (bis 2026-08
+ * betraf das `link`: der Kommentar behauptete Link-Erhalt, die Extension fehlte, und
+ * jeder Link starb beim ersten Edit — Befund B5). ProseMirrors
  * schema-beschränkter Parser verwirft dabei Nicht-Schema-Knoten (`<script>`/`on*`),
  * Sanitisierung by construction (Audit S4). Headless: braucht ein DOM → läuft im
  * Browser/WebView (nicht in Node). Aufrufer ist die selten feuernde Inline-Commit-Stelle.

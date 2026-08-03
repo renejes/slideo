@@ -225,7 +225,17 @@ export function getAssetsState(): Promise<Asset[]> {
 
 /** Lizenzstatus — Spiegel von license.rs `LicenseStatus`. */
 export interface LicenseStatus {
-  state: 'licensed' | 'trial' | 'trial_expired' | 'revoked' | 'expired' | 'upgrade_required'
+  state:
+    | 'licensed'
+    | 'trial'
+    | 'trial_expired'
+    | 'revoked'
+    | 'expired'
+    | 'upgrade_required'
+    /** Polar-Konstanten noch Platzhalter → nie limitieren (Befund B9, license.rs compute()). */
+    | 'unconfigured'
+    /** `license_status` fehlgeschlagen → Bearbeiten erlaubt, aber Zustand ehrlich unbekannt (S27). */
+    | 'unknown'
   editing_allowed: boolean
   configured: boolean
   checkout_available: boolean

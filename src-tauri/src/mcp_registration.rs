@@ -528,6 +528,11 @@ pub fn status() -> Value {
     json!({
         "configured": configured,
         "target": target.key(),
+        // Zur Laufzeit aus der Quelle der Wahrheit (Review 2026-08, Befund M1/S30):
+        // Setup- und Hilfe-Modal hatten die Zahl hartkodiert und bewarben 35 Tools,
+        // während es längst 37 waren — der erste Satz, den ein Neunutzer über das
+        // Differenzierungsmerkmal liest. Hartkodierte Fakten driften; abgeleitete nicht.
+        "toolCount": crate::tools::tool_schemas().as_array().map(|a| a.len()).unwrap_or(0),
         "desktop": { "available": desktop_available(), "registered": desktop_registered() },
         "meta": { "available": meta_available(), "registered": meta_registered() },
         "claude": { "available": claude_available(), "registered": claude_registered() },

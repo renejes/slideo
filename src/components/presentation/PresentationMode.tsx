@@ -507,21 +507,19 @@ function Divider() {
   return <span className="mx-1 h-5 w-px bg-white/10" />
 }
 
+// `hasPopup`/`expanded` sind mit §26 entfallen (Befund S40): sie bedienten das
+// gelöschte Monitor-Dropdown, seither übergab sie kein Aufrufer mehr. Alle
+// verbliebenen Steuerknöpfe sind Umschalter → aria-pressed genügt.
 function ControlButton({
   onClick,
   title,
   icon,
   active = false,
-  hasPopup = false,
-  expanded,
 }: {
   onClick: () => void
   title: string
   icon: string
   active?: boolean
-  /** Öffnet ein Menü (setzt aria-haspopup/aria-expanded statt aria-pressed). */
-  hasPopup?: boolean
-  expanded?: boolean
 }) {
   return (
     <button
@@ -531,9 +529,7 @@ function ControlButton({
       }`}
       title={title}
       aria-label={title}
-      aria-pressed={hasPopup ? undefined : active}
-      aria-haspopup={hasPopup ? 'menu' : undefined}
-      aria-expanded={hasPopup ? expanded : undefined}
+      aria-pressed={active}
     >
       <Icon name={icon} size={20} weight={400} />
     </button>

@@ -20,6 +20,27 @@ const DEV_STATUS: LicenseStatus = {
   expires_at: null,
 }
 
+/**
+ * Fallback INNERHALB der Desktop-App, wenn `license_status` fehlschlägt
+ * (Review 2026-08, Befund S27). Vorher wurde hier DEV_STATUS gesetzt — mit
+ * `state: 'licensed'`: eine umbenannte Command oder ein transienter Invoke-Fehler
+ * machte die App still vollständig lizenziert UND blendete die Lizenz-Bar aus.
+ * Das war der undokumentierte Fail-open-Pfad.
+ *
+ * Jetzt: Bearbeiten bleibt erlaubt (niemanden wegen eines Backend-Fehlers
+ * aussperren — dieselbe Haltung wie bei Offline), aber der Zustand ist
+ * **sichtbar unbekannt** statt fälschlich „licensed".
+ */
+const UNKNOWN_STATUS: LicenseStatus = {
+  state: 'unknown',
+  editing_allowed: true,
+  configured: false,
+  checkout_available: false,
+  trial_days_left: null,
+  key_display: null,
+  expires_at: null,
+}
+
 interface LicenseState {
   status: LicenseStatus | null
   loaded: boolean
@@ -48,9 +69,10 @@ export const useLicenseStore = create<LicenseState>((set, get) => ({
       void licenseRecheck()
         .then((s2) => set({ status: s2 }))
         .catch(() => {})
-    } catch {
-      // Command (noch) nicht vorhanden o.ä. → nicht blockieren.
-      set({ status: DEV_STATUS, loaded: true })
+    } catch (e) {
+      // Command (noch) nicht vorhanden o.ä. → nicht blockieren, aber ehrlich sein (S27).
+      console.error('[slideo] license_status fehlgeschlagen:', e)
+      set({ status: UNKNOWN_STATUS, loaded: true })
     }
   },
 

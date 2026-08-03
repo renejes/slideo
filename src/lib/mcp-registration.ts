@@ -19,6 +19,9 @@ export interface McpStatus {
   configured: boolean
   /** Aktuell gewähltes (bzw. bei !configured: empfohlenes) Ziel. */
   target: McpTarget
+  /** Anzahl der MCP-Tools, zur Laufzeit aus `tools::tool_schemas()` abgeleitet
+   *  (Befund M1: die Modals bewarben hartkodiert 35, real waren es 37). */
+  toolCount: number
   desktop: McpTargetState
   meta: McpTargetState
   claude: McpTargetState

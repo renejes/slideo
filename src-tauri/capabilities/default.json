@@ -8,6 +8,7 @@
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-destroy",
+    "core:app:allow-version",
     "core:event:default",
     "core:path:default",
     "dialog:default",
