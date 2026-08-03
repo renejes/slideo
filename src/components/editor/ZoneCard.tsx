@@ -41,6 +41,15 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
   const overflowPx = useUiStore((s) => s.overflowZones[zone.id] ?? 0)
   const isActive = activeZoneId === zone.id
 
+  // Kurze Textvorschau für die zugeklappte Zeile: Markdown-/HTML-Auszeichnung
+  // entfernen, damit dort lesbarer Text steht und keine spitzen Klammern.
+  const preview = (
+    isHtml ? (zone.html ?? '').replace(/<[^>]+>/g, ' ') : zone.markdown.replace(/[#*`>_[\]!]/g, '')
+  )
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180)
+
   // „Klick → Quelle" (Spec §20): bei Reveal für diese Zone die Card in den
   // Sichtbereich scrollen (HtmlEditor übernimmt Markierung/Fokus). Nur den
   // Reveal-Nonce DIESER Zone abonnieren → kein Re-Render bei anderen Zonen.
@@ -118,10 +127,14 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
       onDrop={onDrop}
       className={
         'relative overflow-hidden rounded-xl border bg-chrome-surface shadow-card transition-colors ' +
-        (isHtml
-          ? 'border-chrome-warn/30 '
-          : isActive
-            ? 'border-chrome-accent/60 ring-1 ring-chrome-accent/30 '
+        // Auswahl VOR isHtml prüfen (Review 2026-08, Befund M59): vorher gewann
+        // immer der Terrakotta-Rahmen der HTML-Zone, der Accent-Ring nie — an einem
+        // HTML-lastigen KI-Deck arbeitete man also ohne jede Bestätigung, wo das
+        // Nächste landet, obwohl Komponente/Medien/Palette alle auf activeZoneId zielen.
+        (isActive
+          ? 'border-chrome-accent/60 ring-1 ring-chrome-accent/30 '
+          : isHtml
+            ? 'border-chrome-warn/30 '
             : 'border-chrome-border hover:border-chrome-border-strong ')
       }
     >
@@ -176,31 +189,53 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
         </div>
       )}
 
-      {/* Editor-Body */}
-      <div className="px-4 py-3.5">
-        {isHtml ? (
-          <Suspense fallback={<EditorFallback />}>
-            <HtmlEditor
-              zoneId={zone.id}
-              initialHtml={zone.html ?? ''}
-              onChange={(value) => updateZoneHtml(zone.id, value)}
-              onFocus={() => setActiveZone(zone.id)}
-            />
-          </Suspense>
-        ) : (
-          <TiptapEditor
-            initialMarkdown={zone.markdown}
-            onChange={(value) => updateZoneMarkdown(zone.id, value)}
-            onFocus={() => setActiveZone(zone.id)}
-          />
-        )}
-      </div>
+      {/* Editor-Body — NUR für die aktive Folie (Review 2026-08, Befund H13/S22).
+          Vorher mountete jede Zone gleichzeitig eine lebende Tiptap- bzw.
+          CodeMirror-Instanz: bei einem 30–60-Folien-Deck, wie es ein Agent in einem
+          Prompt erzeugt, lag die komplette Editiermaschinerie im Speicher, und die
+          einzige Repräsentation des Decks war eine unvirtualisierte Spalte, durch
+          die man scrollen musste (seit dem Wegfall der Folienliste gab es gar keine
+          Navigation mehr). Zugeklappt bleibt eine kompakte Zeile mit Textvorschau —
+          das bringt den Deck-Überblick zurück UND löst das Windowing-Problem, ohne
+          die gelöschte Folienliste wiederzubeleben. */}
+      {isActive ? (
+        <>
+          <div className="px-4 py-3.5">
+            {isHtml ? (
+              <Suspense fallback={<EditorFallback />}>
+                <HtmlEditor
+                  zoneId={zone.id}
+                  initialHtml={zone.html ?? ''}
+                  onChange={(value) => updateZoneHtml(zone.id, value)}
+                  onFocus={() => setActiveZone(zone.id)}
+                />
+              </Suspense>
+            ) : (
+              <TiptapEditor
+                initialMarkdown={zone.markdown}
+                onChange={(value) => updateZoneMarkdown(zone.id, value)}
+                onFocus={() => setActiveZone(zone.id)}
+              />
+            )}
+          </div>
 
-      {/* Custom-CSS-Panel: stylt den Text, ohne ihn in HTML zu vergraben */}
-      <CssPanel zone={zone} />
+          {/* Custom-CSS-Panel: stylt den Text, ohne ihn in HTML zu vergraben */}
+          <CssPanel zone={zone} />
 
-      {/* Speaker-Notes-Panel: nur in der Speaker-View sichtbar */}
-      <NotesPanel zone={zone} />
+          {/* Speaker-Notes-Panel: nur in der Speaker-View sichtbar */}
+          <NotesPanel zone={zone} />
+        </>
+      ) : (
+        <button
+          onClick={() => setActiveZone(zone.id)}
+          className="block w-full px-4 py-2.5 text-left transition-colors hover:bg-chrome-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+          title="Zum Bearbeiten anklicken"
+        >
+          <span className="line-clamp-2 text-[12px] leading-relaxed text-chrome-muted">
+            {preview || <span className="italic text-chrome-faint">Leere Folie</span>}
+          </span>
+        </button>
+      )}
     </div>
   )
 }
