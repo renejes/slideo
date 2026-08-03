@@ -67,9 +67,12 @@ interface PresentationState {
   mode: Mode
   activeSlideIndex: number
 
-  // Undo-History (strukturelle/Design-Änderungen; Texteingaben haben Editor-Undo)
+  // Undo-/Redo-History (strukturelle/Design-Änderungen; Texteingaben haben Editor-Undo)
   past: Presentation[]
+  /** Zurückgenommene Stände (Review 2026-08, Befund H1 — Redo fehlte komplett). */
+  future: Presentation[]
   undo: () => void
+  redo: () => void
 
   // Lifecycle
   /** Legt ein neues Deck an. Gibt `false` zurück, wenn das Lizenz-Gate ablehnt —
@@ -287,7 +290,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
   /** Hängt einen Snapshot an die Undo-History (gekappt auf PAST_CAP). */
   function pushHistory(p: Presentation): void {
-    set({ past: [...get().past, clone(p)].slice(-PAST_CAP) })
+    // Eine neue Aktion nach einem Undo verwirft den Redo-Zweig — Standardverhalten
+    // jedes linearen Undo-Stacks; ohne das könnte Redo einen Stand einspielen, der
+    // zu einer inzwischen abgezweigten Historie gehört.
+    set({ past: [...get().past, clone(p)].slice(-PAST_CAP), future: [] })
   }
 
   // --- Undo-Granularität (Review 2026-08, Befund H29/S6) ---
@@ -386,22 +392,44 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
   return {
     past: [],
+    future: [],
 
     undo: () => {
       // Gate auch hier (Befund M20): ohne das konnte ein abgelaufener Nutzer das Deck
       // weiter durch die Historie rollen und dirty machen — Bearbeiten über die Rückwärts-
       // taste, während jede Vorwärts-Bearbeitung abgelehnt wurde.
       if (!useLicenseStore.getState().editingAllowed()) return
-      const past = get().past
+      const { past, presentation: current } = get()
       if (past.length === 0) return
       const previous = past[past.length - 1]
       const keepActive = previous.zones.some((z) => z.id === get().activeZoneId)
       set({
         past: past.slice(0, -1),
+        // Aktuellen Stand für Redo aufheben (H1).
+        future: current ? [clone(current), ...get().future].slice(0, PAST_CAP) : get().future,
         presentation: previous,
         isDirty: true,
         activeZoneId: keepActive ? get().activeZoneId : (previous.zones[0]?.id ?? null),
       })
+      scheduleAutosave()
+    },
+
+    redo: () => {
+      if (!useLicenseStore.getState().editingAllowed()) return
+      const { future, presentation: current } = get()
+      if (future.length === 0) return
+      const next = future[0]
+      const keepActive = next.zones.some((z) => z.id === get().activeZoneId)
+      set({
+        // NICHT über pushHistory (das würde `future` leeren) — hier wird der
+        // Redo-Zweig ja gerade abgelaufen, nicht verworfen.
+        past: current ? [...get().past, clone(current)].slice(-PAST_CAP) : get().past,
+        future: future.slice(1),
+        presentation: next,
+        isDirty: true,
+        activeZoneId: keepActive ? get().activeZoneId : (next.zones[0]?.id ?? null),
+      })
+      scheduleAutosave()
     },
 
     presentation: null,
@@ -424,6 +452,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         isDirty: false,
         assets: {},
         past: [],
+        future: [],
         activeZoneId: presentation.zones[0]?.id ?? null,
         mode: 'editor',
         activeSlideIndex: 0,
@@ -441,6 +470,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           isDirty: false,
           assets: assetsToMap(assets),
           past: [],
+          future: [],
           activeZoneId: presentation.zones[0]?.id ?? null,
           mode: 'editor',
           activeSlideIndex: 0,
@@ -1132,6 +1162,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         // wenn es kein Pfad hat (create_presentation) — sonst ist es deckungsgleich.
         isDirty: path === null,
         past: [],
+        future: [],
         activeZoneId: zones[0]?.id ?? null,
         mode: 'editor',
         activeSlideIndex: 0,
@@ -1162,6 +1193,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           // Überraschung, die dieses Feature verhindern soll.
           isDirty: true,
           past: [],
+          future: [],
           activeZoneId: presentation.zones[0]?.id ?? null,
           mode: 'editor',
           activeSlideIndex: 0,

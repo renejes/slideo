@@ -245,18 +245,28 @@ function renderZone(
   bodyFont: string,
 ) {
   slide.background = { color: hex(zone.style.background, c.bg) }
+
+  // Sprechernotizen mit exportieren (Review 2026-08, Befund H6). Sie existierten
+  // im Datenmodell und im MCP (`set_zone_notes`), wurden aber NIRGENDS exportiert:
+  // wer sein Deck als PPTX weitergab oder auf einem anderen Rechner präsentierte,
+  // stand ohne Notizen da. PPTX ist das einzige Format mit einem echten, nicht
+  // sichtbaren Notizkanal — im HTML-/PDF-Export würden Notizen auf der Folie
+  // landen und in geteilten Decks leaken (deshalb dort bewusst nicht).
+  if (zone.notes?.trim() && typeof slide.addNotes === 'function') {
+    slide.addNotes(zone.notes)
+  }
+
   const valign = zone.style.layout === 'top' ? 'top' : 'middle'
   const align = zone.style.layout === 'hero' ? 'center' : zone.style.text_align
 
   if (zone.content_type === 'html') {
     const text = htmlToText(zone.html ?? '')
     const images = extractImages(zone.html ?? '')
-    const runs: { text: string; options: RunOpts }[] = [
-      {
-        text: 'HTML-Folie — in PPTX vereinfacht',
-        options: { fontSize: 12, italic: true, color: c.secondary, fontFace: bodyFont, breakLine: true },
-      },
-    ]
+    // Kein Redaktionsstempel mehr (Review 2026-08, Befund H22): der Run
+    // „HTML-Folie — in PPTX vereinfacht" landete sprachunabhängig in der
+    // ausgelieferten Kundendatei. Der Treuegrad gehört in den Export-Dialog
+    // (Maßnahme #27), nicht in die Folie.
+    const runs: { text: string; options: RunOpts }[] = []
     if (text) {
       const base: RunOpts = { fontSize: 16, color: c.text, fontFace: bodyFont }
       for (const para of text.split('\n')) {
@@ -281,17 +291,28 @@ function renderZone(
   if (splitParts.length >= 2) {
     const parts = splitParts
     const colW = (PAGE_W - 2 * MARGIN - 0.5) / 2
+    // Bilder je Spalte einsammeln (Review 2026-08, Befund H21): `parseBlocks`
+    // strippt Bilder, und dieser Zweig rief `addImageRow` nie auf — die
+    // kanonische „Bild links, Text rechts"-Folie kam als REINER TEXT in der
+    // Kundendatei an, ohne Hinweis. Eine dritte +++-Spalte entfällt weiterhin
+    // (PPTX-v1-Grenze), das ist aber im Export-Dialog benannt.
+    const colImages = [extractImages(parts[0] ?? ''), extractImages(parts[1] ?? '')]
+    const anyImages = colImages.some((im) => im.length > 0)
+    const textH = anyImages ? PAGE_H - 2.6 : PAGE_H - 1.0
     ;[0, 1].forEach((i) => {
+      const x = MARGIN + i * (colW + 0.5)
       const runs = blocksToRuns(parseBlocks(parts[i] ?? ''), c, headingFont, bodyFont)
       if (runs.length)
         slide.addText(runs, {
-          x: MARGIN + i * (colW + 0.5),
+          x,
           y: 0.5,
           w: colW,
-          h: PAGE_H - 1.0,
+          h: textH,
           valign: 'middle',
           align: 'left',
         })
+      if (colImages[i].length)
+        addImageRow(slide, colImages[i], assets, { x, y: PAGE_H - 1.9, w: colW, h: 1.5 })
     })
     addLogo(slide, presentation, assets)
     return

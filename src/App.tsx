@@ -30,6 +30,7 @@ export default function App() {
   const mode = usePresentationStore((s) => s.mode)
   const save = usePresentationStore((s) => s.savePresentation)
   const undo = usePresentationStore((s) => s.undo)
+  const redo = usePresentationStore((s) => s.redo)
   const modal = useUiStore((s) => s.modal)
   const openModal = useUiStore((s) => s.openModal)
   const [showMcpSetup, setShowMcpSetup] = useState(false)
@@ -106,8 +107,8 @@ export default function App() {
       } else if (key === 'f') {
         e.preventDefault()
         openModal('find')
-      } else if (key === 'z' && !e.shiftKey) {
-        // In Editoren (Tiptap/CodeMirror, Inputs) deren eigenes Undo nicht stören.
+      } else if (key === 'z' || key === 'y') {
+        // In Editoren (Tiptap/CodeMirror, Inputs) deren eigenes Undo/Redo nicht stören.
         const ae = document.activeElement as HTMLElement | null
         const inEditor =
           !!ae &&
@@ -117,13 +118,17 @@ export default function App() {
             ae.tagName === 'TEXTAREA')
         if (inEditor) return
         e.preventDefault()
-        undo()
+        // Cmd/Ctrl+Shift+Z und Ctrl+Y = Redo (Befund H1: gab es bis 2026-08 gar nicht,
+        // obwohl jede vergleichbare App es hat — und in einer KI-Authoring-App ist es
+        // doppelt teuer, weil der Nutzer laufend KI-Änderungen zurücknimmt).
+        if (key === 'y' || e.shiftKey) redo()
+        else undo()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [save, undo])
+  }, [save, undo, redo])
 
   // Lizenz-/Trial-Status laden (No-op-Fallback im Browser-Dev, blockiert dort nicht).
   useEffect(() => {

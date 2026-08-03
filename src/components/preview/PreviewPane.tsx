@@ -322,11 +322,12 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         })
         setElemSel({ zoneId: d.zoneId, path })
         reveal(d.zoneId, path)
-      } else if (
-        d.type === 'slideo:undo'
-      ) {
+      } else if (d.type === 'slideo:undo') {
         // Cmd/Z aus dem Iframe (Fokus dort) → globalen Undo auslösen.
         usePresentationStore.getState().undo()
+      } else if (d.type === 'slideo:redo') {
+        // Cmd+Shift+Z / Ctrl+Y aus dem Iframe (Befund H1).
+        usePresentationStore.getState().redo()
       } else if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
         // Zonen-Link in der Vorschau (Nicht-Edit-Modus) angeklickt → zur Zielzone
         // scrollen (Spec §23). activeZone treibt den Vorschau-Scroll.
@@ -445,7 +446,11 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
             }
           >
             <Icon name="arrow_selector_tool" size={15} weight={400} />
-            Bearbeiten
+            {/* „Direktbearbeiten" statt „Bearbeiten" (Review 2026-08, Befund M28):
+                deckungsgleich mit dem eigenen Tooltip und ehrlich gegenüber dem,
+                was der Toggle NICHT abschaltet — Block-Drag und Bild-Resize sind
+                Hover-Werkzeuge der Vorschau und laufen unabhängig davon. */}
+            Direktbearbeiten
           </button>
           {onCollapse && (
             <button

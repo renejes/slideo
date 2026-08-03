@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AssetMap, Presentation, Zone } from '@/types'
 import { renderSingleZonePage } from '@/lib/renderer'
+import { isTauri, assetUrlBase } from '@/lib/tauri'
 
 /**
  * Statische Folien-Vorschau (Thumbnail / Speaker-Mini / Übersicht).
@@ -15,6 +16,9 @@ import { renderSingleZonePage } from '@/lib/renderer'
  * Das Iframe lädt über eine `data:`-URL; Sandbox (`allow-scripts`) + die strikte Folien-CSP
  * bleiben unverändert. Der Container muss eine feste 16:9-Größe haben (z.B. `aspect-video`).
  */
+// Assets in Thumbnails streamen statt inline base64 (Befund H23).
+const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
+
 export function SlidePreview({
   presentation,
   zone,
@@ -30,7 +34,7 @@ export function SlidePreview({
   const src = useMemo(
     () =>
       'data:text/html;charset=utf-8,' +
-      encodeURIComponent(renderSingleZonePage(presentation, zone, assets)),
+      encodeURIComponent(renderSingleZonePage(presentation, zone, assets, ASSET_BASE)),
     [presentation, zone, assets],
   )
   const wrapRef = useRef<HTMLDivElement>(null)

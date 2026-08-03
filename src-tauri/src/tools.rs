@@ -325,27 +325,44 @@ pub fn handle(
             let p = pres.as_ref().ok_or("No presentation open")?;
             let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
             let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
+            // Auf IRGENDEIN Issue filtern, nicht nur auf hartes Clipping (Review 2026-08,
+            // Befund H5b). Vorher filterte dieses Tool auf `fits` und verschwieg damit
+            // exakt die Safe-Area-Warnungen, die `analyze` gerade berechnet hatte — es
+            // meldete „0 Probleme" für ein Deck, dessen Folien es selbst als zu voll
+            // eingestuft hatte. `fits` fährt jetzt pro Zone mit, damit die KI hartes
+            // Abschneiden von einem Safe-Area-Rat unterscheiden kann.
             let problems: Vec<Value> = zones
                 .iter()
                 .filter_map(|z| {
                     let rep = crate::overflow::analyze(z, &tokens);
-                    if rep.get("fits").and_then(|f| f.as_bool()).unwrap_or(true) {
-                        None
-                    } else {
-                        Some(json!({
-                            "id": z.get("id"),
-                            "label": z.get("label"),
-                            "issues": rep.get("issues"),
-                        }))
+                    let has_issue = rep
+                        .get("issues")
+                        .and_then(|i| i.as_array())
+                        .map(|a| !a.is_empty())
+                        .unwrap_or(false);
+                    if !has_issue {
+                        return None;
                     }
+                    Some(json!({
+                        "id": z.get("id"),
+                        "label": z.get("label"),
+                        "fits": rep.get("fits"),
+                        "measured": rep.get("measured"),
+                        "issues": rep.get("issues"),
+                    }))
                 })
                 .collect();
+            let clipped = problems
+                .iter()
+                .filter(|p| p.get("fits").and_then(|f| f.as_bool()) == Some(false))
+                .count();
             ok(
                 json!({
                     "zones_total": zones.len(),
                     "zones_with_issues": problems.len(),
+                    "zones_clipped": clipped,
                     "problems": problems,
-                    "note": "Heuristic check — per-slide details via check_zone_overflow(id)."
+                    "note": "Heuristic estimate, not a real layout measurement — 'measured': false means the estimator could not see the geometry (e.g. flow HTML without inline px). Per-slide details via check_zone_overflow(id)."
                 }),
                 Effect::None,
             )

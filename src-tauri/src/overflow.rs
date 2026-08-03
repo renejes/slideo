@@ -44,6 +44,12 @@ struct Estimate {
     overflows_width: bool,
     overflows_height: bool,
     issues: Vec<String>,
+    /// Konnte die Heuristik die Geometrie ueberhaupt sehen? (Befund H5b)
+    /// Im HTML-Pfad scannt sie NUR inline `style=`-Attribute — normaler Fluss
+    /// (Karten, Tabellen, Flex/Grid) ergibt `max_bottom = 0` und haette bisher
+    /// „fits: true" gemeldet. Das ist keine Entwarnung, das ist Blindheit, und
+    /// die KI muss den Unterschied kennen.
+    measured: bool,
 }
 
 /// Markdown: Höhe aus Zeilen/Schriftgröße summieren; Breite nur für Überschriften
@@ -81,18 +87,17 @@ fn analyze_markdown(md: &str, base: f64) -> Estimate {
     }
 
     let mut issues = Vec::new();
-    let mut ow = false;
+    let ow = false;
     let mut oh = false;
-    if max_w > STAGE_W - 64.0 {
-        ow = true;
-        issues.push(format!(
-            "A heading is ~{max_w:.0}px wide and exceeds the slide (1280px) — shorten it or use a smaller font."
-        ));
-    } else if max_w > SAFE_W {
-        issues.push(format!(
-            "A heading (~{max_w:.0}px) extends beyond the safe-area width (1152px)."
-        ));
-    }
+    // Breiten-Warnung für Überschriften ENTFERNT (Review 2026-08, Befund H5b).
+    //
+    // Sie war ein systematisches Falschpositiv: die Schätzung (Zeichenzahl × 0,55 em)
+    // ignorierte, dass auch Überschriften umbrechen — `.slideo-content` ist auf
+    // 56rem = 896px begrenzt, geprüft wurde aber gegen 1152/1280px. Eine lange
+    // Überschrift läuft also nicht über, sie wird zweizeilig. Gemeldet wurde ein
+    // Problem, das es nicht gab, während der reale Fall (zu viel Text ⇒ zu hoch)
+    // unten weiterhin geprüft wird. `max_w` bleibt informativ im Report.
+    let _ = max_w;
     if height > STAGE_H - 64.0 {
         oh = true;
         issues.push(format!(
@@ -103,7 +108,7 @@ fn analyze_markdown(md: &str, base: f64) -> Estimate {
             "Estimated content height ~{height:.0}px extends beyond the safe area (592px) — consider tightening."
         ));
     }
-    Estimate { width: max_w, height, overflows_width: ow, overflows_height: oh, issues }
+    Estimate { width: max_w, height, overflows_width: ow, overflows_height: oh, issues, measured: true }
 }
 
 /// HTML: pro `style="…"`-Block die px-Werte parsen → rechte/untere Kante schätzen.
@@ -166,7 +171,15 @@ fn analyze_html(html: &str) -> Estimate {
             "Very large font-size (~{max_font:.0}px) — check whether the headline fits the slide."
         ));
     }
-    Estimate { width: max_right, height: max_bottom, overflows_width: ow, overflows_height: oh, issues }
+    // Ohne jede Inline-Geometrie hat die Heuristik NICHTS gesehen.
+    let measured = max_right > 0.0 || max_bottom > 0.0;
+    if !measured {
+        issues.push(
+            "No inline geometry found — this estimator only reads inline style= px values and cannot see flow/flex/grid layout. Treat 'fits' as unknown and check the slide visually."
+                .to_string(),
+        );
+    }
+    Estimate { width: max_right, height: max_bottom, overflows_width: ow, overflows_height: oh, issues, measured }
 }
 
 /// Alle `style="…"`/`style='…'`-Werte aus dem HTML (roh, ohne DOM).
@@ -229,9 +242,12 @@ pub fn analyze(zone: &Value, tokens: &Value) -> Value {
         "estimated_height_px": (est.height * 10.0).round() / 10.0,
         "overflows_width": est.overflows_width,
         "overflows_height": est.overflows_height,
-        "fits": !est.overflows_width && !est.overflows_height,
+        // `fits` ist NULL, wenn nichts gemessen werden konnte — vorher stand dort
+        // ein erfundenes `true` (Befund H5b).
+        "fits": if est.measured { json!(!est.overflows_width && !est.overflows_height) } else { Value::Null },
+        "measured": est.measured,
         "issues": est.issues,
-        "note": "Heuristic estimate (no real rendering) — stage 1280×720, safe area x64–1216 / y64–656."
+        "note": "Heuristic estimate (no real rendering) — stage 1280×720, safe area x64–1216 / y64–656. 'measured': false means the geometry was not visible to the estimator."
     })
 }
 
@@ -252,12 +268,20 @@ mod tests {
     }
 
     #[test]
-    fn long_heading_overflows_width() {
+    fn lange_ueberschrift_ist_kein_breiten_problem_mehr() {
+        // Befund H5b: die alte Breiten-Heuristik war ein systematisches Falschpositiv —
+        // sie tat so, als wuerden Ueberschriften nicht umbrechen, und mass gegen
+        // 1152/1280px, obwohl .slideo-content auf 896px begrenzt ist. Eine lange
+        // Ueberschrift laeuft nicht ueber, sie wird zweizeilig.
         let long = "#".to_string() + " " + &"Sehr lange Überschrift ".repeat(6);
         let z = json!({ "content_type": "markdown", "markdown": long });
         let r = analyze(&z, &tokens());
-        assert_eq!(r["overflows_width"], true);
-        assert_eq!(r["fits"], false);
+        assert_eq!(r["overflows_width"], false, "keine Breiten-Warnung mehr");
+        let issues = r["issues"].as_array().unwrap();
+        assert!(
+            !issues.iter().any(|i| i.as_str().unwrap_or("").contains("wide")),
+            "keine Breiten-Meldung im Report"
+        );
     }
 
     #[test]
@@ -280,12 +304,28 @@ mod tests {
     }
 
     #[test]
-    fn html_percent_widths_are_safe() {
+    fn html_ohne_inline_geometrie_meldet_unbekannt_statt_passt() {
+        // Befund H5b: nur %-Angaben (oder ganz normaler Fluss) sind fuer diese
+        // Heuristik unsichtbar. Vorher meldete sie dafuer `fits: true` — eine
+        // erfundene Entwarnung. Jetzt: `fits: null` + `measured: false`.
         let z = json!({
             "content_type": "html",
             "html": "<div style=\"position:absolute;left:10%;width:40%;top:20%\">x</div>"
         });
         let r = analyze(&z, &tokens());
+        assert!(r["fits"].is_null(), "fits muss unbekannt sein, nicht true");
+        assert_eq!(r["measured"], false);
+        assert!(!r["issues"].as_array().unwrap().is_empty(), "Blindheit wird gemeldet");
+    }
+
+    #[test]
+    fn html_mit_inline_geometrie_gilt_als_gemessen() {
+        let z = json!({
+            "content_type": "html",
+            "html": "<div style=\"position:absolute;left:100px;width:200px;top:50px;height:80px\">x</div>"
+        });
+        let r = analyze(&z, &tokens());
+        assert_eq!(r["measured"], true);
         assert_eq!(r["fits"], true);
     }
 

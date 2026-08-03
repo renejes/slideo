@@ -65,6 +65,9 @@ export function PresentationMode() {
   // Letzter Navigationsstand — für die Antwort auf die Projector-Bereitschaft.
   const navStateRef = useRef({ index: activeSlideIndex, step })
   navStateRef.current = { index: activeSlideIndex, step }
+  // Aktueller Tastatur-Handler, damit der Message-Listener (der nur einmal
+  // registriert wird) immer die frische Closure trifft (Befund B10).
+  const keyHandlerRef = useRef<(e: { key: string; preventDefault?: () => void }) => void>(() => {})
 
   const html = useMemo(
     () =>
@@ -133,48 +136,89 @@ export function PresentationMode() {
     return () => clearInterval(id)
   }, [])
 
+  // Echtes Vollbild beim Betreten (Review 2026-08, Befund H25). Vorher war der
+  // „Präsentationsmodus" nur ein `fixed inset-0`-Overlay INNERHALB des App-Fensters:
+  // wer nicht maximiert hatte, präsentierte mit Titelleiste und sichtbarem Desktop
+  // drumherum. `setFullscreen` wurde im gesamten Frontend nie aufgerufen — und war
+  // per Capability auch gar nicht erlaubt (H26, jetzt in default.json ergänzt).
+  //
+  // Beim Verlassen sauber zurückschalten. Fehler bewusst still: Vollbild ist eine
+  // Verbesserung, kein Muss — auf einer Plattform ohne die Berechtigung soll der
+  // Präsentationsmodus trotzdem starten.
+  useEffect(() => {
+    if (!TAURI) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        await win.setFullscreen(true)
+        // Fokus zurück ans Steuerfenster, damit die Tastatur hier ankommt.
+        await win.setFocus()
+      } catch (e) {
+        console.warn('[slideo] Vollbild nicht möglich:', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+      void (async () => {
+        try {
+          const { getCurrentWindow } = await import('@tauri-apps/api/window')
+          await getCurrentWindow().setFullscreen(false)
+        } catch {
+          /* still */
+        }
+      })()
+      void cancelled
+    }
+  }, [])
+
   // Tastatur: Navigation (Schritte), Speaker (s), Übersicht (g), Laser (l),
   // Stift (p), Löschen (c), Auto-Advance (a), Verlassen (Esc). Bei offener
   // Übersicht übernimmt diese die Tastatur (Capture-Listener) — hier still.
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
+    // Nimmt sowohl echte KeyboardEvents (Parent-Fenster) als auch die vom
+    // Folien-Iframe weitergereichten Beschreibungen entgegen (Befund B10).
+    function onKey(e: { key: string; preventDefault?: () => void }) {
+      const preventDefault = () => e.preventDefault?.()
       if (overview) return
       if (e.key === 'Escape') {
-        e.preventDefault()
+        preventDefault()
         if (tool !== 'none') setTool('none')
         else setMode('editor')
       } else if (e.key === 's' || e.key === 'S') {
-        e.preventDefault()
+        preventDefault()
         setView((v) => (v === 'audience' ? 'speaker' : 'audience'))
       } else if (e.key === 'g' || e.key === 'G') {
-        e.preventDefault()
+        preventDefault()
         setOverview(true)
       } else if ((e.key === 'l' || e.key === 'L') && !projectorOpen) {
-        e.preventDefault()
+        preventDefault()
         toggleTool('laser')
       } else if ((e.key === 'p' || e.key === 'P') && !projectorOpen) {
-        e.preventDefault()
+        preventDefault()
         toggleTool('pen')
       } else if ((e.key === 'c' || e.key === 'C') && !projectorOpen) {
-        e.preventDefault()
+        preventDefault()
         setClearNonce((n) => n + 1)
       } else if (e.key === 'a' || e.key === 'A') {
-        e.preventDefault()
+        preventDefault()
         setAuto((v) => !v)
       } else if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) {
-        e.preventDefault()
+        preventDefault()
         doStep(1)
       } else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) {
-        e.preventDefault()
+        preventDefault()
         doStep(-1)
       } else if (e.key === 'Home') {
-        e.preventDefault()
+        preventDefault()
         doJump(0, 0)
       } else if (e.key === 'End') {
-        e.preventDefault()
+        preventDefault()
         doJump(count - 1, stepCount(count - 1) - 1)
       }
     }
+    keyHandlerRef.current = onKey
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -211,9 +255,16 @@ export function PresentationMode() {
   // zur Zielfolie zu springen. doJump nutzt nur stabile Setter → einmal registrieren.
   useEffect(() => {
     function onMsg(e: MessageEvent) {
+      // Herkunftsprüfung (Befund S15): nur das eigene Folien-Iframe darf steuern.
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return
       const d = e.data || {}
       if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
         doJump(Math.max(0, d.index | 0), 0)
+      } else if (d.type === 'slideo:key' && typeof d.key === 'string') {
+        // Der Fokus liegt im Folien-Iframe (Klick auf die Folie, Refokus nach
+        // Alt-Tab) — ohne diese Brücke wäre die gesamte Presenter-Tastatur tot,
+        // mitten im Vortrag (Befund B10).
+        keyHandlerRef.current({ key: d.key })
       }
     }
     window.addEventListener('message', onMsg)

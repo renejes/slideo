@@ -270,10 +270,22 @@ body {
 .slideo-content th, .slideo-content td { border: 1px solid var(--color-surface); padding: 0.5em 0.75em; }
 
 /* Editier-Modus (nur Vorschau): umsortierbare Blöcke + Drag-Handle. */
+/* Block-Wrapper der Vorschau: NUR positionieren, den Vertikalrhythmus NICHT ersetzen
+   (Review 2026-08, Befund H18/M33).
+
+   Vorher setzte der Wrapper eigene Kanten (:first-child/:last-child margin 0 plus
+   ein pauschales 0.75em zwischen Blöcken) und ersetzte damit die echten Element-
+   Margins der Präsentation. Auf einer clippenden 1280×720-Bühne heißt eine
+   Rhythmus-Abweichung: was in der Vorschau passt, kann in Präsentation und PDF
+   abgeschnitten sein. Die adversariale Prüfung hat die Drift auf ~8 px pro Folie
+   beziffert (kleiner als urspruenglich behauptet, aber in genau der falschen
+   Richtung) — und bei reveal:steps sogar 47 px zugunsten der Vorschau.
+
+   Jetzt bleiben die Element-Margins der Folie unangetastet; nur die äußersten
+   Kanten der Zone werden gekappt, exakt wie im Präsentationsmodus. */
 .slideo-block { position: relative; }
-.slideo-block > :first-child { margin-top: 0; }
-.slideo-block > :last-child { margin-bottom: 0; }
-.slideo-block + .slideo-block { margin-top: 0.75em; }
+.slideo-content > .slideo-block:first-child > :first-child { margin-top: 0; }
+.slideo-content > .slideo-block:last-child > :last-child { margin-bottom: 0; }
 .slideo-block > .slideo-drag {
   position: absolute; left: -1.7rem; top: 0.15em;
   width: 1.15rem; height: 1.35rem; border-radius: 5px;
@@ -314,9 +326,12 @@ body {
 /* Builds (Schritt-Einblenden), nur In-App-Präsentation. */
 .slideo-fragment { opacity: 0; transform: translateY(10px); transition: opacity 0.35s ease, transform 0.35s ease; }
 .slideo-fragment.is-shown { opacity: 1; transform: none; }
-.slideo-fragment > :first-child { margin-top: 0; }
-.slideo-fragment > :last-child { margin-bottom: 0; }
-.slideo-fragment + .slideo-fragment { margin-top: 0.6em; }
+/* Wie beim Block-Wrapper (H18): nur die Zonenkanten kappen, den Rhythmus dazwischen
+   den Elementen überlassen. Das eigene 0.6em war der GRÖSSTE Rhythmus-Unterschied
+   im Produkt — eine Folie mit Builds war in der Vorschau ~47 px höher als in der
+   Präsentation, dieselbe Markdown-Quelle also in drei Modi drei verschieden hoch. */
+.slideo-content > .slideo-fragment:first-child > :first-child { margin-top: 0; }
+.slideo-content > .slideo-fragment:last-child > :last-child { margin-bottom: 0; }
 /* Marken-Logo auf jeder Folie (Spec §19.4). */
 .slideo-logo { position: absolute; z-index: 5; max-height: 9%; max-width: 22%; height: auto; width: auto; opacity: 0.95; pointer-events: none; }
 .slideo-logo-top-left { top: 4%; left: 4%; }
@@ -544,7 +559,28 @@ function navScript(
     syncCurrent();
     go(current + (e.clientX < window.innerWidth * 0.25 ? -1 : 1), true);
   });`
-      : ''
+      : `// In-App: KEINE eigene Navigation (parent-autoritativ, Spec §19.1), aber die
+  // Tastatur an den Parent weiterreichen (Review 2026-08, Befund B10).
+  //
+  // Vorher hingen ALLE Presenter-Shortcuts am Parent-Fenster und dieses Iframe
+  // registrierte gar kein keydown. Ein Klick auf die Folie - ein TOC-Link, ein
+  // Refokus nach Alt-Tab aus Zoom - schob den Fokus hierher, und damit waren
+  // Pfeiltasten, Leertaste, s, g und Esc tot, bis der Vortragende vor Publikum die
+  // duenne Kontrollleiste gefunden hatte. Das Muster gibt es schon: editScript
+  // leitet Cmd+Z genau deshalb weiter.
+  window.addEventListener('keydown', function (e) {
+    var t = e.target;
+    // Eingabefelder (contenteditable im Direktbearbeiten-Modus) nicht kapern.
+    if (t && t.closest && t.closest('input,textarea,select,[contenteditable]')) return;
+    parent.postMessage({
+      type: 'slideo:key',
+      key: e.key,
+      shiftKey: !!e.shiftKey,
+      metaKey: !!e.metaKey,
+      ctrlKey: !!e.ctrlKey,
+      altKey: !!e.altKey
+    }, '*');
+  });`
   }
   window.addEventListener('message', function (e) {
     var d = e.data || {};
@@ -653,12 +689,17 @@ function editScript(directEdit: boolean): string {
   // Undo nicht, weil der Tastendruck im sandboxed Iframe landet (nicht im Fenster).
   // In Eingabefeldern/contenteditable deren eigenes Undo nicht stören.
   document.addEventListener('keydown', function (e) {
-    if (!(e.metaKey || e.ctrlKey) || e.shiftKey) return;
-    if (e.key !== 'z' && e.key !== 'Z') return;
+    if (!(e.metaKey || e.ctrlKey)) return;
+    var isZ = e.key === 'z' || e.key === 'Z';
+    var isY = e.key === 'y' || e.key === 'Y';
+    if (!isZ && !isY) return;
     var t = e.target;
     if (t && (/^(INPUT|TEXTAREA)$/.test(t.tagName || '') || t.isContentEditable)) return;
     e.preventDefault();
-    parent.postMessage({ type: 'slideo:undo' }, '*');
+    // Redo mitleiten (Befund H1): der Fokus liegt im sandboxed Iframe, der
+    // Fenster-Shortcut greift hier also nicht.
+    var redo = isY || e.shiftKey;
+    parent.postMessage({ type: redo ? 'slideo:redo' : 'slideo:undo' }, '*');
   });
 
   /* ---------- Block-Reordering ---------- */
@@ -1366,9 +1407,13 @@ function editScript(directEdit: boolean): string {
         return;
       }
       if (!selEl) return;
-      // Nur Delete (Entf) löscht — Backspace ist reflexhaft „zurück" und würde
-      // überraschen. Zusätzlich Fokus-Guard + nur wenn die Auswahl im Blick ist.
-      if (e.key === 'Delete') {
+      // Delete UND Backspace loeschen (Review 2026-08, Befund M31). Der Kommentar
+      // hier begruendete den Ausschluss von Backspace mit „reflexhaft zurueck" —
+      // aber die physische Loeschtaste eines MacBooks MELDET 'Backspace'. Auf der
+      // Zielhardware existierte der beworbene Shortcut („Löschen (Entf)") damit
+      // praktisch nicht. Der Fokus-Guard (deleteAllowed) verhindert weiterhin, dass
+      // es in Eingabefeldern feuert; ein Browser-„zurueck" gibt es in der App nicht.
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         if (!deleteAllowed(e.target)) return;
         var r = selEl.getBoundingClientRect();
         if (r.bottom < 0 || r.top > window.innerHeight) return; // Auswahl off-screen
@@ -1804,6 +1849,16 @@ export function renderSingleZonePage(
   presentation: Presentation,
   zone: Zone,
   assets?: AssetMap,
+  /**
+   * Basis-URL des Custom-Protocols (Review 2026-08, Befund H23/S17). Ohne diesen
+   * Parameter inlinete JEDES Thumbnail alle Assets als base64 und wurde danach
+   * als `data:text/html`-URL noch einmal URL-kodiert. Die SpeakerView baut zwei
+   * davon bei jedem Pfeildruck, die Folien-Übersicht eines pro Folie GLEICHZEITIG
+   * — bei einem 30-Folien-Fotodeck war die Taste `g` mitten im Vortrag ein
+   * Glücksspiel, während die Präsentation daneben längst über slideoasset://
+   * streamte. Eine durchgereichte Signatur beseitigt die ganze Klasse.
+   */
+  assetUrlBase?: string,
 ): string {
   return `<!doctype html>
 <html lang="de"><head><meta charset="utf-8" />${SLIDE_CSP_META}<style>
@@ -1815,5 +1870,5 @@ ${tokensToCssString(presentation.tokens)}
 ${SLIDE_CSS}
 html, body { width: 1280px; height: 720px; margin: 0; overflow: hidden; }
 .slideo-frame { position: absolute; inset: 0; aspect-ratio: auto; margin: 0; }
-</style></head><body>${renderZoneSection(zone, assets, undefined, false, false, logoHtml(presentation, assets))}</body></html>`
+</style></head><body>${renderZoneSection(zone, assets, assetUrlBase, false, false, logoHtml(presentation, assets))}</body></html>`
 }
