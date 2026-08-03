@@ -76,10 +76,12 @@ Abweichungen vom Plan (bewusst):
 
 Siehe [optimierung.md](optimierung.md) Abschnitt E. Kurzfassung der fünf Gabelungen:
 
-| | Entscheidung | Empfehlung aus dem Review |
-|---|---|---|
-| E1 | Trial: read-only nach 30 Tagen **oder** unbegrenzte Demo mit Folien-Limit | **Demo mit Limit** — die installierte MCP-Registrierung *ist* der Wachstumskanal; ein abgelaufenes Slideo bleibt im KI-Client sichtbar und wirft Fehler |
-| E2 | UI-Sprache Deutsch **oder** Englisch | **Englisch** — die MCP-Fläche ist bereits englisch; heute kann die KI das Produkt lesen, der Käufer nicht |
-| E3 | MCP-Oberfläche einfrieren **oder** gebündelt erweitern | **Ein gebündeltes Release** + Versions-Handshake (heute erkennt keine Seite einen Binary-Mismatch) |
-| E4 | Wie weit bei Overflow/Auto-fit | Mensch-Warnung **sofort** (S), Auto-fit als `meta.autofit`, Messkanal zur KI erst nach dem `Effect`-Redesign (ist **L**, nicht billig) |
-| E5 | 16:9 hart **oder** konfigurierbar | **Hart bleiben** für v1 — aber `meta.aspect` *jetzt* additiv ins Datenmodell, sonst ist es später ein Formatbruch |
+Entschieden am **2026-08-03**:
+
+| | Entscheidung | Empfehlung aus dem Review | **Getroffen** |
+|---|---|---|---|
+| E1 | Trial: read-only nach 30 Tagen **oder** unbegrenzte Demo | Demo mit Limit | **Gar kein Trial** — Slideo ist zunächst ein Werkzeug für den Entwickler selbst. *Erfordert keine Arbeit:* solange `POLAR_ORG_ID` ein Platzhalter ist, liefert `compute()` `unconfigured` mit `editing_allowed: true` ([license.rs:194](../../src-tauri/src/license.rs#L194)); die Lizenzleiste blendet sich aus. Umlegbar durch Eintragen der Polar-Werte. |
+| E2 | UI-Sprache Deutsch **oder** Englisch | Englisch (eine Sprache, kein i18n-Layer) | **Deutsch, umschaltbar in den Einstellungen.** Teuerster Posten der Liste (Message-Katalog + ~67 `.tsx`), nimmt aber #47 (ein Vokabular) gratis mit. |
+| E3 | MCP-Oberfläche einfrieren **oder** gebündelt erweitern | Ein gebündeltes Release + Versions-Handshake | **Wie empfohlen** (an die KI delegiert). Handshake steckt in #18. |
+| E4 | Wie weit bei Overflow/Auto-fit | Warnung sofort, Auto-fit als `meta.autofit`, Messkanal später | **Wie empfohlen.** Warnung ✅ (Stage 3 #20). Auto-fit über Schriftgrößen-Multiplikator, harte Untergrenze 0,7, **nie** `transform: scale()`. |
+| E5 | 16:9 hart **oder** konfigurierbar | „Hart bleiben, aber `meta.aspect` jetzt additiv einbauen" | **Hart bleiben, ganz — kein `meta.aspect`.** ⚠️ *Die Begründung der Empfehlung war falsch:* ein optionales Feld ist **kein** Formatbruch, wenn es später kommt — genau so wurden `meta.transition`, `meta.logo`, `zone.reveal` und `presentation.fonts` nachträglich ergänzt (CLAUDE.md, „Additive Datenmodell-Felder", `version` blieb „1.0"). Ein Feld, das nichts liest, wäre nur eine tote Zeile. |

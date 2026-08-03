@@ -27,6 +27,30 @@ export interface McpStatus {
   claude: McpTargetState
   /** Letzter Registrierungsfehler (z.B. „Meta-MCP läuft nicht"), falls vorhanden. */
   lastError: string | null
+  /**
+   * Fertiges `mcpServers`-Snippet für jeden anderen MCP-Client (Befund H4/S33).
+   * Slideo registriert damit nichts — der Nutzer trägt es selbst ein. Hebt die
+   * harte Drei-Ziele-Decke auf (Cursor, Windsurf, Zed, LM Studio, Codex CLI …).
+   */
+  genericConfig: { mcpServers: Record<string, { command: string; args: string[] }> } | null
+}
+
+/**
+ * Zustand der LEBENDEN Verbindung (Befund B8) — im Unterschied zu `McpStatus`,
+ * das nur meldet, ob Slideo irgendwo EINGETRAGEN ist. `null` = seit dem Start der
+ * App hat noch kein Tool-Call die App erreicht.
+ */
+export interface McpActivity {
+  tool: string
+  at_ms: number
+  client_version: string | null
+}
+
+/** Wann zuletzt wirklich ein MCP-Tool ausgeführt wurde. Null außerhalb von Tauri. */
+export async function getMcpActivity(): Promise<McpActivity | null> {
+  if (!isTauri()) return null
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<McpActivity | null>('mcp_activity')
 }
 
 /** Aktuellen Status lesen (inkl. Live-Probe gegen Meta-MCP). Null außerhalb von Tauri. */

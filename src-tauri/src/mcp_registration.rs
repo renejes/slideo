@@ -537,6 +537,17 @@ pub fn status() -> Value {
         "meta": { "available": meta_available(), "registered": meta_registered() },
         "claude": { "available": claude_available(), "registered": claude_registered() },
         "lastError": last_error().lock().ok().and_then(|g| g.clone()),
+        // Fertiges Konfigurations-Snippet fuer JEDEN anderen MCP-Client (Review
+        // 2026-08, Befund H4/S33). Empty-State, Onboarding, Hilfe und Settings
+        // versprechen viermal „beliebiger MCP-Client" und nennen Codex CLI — die
+        // Zielliste kennt aber exakt `desktop|meta|claude`. Cursor-, Windsurf-,
+        // Zed- und LM-Studio-Nutzer hatten NULL Pfad, obwohl `desired_entry` genau
+        // das noetige Objekt intern schon baut. Es hier zu exponieren hebt die harte
+        // 3-Client-Decke praktisch kostenlos auf — Slideo registriert dabei nichts,
+        // der Nutzer traegt es selbst ein.
+        "genericConfig": current_exe().ok().map(|exe| json!({
+            "mcpServers": { "slideo": desired_entry(&exe) }
+        })),
     })
 }
 

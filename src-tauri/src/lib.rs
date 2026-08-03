@@ -129,6 +129,7 @@ pub fn run() {
             recovery::recovery_take,
             recovery::recovery_discard,
             commands::mcp_status,
+            commands::mcp_activity,
             commands::mcp_set_target,
             license::license_status,
             license::license_activate,

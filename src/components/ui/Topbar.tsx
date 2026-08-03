@@ -2,6 +2,7 @@ import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
 import { Icon } from './Icon'
+import { McpStatusChip } from './McpStatusChip'
 
 const ghost =
   'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-chrome-secondary ' +
@@ -68,7 +69,13 @@ export function Topbar() {
         </div>
       )}
 
-      <div className="ml-auto flex items-center gap-0.5">
+      {/* Verbindungs-Chip (Befund B8) — links neben den Aktionen, damit er im Blick
+          ist, ohne mit ihnen zu konkurrieren. */}
+      <div className="ml-auto flex items-center gap-2 pr-1">
+        <McpStatusChip />
+      </div>
+
+      <div className="flex items-center gap-0.5">
         <button onClick={() => openModal('new')} className={ghost}>
           <Icon name="add" size={18} />
           Neu

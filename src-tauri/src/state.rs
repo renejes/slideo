@@ -44,6 +44,27 @@ pub struct AppState {
     /// ohne Konflikterkennung. Vor einer Mutation wartet `ipc.rs` jetzt kurz darauf,
     /// dass dieser Zähler vorrückt, das Frontend also seinen frischen Stand geliefert hat.
     pub sync_seq: AtomicU64,
+    /**
+     * Zuletzt beobachtete MCP-Aktivität (Review 2026-08, Befund B8).
+     *
+     * Die Verbindung war prinzipiell unbeobachtbar: der IPC-Server trackte keine
+     * Session, das Frontend zeigte nichts an, und der stdio-Prozess beantwortet
+     * `initialize`/`tools/list` **lokal** — der KI-Client meldet also „Tools da,
+     * gesund", auch wenn die App gar nicht läuft. Erst der erste echte Tool-Call
+     * scheitert. Hier steht deshalb, wann zuletzt WIRKLICH ein Tool ausgeführt wurde.
+     */
+    pub mcp_activity: Mutex<Option<McpActivity>>,
+}
+
+/// Letzter tatsächlich ausgeführter MCP-Tool-Call.
+#[derive(Clone, serde::Serialize)]
+pub struct McpActivity {
+    /// Name des Tools (z.B. "create_zone").
+    pub tool: String,
+    /// Unix-Millisekunden — das Frontend rechnet daraus „vor N s".
+    pub at_ms: u64,
+    /// Version des verbundenen `slideo mcp`-Binaries, falls mitgeschickt.
+    pub client_version: Option<String>,
 }
 
 impl AppState {
@@ -55,6 +76,24 @@ impl AppState {
     /// Aktueller Stand des Sync-Zählers.
     pub fn sync_seq(&self) -> u64 {
         self.sync_seq.load(Ordering::SeqCst)
+    }
+
+    /// Hält fest, dass gerade ein Tool ausgeführt wurde (Befund B8).
+    pub fn note_mcp_activity(&self, tool: &str, client_version: Option<String>) {
+        let at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        *lock_recover(&self.mcp_activity) = Some(McpActivity {
+            tool: tool.to_string(),
+            at_ms,
+            client_version,
+        });
+    }
+
+    /// Letzte MCP-Aktivität (für den Verbindungs-Chip im Frontend).
+    pub fn mcp_activity(&self) -> Option<McpActivity> {
+        lock_recover(&self.mcp_activity).clone()
     }
 
     /// Setzt die Asset-Liste und invalidiert den Decode-Cache (Audit P7) — in einem

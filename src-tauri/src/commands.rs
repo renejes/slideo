@@ -189,6 +189,18 @@ pub fn mcp_status() -> Value {
     mcp_registration::status()
 }
 
+/// Zustand der LEBENDEN MCP-Verbindung (Review 2026-08, Befund B8).
+///
+/// Bewusst getrennt von `mcp_status`: das meldet nur, ob Slideo in einer Config-Datei
+/// EINGETRAGEN ist („wir haben eine Zeile in eine JSON geschrieben"). Ob der Agent die
+/// App auch wirklich erreicht, stand nirgends — und der stdio-Prozess beantwortet
+/// `initialize`/`tools/list` lokal, der Client zeigt also „gesund", selbst wenn die
+/// App gar nicht läuft. Hier steht, wann zuletzt ein Tool TATSÄCHLICH ausgeführt wurde.
+#[tauri::command]
+pub fn mcp_activity(state: State<'_, AppState>) -> Option<crate::state::McpActivity> {
+    state.mcp_activity()
+}
+
 /// Setzt das aktive MCP-Ziel (`meta` | `claude` | `desktop`): registriert es und
 /// deregistriert die anderen beiden. Gibt bei Erfolg den frischen Status zurück;
 /// schlägt die Registrierung fehl (z.B. Meta-MCP down), bleibt alles unverändert

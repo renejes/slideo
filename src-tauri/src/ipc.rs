@@ -213,6 +213,31 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
     }
 
     let state = app.state::<AppState>();
+
+    // Versions-Handshake (Review 2026-08, Befund M15). Der `slideo mcp`-Prozess wird
+    // vom KI-Client gestartet und lebt unabhaengig von der App: nach einem Update
+    // bewirbt ein noch laufender ALTER stdio-Prozess den alten Toolsatz und bekommt
+    // von der neuen App „Unknown tool" zurueck — bisher konnte keine Seite den
+    // Mismatch erkennen, weshalb CLAUDE.md sechsmal „cargo build + Neustart"
+    // wiederholt. Das ist ein Entwickler-Workaround, keine Nutzer-Absicherung.
+    let client_version = request
+        .get("client_version")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    if let Some(ref cv) = client_version {
+        if cv != env!("CARGO_PKG_VERSION") {
+            let app_v = env!("CARGO_PKG_VERSION");
+            return json!({
+                "error": format!(
+                    "Slideo was updated (app {app_v}, connector {cv}). Restart your MCP client so it picks up the new connector — the tool list is stale."
+                )
+            });
+        }
+    }
+    // Erst NACH allen Ablehnungen festhalten: der Chip soll „verbunden" nur zeigen,
+    // wenn wirklich ein Tool gelaufen ist (Befund B8).
+    state.note_mcp_activity(method, client_version.clone());
+
     let mut pres = crate::state::lock_recover(&state.presentation);
     let mut file_path = crate::state::lock_recover(&state.file_path);
     let assets = crate::state::lock_recover(&state.assets);
@@ -301,11 +326,28 @@ pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
     let (port, token) = read_discovery()
         .ok_or("Slideo is not running (no IPC discovery file found). Please start the Slideo app.")?;
 
-    let stream = std::net::TcpStream::connect(("127.0.0.1", port))
+    // Timeouts setzen (Review 2026-08, Befund M14): `client_request` hatte weder
+    // Connect- noch Read-/Write-Timeout, obwohl der Meta-MCP-Helfer derselben
+    // Codebasis 700 ms/2 s setzt — das Muster war bekannt. Zusammen mit der nie
+    // aufgeraeumten `ipc.json` (recycelter Port) wurde aus „App laeuft nicht" ein
+    // unbegrenzter Haenger statt eines Fehlers.
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let stream = std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(1500))
         .map_err(|e| format!("Connection to the Slideo app failed: {e}. Is the app running?"))?;
+    // Grosszuegig: ein Tool-Call kann ein ganzes Deck schreiben (ZIP + Assets).
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
+    let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(30)));
 
     // Token mitsenden (Audit S1) — der Server weist nicht-authentifizierte Anfragen ab.
-    let request = json!({ "method": method, "params": params, "token": token });
+    // `client_version` mitsenden (Befund M15): die App vergleicht sie mit ihrer
+    // eigenen und meldet einen Mismatch als klaren Text, statt dass der Nutzer aus
+    // „Unknown tool" raten muss, dass der Connector veraltet ist.
+    let request = json!({
+        "method": method,
+        "params": params,
+        "token": token,
+        "client_version": env!("CARGO_PKG_VERSION"),
+    });
     // Ganze Zeile in EINEM write_all senden (sonst zerlegt Display die JSON-Value
     // in viele winzige TCP-Pakete).
     let mut payload = request.to_string();

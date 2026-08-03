@@ -6,6 +6,7 @@ import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { isTauri } from '@/lib/tauri'
 import { pickDirectory } from '@/lib/dialog'
+import { copyText } from '@/lib/onboarding'
 import {
   getMcpStatus,
   setMcpTarget,
@@ -178,6 +179,40 @@ function McpConnection() {
         showActiveBadge
         onSelect={choose}
       />
+      {/* Jeder andere MCP-Client (Review 2026-08, Befund H4/S33). Empty-State,
+          Onboarding-Banner, Hilfe-Modal und diese Einstellungen versprechen viermal
+          „beliebiger MCP-Client" und nennen Codex CLI — implementiert waren aber
+          exakt drei Ziele. Cursor-, Windsurf-, Zed- und LM-Studio-Nutzer hatten
+          keinerlei Pfad, obwohl `desired_entry` das nötige Objekt intern längst baut.
+          Hier steht es kopierbar: Slideo trägt nichts ein, der Nutzer selbst schon. */}
+      {status.genericConfig && (
+        <div className="flex flex-col gap-1.5 rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2.5">
+          <p className="text-[12px] font-medium text-chrome-secondary">Anderer MCP-Client</p>
+          <p className="text-[12px] leading-relaxed text-chrome-muted">
+            Cursor, Windsurf, Zed, LM Studio, Codex CLI &amp; Co. konfigurierst du selbst — dieses
+            Snippet in die <code className="font-mono">mcpServers</code>-Sektion des Clients
+            einfügen und ihn neu starten.
+          </p>
+          <div className="flex items-start gap-2">
+            <pre className="min-w-0 flex-1 overflow-x-auto rounded border border-chrome-border bg-chrome-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-chrome-text">
+              {JSON.stringify(status.genericConfig, null, 2)}
+            </pre>
+            <button
+              onClick={() =>
+                void copyText(JSON.stringify(status.genericConfig, null, 2)).then((ok) =>
+                  notify(ok ? 'Konfiguration kopiert.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error'),
+                )
+              }
+              title="Konfiguration kopieren"
+              aria-label="Konfiguration kopieren"
+              className="shrink-0 rounded-md p-1.5 text-chrome-muted transition-colors hover:bg-chrome-surface hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+            >
+              <Icon name="content_copy" size={16} weight={400} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {status.lastError && (
         <div className="flex items-start gap-2 rounded-lg border border-chrome-warn/30 bg-chrome-warn-soft px-3 py-2">
           <Icon
