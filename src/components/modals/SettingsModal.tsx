@@ -18,6 +18,7 @@ import { AssetLibrary } from '@/components/ui/AssetLibrary'
 // Einstellungen — bewusst als Shell angelegt, wird nach und nach gefüllt.
 export function SettingsModal() {
   const closeModal = useUiStore((s) => s.closeModal)
+  const openModal = useUiStore((s) => s.openModal)
   const defaultProjectDir = useSettingsStore((s) => s.defaultProjectDir)
   const setDefaultProjectDir = useSettingsStore((s) => s.setDefaultProjectDir)
   const tauri = isTauri()
@@ -86,6 +87,17 @@ export function SettingsModal() {
         {/* Assets — geteilt mit dem Asset-Manager (Topbar) */}
         <Section title="Assets">
           <AssetLibrary />
+        </Section>
+
+        {/* Lizenz — aus der Topbar hierher verschoben (Befund M55). */}
+        <Section title="Lizenz">
+          <button
+            onClick={() => openModal('license')}
+            className="flex w-full items-center gap-2 rounded-lg border border-chrome-border px-3 py-2 text-left text-[13px] text-chrome-secondary transition-colors hover:border-chrome-border-strong hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
+          >
+            <Icon name="sell" size={17} weight={400} className="text-chrome-muted" />
+            Testphase, kaufen &amp; aktivieren
+          </button>
         </Section>
 
         {/* Über. Die „Bald verfügbar"-Sektion ist entfallen (Befund M64): sie kündigte

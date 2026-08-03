@@ -24,9 +24,6 @@ export function Topbar() {
   const save = usePresentationStore((s) => s.savePresentation)
   const saveAs = usePresentationStore((s) => s.savePresentationAsDialog)
   const setTitle = usePresentationStore((s) => s.setPresentationTitle)
-  const exportHtml = usePresentationStore((s) => s.exportHtml)
-  const exportPdf = usePresentationStore((s) => s.exportPdf)
-  const exportPptx = usePresentationStore((s) => s.exportPptx)
   const setMode = usePresentationStore((s) => s.setMode)
   const openModal = useUiStore((s) => s.openModal)
   const openAssets = useUiStore((s) => s.openAssets)
@@ -94,34 +91,19 @@ export function Topbar() {
           <Icon name="save" size={18} />
           Speichern
         </button>
+        {/* EIN Export-Knopf statt drei (Review 2026-08, Befund M55/H24). Die drei
+            Formate standen gleichwertig nebeneinander, obwohl die Treue zwischen
+            ihnen steil abfällt (HTML ≫ PDF ≫ PPTX) — der Nutzer erfuhr den Verlust
+            erst beim Empfänger. Und „Teilen" hieß hier HTML-Export, im
+            Präsentationsmodus dagegen Projektorfenster. */}
         <button
-          onClick={() => exportHtml()}
+          onClick={() => openModal('export')}
           className={ghost}
-          disabled={!presentation || !tauri}
-          title={
-            fileHint ?? 'Als eigenständige .html-Datei exportieren — überall im Browser abspielbar und teilbar'
-          }
+          disabled={!presentation}
+          title="Exportieren — HTML, PDF oder PowerPoint (mit Hinweis, was jeweils verloren geht)"
         >
           <Icon name="ios_share" size={18} />
-          Teilen
-        </button>
-        <button
-          onClick={() => exportPdf()}
-          className={ghost}
-          disabled={!presentation}
-          title={'Als PDF exportieren (öffnet den Druckdialog → „Als PDF sichern“)'}
-        >
-          <Icon name="picture_as_pdf" size={18} />
-          PDF
-        </button>
-        <button
-          onClick={() => exportPptx()}
-          className={ghost}
-          disabled={!presentation}
-          title={'Als PowerPoint (.pptx) exportieren — native Rekonstruktion (Text + Bilder + Theme)'}
-        >
-          <Icon name="slideshow" size={18} />
-          PPTX
+          Exportieren
         </button>
 
         <span className="mx-1 h-5 w-px bg-chrome-border" />
@@ -164,18 +146,14 @@ export function Topbar() {
         >
           <Icon name="history" size={18} />
         </button>
-        <button
-          onClick={() => openModal('license')}
-          className={ghost + ' !px-2'}
-          title="Lizenz — Testphase, kaufen & aktivieren"
-          aria-label="Lizenz"
-        >
-          <Icon name="sell" size={18} />
-        </button>
+        {/* Der Lizenz-Knopf ist hier entfallen (Befund M55): er war dauerhaft
+            sichtbar, aber nur in Trial/abgelaufen/widerrufen relevant — und genau
+            dann bietet die LicenseBar direkt darunter bereits „Lizenz aktivieren".
+            Erreichbar bleibt er über die Einstellungen. */}
         <button
           onClick={() => openModal('help')}
           className={ghost + ' !px-2'}
-          title="Hilfe — wie Slideo mit Claude arbeitet"
+          title="Hilfe — wie Slideo mit deinem KI-Agenten arbeitet"
           aria-label="Hilfe"
         >
           <Icon name="help" size={18} />

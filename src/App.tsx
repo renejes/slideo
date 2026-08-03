@@ -22,6 +22,7 @@ import { OnboardingNudge } from '@/components/ui/OnboardingNudge'
 import { HelpModal } from '@/components/modals/HelpModal'
 import { AssetManagerModal } from '@/components/modals/AssetManagerModal'
 import { LicenseModal } from '@/components/modals/LicenseModal'
+import { ExportModal } from '@/components/modals/ExportModal'
 import { LicenseBar } from '@/components/ui/LicenseBar'
 import { useLicenseStore } from '@/store/license'
 import { useSettingsStore } from '@/store/settings'
@@ -193,6 +194,7 @@ export default function App() {
       {modal === 'help' && <HelpModal />}
       {modal === 'assets' && <AssetManagerModal />}
       {modal === 'license' && <LicenseModal />}
+      {modal === 'export' && <ExportModal />}
       {showMcpSetup && <McpSetupModal onClose={() => setShowMcpSetup(false)} />}
       <Toaster />
       <CloseGuard />

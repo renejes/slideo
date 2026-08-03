@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history' | 'design' | 'help' | 'assets' | 'license'
+export type ModalKind = 'new' | 'settings' | 'find' | 'components' | 'history' | 'design' | 'help' | 'assets' | 'license' | 'export'
 
 /** Modus der Asset-Verwaltung: „manage" (Topbar, alle Typen verwalten) oder
  *  „pick" (aus einer Zone heraus — Auswahl fügt ins Ziel ein). */
