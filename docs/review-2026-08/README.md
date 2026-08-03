@@ -35,7 +35,7 @@ Die Hypothese „Slideo ist DSGVO-konform, weil man Ollama einbinden kann, die a
 |---|---|---|
 | **Stage 1** | #1 Testnetz · #2 Neu-Dialog · #3 Lizenz-Sackgasse · #8 Link-Extension · #9 isImg · #10 catch_unwind · #12 toter Code | ✅ umgesetzt (Commit `047ecf9`) |
 | **Stage 2** | #4 Effect-Redesign · #5 Flush-Handshake · #6 Autosave + Recovery · #7 mutate→boolean · #15 Undo-Granularität | ✅ umgesetzt |
-| **Stage 3** | #13 Presenter-Tastatur+Vollbild · #14 Redo · #16 Folie duplizieren · #17 Speichern unter + Umbenennen · #20 Overflow sichtbar · #21 validate_deck ehrlich · #22 PPTX-Trio · #23 Assets undoable · #24 normalize+ErrorBoundary · #25 Zuletzt geöffnet · #26 Editor-Windowing · #27 Export-Dialog · #39/#40/#41 | ⚠️ 15 von 17 — **#18 und #19 offen** |
+| **Stage 3** | #13 Presenter-Tastatur+Vollbild · #14 Redo · #16 Folie duplizieren · #17 Speichern unter + Umbenennen · #20 Overflow sichtbar · #21 validate_deck ehrlich · #22 PPTX-Trio · #23 Assets undoable · #24 normalize+ErrorBoundary · #25 Zuletzt geöffnet · #26 Editor-Windowing · #27 Export-Dialog · #39/#40/#41 | ✅ 17 von 17 |
 | Stage 4–5 | Auslieferbarkeit (Signierung/Notarisierung/Updater) · Keil (MCP-Erweiterung, Messkanal, Auto-fit) | offen |
 
 Headless grün nach Stage 3: **69 Vitest-Tests** (vorher 0), **52 cargo-Tests** (vorher 42), typecheck, vite build.
@@ -45,17 +45,6 @@ Headless grün nach Stage 3: **69 Vitest-Tests** (vorher 0), **52 cargo-Tests** 
 Beenden, Read-only-Sperre der drei Editoren, MCP-`open_presentation` mit Assets, Flush-Handshake unter
 Tipplast, Presenter-Tastatur nach Klick auf die Folie, Vollbild beim Präsentieren, Overflow-Badge auf
 einer zu vollen Folie, PPTX mit Notizen und Split-Bildern.
-
-**Offen aus Stage 3 (übersehen, nicht bewusst reduziert):**
-- **#18 MCP sichtbar machen** (M) — `last_seen`/`last_tool` im AppState + Topbar-Chip, Erfolgspanel
-  „Starte jetzt \<Ziel\> neu, dann frag: …", Connect-/Read-Timeouts in `client_request`,
-  Versions-Handshake. Schließt B6, B8, M14, M15, M16.
-- **#19 Karte „Anderer MCP-Client"** (S) — `status()` gibt `desired_entry` zurück, Frontend zeigt ein
-  kopierbares `mcpServers`-Snippet. Schließt H4, S33 und hebt die harte 3-Client-Decke praktisch kostenlos auf.
-
-Beide betreffen dieselbe Stelle: **niemand kann sehen, ob die KI-Verbindung überhaupt steht.** Der Review
-nennt das entscheidend für die Aktivierungsrate — der realistische Erststart ist heute „konfigurieren →
-Prompt einfügen → ‚Ich habe keine Slideo-Tools' → Ende".
 
 **Rest von #27:** Die Topbar ging von 14 auf 11 Bedienelemente (drei Export-Knöpfe → einer, Lizenz in die
 Einstellungen). Der Plan nennt 6 als Ziel — dafür bräuchte es ein echtes Overflow-Menü für Suchen /
