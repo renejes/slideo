@@ -4,6 +4,7 @@ import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { confirmDialog } from '@/lib/dialog'
 import { notify } from '@/store/toast'
+import { t } from '@/i18n'
 import { Icon } from '@/components/ui/Icon'
 
 interface ZoneToolbarProps {
@@ -34,14 +35,12 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
   // destruktiven HTML→Markdown-Wechsel. Bei nur einer Folie gar nicht erst löschen.
   async function onDelete() {
     if (zoneCount <= 1) {
-      notify('Die letzte Folie kann nicht gelöscht werden.', 'info')
+      notify(t('editor.toolbar.lastSlide'), 'info')
       return
     }
     const hasContent = zone.content_type === 'html' ? !!zone.html?.trim() : !!zone.markdown.trim()
     if (hasContent) {
-      const ok = await confirmDialog(
-        `Folie „${zone.label}" wirklich löschen? (Rückgängig mit Cmd/Strg+Z)`,
-      )
+      const ok = await confirmDialog(t('editor.toolbar.deleteConfirm', { label: zone.label }))
       if (!ok) return
     }
     deleteZone(zone.id)
@@ -53,11 +52,7 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
 
   async function toggleContentType() {
     if (isHtml) {
-      const ok = await confirmDialog(
-        'Zurück zu Markdown wechseln? Der HTML-Inhalt kann nicht vollständig nach ' +
-          'Markdown zurückkonvertiert werden und wird in der Vorschau nicht mehr angezeigt ' +
-          '(bleibt aber gespeichert, bis du den Markdown-Inhalt änderst).',
-      )
+      const ok = await confirmDialog(t('editor.toolbar.toMarkdownConfirm'))
       if (!ok) return
       setZoneContentType(zone.id, 'markdown')
     } else {
@@ -71,7 +66,7 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
         value={zone.label}
         onChange={(e) => updateZoneLabel(zone.id, e.target.value)}
         className="w-36 rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[13px] font-medium text-chrome-text transition-colors hover:bg-chrome-surface-2 focus:border-chrome-accent focus:bg-white focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
-        aria-label="Slide-Name"
+        aria-label={t('editor.toolbar.labelAria')}
       />
 
       <div className="ml-auto flex items-center gap-1.5">
@@ -85,7 +80,7 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
               value={zone.style.layout}
               onChange={(e) => setZoneLayout(zone.id, e.target.value as ZoneLayout)}
               className={selectClass}
-              title="Layout (Zwei Spalten fügt automatisch einen +++ Spaltentrenner ein)"
+              title={t('editor.toolbar.layout')}
             >
               {ZONE_LAYOUTS.map((l) => (
                 <option key={l.value} value={l.value}>
@@ -98,7 +93,7 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
               value={zone.style.text_align}
               onChange={(e) => updateZoneStyle(zone.id, { text_align: e.target.value as TextAlign })}
               className={selectClass}
-              title="Textausrichtung"
+              title={t('editor.toolbar.textAlign')}
             >
               {TEXT_ALIGNS.map((a) => (
                 <option key={a.value} value={a.value}>
@@ -118,8 +113,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
                 ? 'bg-chrome-accent-soft text-chrome-accent-600'
                 : 'text-chrome-muted hover:bg-chrome-surface-2 hover:text-chrome-text')
             }
-            title="Schrittweise einblenden (Builds): Blöcke nacheinander im Präsentationsmodus"
-            aria-label="Schrittweise einblenden"
+            title={t('editor.toolbar.reveal')}
+            aria-label={t('editor.toolbar.revealAria')}
             aria-pressed={zone.reveal === 'steps'}
           >
             <Icon name="animation" size={17} weight={400} />
@@ -132,8 +127,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
             openAssets('pick', zone.id)
           }}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Medium einfügen — öffnet die Asset-Verwaltung (importieren & auswählen)"
-          aria-label="Medium einfügen"
+          title={t('editor.toolbar.insertMedia')}
+          aria-label={t('editor.toolbar.insertMediaAria')}
         >
           <Icon name="image" size={17} weight={400} />
         </button>
@@ -144,8 +139,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
             openModal('components')
           }}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Komponente einfügen (Diagramme, Kennzahlen, Zeitstrahl, Zitat …)"
-          aria-label="Komponente einfügen"
+          title={t('editor.toolbar.insertComponent')}
+          aria-label={t('editor.toolbar.insertComponentAria')}
         >
           <Icon name="widgets" size={17} weight={400} />
         </button>
@@ -158,7 +153,7 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
               ? 'border-chrome-warn/40 bg-chrome-warn-soft text-chrome-warn hover:bg-chrome-warn/15'
               : 'border-chrome-border bg-white text-chrome-secondary hover:border-chrome-border-strong')
           }
-          title="Zwischen Markdown und HTML umschalten"
+          title={t('editor.toolbar.toggleContentType')}
         >
           <Icon name={isHtml ? 'code' : 'notes'} size={15} weight={400} />
           {isHtml ? 'HTML' : 'Markdown'}
@@ -171,8 +166,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
         <button
           onClick={() => duplicateZone(zone.id)}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Folie duplizieren (Cmd/Strg+D)"
-          aria-label="Folie duplizieren"
+          title={t('editor.toolbar.duplicateSlide')}
+          aria-label={t('editor.toolbar.duplicateSlideAria')}
         >
           <Icon name="content_copy" size={16} weight={400} />
         </button>
@@ -180,8 +175,8 @@ export function ZoneToolbar({ zone }: ZoneToolbarProps) {
         <button
           onClick={onDelete}
           className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-danger/10 hover:text-chrome-danger focus:outline-none focus-visible:ring-2 focus-visible:ring-chrome-danger/40"
-          title="Folie löschen"
-          aria-label="Folie löschen"
+          title={t('editor.toolbar.deleteSlide')}
+          aria-label={t('editor.toolbar.deleteSlide')}
         >
           <Icon name="delete" size={17} weight={400} />
         </button>

@@ -27,6 +27,8 @@ import { LicenseBar } from '@/components/ui/LicenseBar'
 import { useLicenseStore } from '@/store/license'
 import { useSettingsStore } from '@/store/settings'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
+import { t, tp, localeTag } from '@/i18n'
+import { T } from '@/i18n/T'
 
 export default function App() {
   const presentation = usePresentationStore((s) => s.presentation)
@@ -74,14 +76,18 @@ export default function App() {
     void recoveryScan()
       .then(async (info) => {
         if (cancelled || !info) return
-        const wann = info.modified ? new Date(info.modified).toLocaleString('de-DE') : 'unbekannt'
-        const wo = info.original_path ?? 'nie gespeichert'
+        const wann = info.modified
+          ? new Date(info.modified).toLocaleString(localeTag())
+          : t('app.recovery.unknownTime')
+        const wo = info.original_path ?? t('app.recovery.neverSaved')
         const ok = await confirmDialog(
-          `Die letzte Sitzung wurde nicht ordentlich beendet.\n\n` +
-            `„${info.title}" · ${info.zone_count} Folien · zuletzt geändert ${wann}\n` +
-            `Datei: ${wo}\n\n` +
-            `Diesen Stand wiederherstellen?`,
-          'Ungesicherte Arbeit gefunden',
+          t('app.recovery.body', {
+            title: info.title,
+            slides: tp('common.slideCount', info.zone_count),
+            when: wann,
+            file: wo,
+          }),
+          t('app.recovery.title'),
         )
         if (cancelled) return
         if (ok) {
@@ -160,7 +166,7 @@ export default function App() {
   if (mode === 'presentation' && presentation) {
     return (
       <>
-        <ErrorBoundary fallbackTitle="Der Präsentationsmodus konnte nicht gestartet werden">
+        <ErrorBoundary fallbackTitle={t('app.errorBoundary.presentation')}>
           <PresentationMode />
         </ErrorBoundary>
         <Toaster />
@@ -215,14 +221,17 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
           S
         </div>
         <h1 className="mb-1.5 text-lg font-semibold tracking-tight text-chrome-text">
-          Willkommen bei Slideo
+          {t('app.empty.title')}
         </h1>
         <p className="mx-auto mb-3 max-w-[24rem] text-[13px] leading-relaxed text-chrome-muted">
-          Erstelle eine neue Präsentation oder öffne eine bestehende{' '}
-          <code className="rounded bg-chrome-surface-2 px-1 py-0.5 font-mono text-[12px] text-chrome-secondary">
-            .slideo
-          </code>
-          -Datei.
+          <T
+            k="app.empty.intro"
+            slots={[
+              <code className="rounded bg-chrome-surface-2 px-1 py-0.5 font-mono text-[12px] text-chrome-secondary">
+                .slideo
+              </code>,
+            ]}
+          />
         </p>
         <p className="mx-auto mb-6 max-w-[26rem] text-[12px] leading-relaxed text-chrome-secondary">
           <Icon
@@ -231,13 +240,17 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
             weight={400}
             className="-mt-0.5 mr-1 inline align-middle text-chrome-accent-600"
           />
-          Die Folien baut <span className="font-medium text-chrome-text">ein KI-Agent</span> über MCP
-          (z.B. Claude Desktop, Codex CLI) — du verfeinerst sie hier.{' '}
+          <T
+            k="app.empty.ai"
+            slots={[
+              <span className="font-medium text-chrome-text">{t('app.empty.agent')}</span>,
+            ]}
+          />{' '}
           <button
             onClick={onHelp}
             className="font-medium text-chrome-accent-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 rounded"
           >
-            Wie funktioniert's?
+            {t('app.empty.how')}
           </button>
         </p>
         <div className="flex justify-center gap-2">
@@ -246,16 +259,16 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
             className="flex items-center gap-1.5 rounded-lg bg-chrome-accent-600 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2553c9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
             <Icon name="add" size={18} />
-            Neue Präsentation
+            {t('app.empty.new')}
           </button>
           <button
             onClick={() => openDialog()}
             disabled={!tauri}
-            title={tauri ? undefined : 'Nur in der Desktop-App verfügbar (npm run tauri:dev)'}
+            title={tauri ? undefined : t('common.desktopOnlyHint')}
             className="flex items-center gap-1.5 rounded-lg border border-chrome-border px-4 py-2 text-[13px] font-medium text-chrome-secondary transition-colors hover:border-chrome-border-strong hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Icon name="folder_open" size={18} />
-            Öffnen
+            {t('app.empty.open')}
           </button>
         </div>
 
@@ -265,7 +278,7 @@ function EmptyState({ onNew, onHelp }: { onNew: () => void; onHelp: () => void }
         {tauri && recent.length > 0 && (
           <div className="mt-7 border-t border-chrome-border pt-5 text-left">
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-chrome-faint">
-              Zuletzt geöffnet
+              {t('app.empty.recent')}
             </p>
             <ul className="flex flex-col gap-0.5">
               {recent.map((r) => (

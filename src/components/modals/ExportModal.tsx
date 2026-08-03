@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui/Icon'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
+import { t, tp } from '@/i18n'
 
 // EIN Export-Dialog statt drei Topbar-Knöpfen (Review 2026-08, Befund M55/H24 +
 // Erkenntnis 9 des Reviews).
@@ -46,25 +47,20 @@ export function ExportModal() {
     {
       key: 'html',
       icon: 'ios_share',
-      title: 'HTML — eigenständige Datei',
-      lead: 'Höchste Treue. Läuft offline in jedem Browser, mit Tastatur-Navigation, Übergängen und Builds.',
-      caveats: [
-        'Alle Medien sind eingebettet — die Datei kann groß werden.',
-        'Sprechernotizen sind NICHT enthalten (sie würden im geteilten Deck sichtbar).',
-      ],
+      title: t('modal.export.html.title'),
+      lead: t('modal.export.html.lead'),
+      caveats: [t('modal.export.html.media'), t('modal.export.html.notes')],
       run: exportHtml,
       needsTauri: true,
     },
     {
       key: 'pdf',
       icon: 'picture_as_pdf',
-      title: 'PDF — zum Drucken und Verschicken',
-      lead: 'Eine Folie pro Seite, 16:9. Öffnet die Druckansicht im Standardbrowser.',
+      title: t('modal.export.pdf.title'),
+      lead: t('modal.export.pdf.lead'),
       caveats: [
-        'Im Druckdialog „Ränder: keine" wählen und Kopf-/Fußzeilen abwählen — sonst steht der Dateipfad auf jeder Folie.',
-        ...(facts.builds
-          ? [`${facts.builds} Folie${facts.builds === 1 ? '' : 'n'} mit Schritt-Einblendung zeigt alle Punkte auf einmal.`]
-          : []),
+        t('modal.export.pdf.margins'),
+        ...(facts.builds ? [tp('modal.export.pdf.builds', facts.builds)] : []),
       ],
       run: exportPdf,
       needsTauri: false,
@@ -72,19 +68,17 @@ export function ExportModal() {
     {
       key: 'pptx',
       icon: 'slideshow',
-      title: 'PowerPoint (.pptx) — weiter bearbeitbar',
-      lead: 'Native Rekonstruktion: echte Textfelder, Bilder und Theme-Farben, in PowerPoint editierbar.',
+      title: t('modal.export.pptx.title'),
+      lead: t('modal.export.pptx.lead'),
       caveats: [
         ...(facts.html
-          ? [
-              `${facts.html} von ${facts.total} Folien sind HTML und werden zu reinem Text vereinfacht (Diagramme und Komponenten gehen verloren).`,
-            ]
+          ? [t('modal.export.pptx.htmlZones', { count: facts.html, total: facts.total })]
           : []),
         ...(facts.splitWithImages
-          ? [`${facts.splitWithImages} zweispaltige Folie${facts.splitWithImages === 1 ? '' : 'n'} mit Bild — Layout wird angenähert.`]
+          ? [tp('modal.export.pptx.split', facts.splitWithImages)]
           : []),
-        ...(facts.notes ? [`Sprechernotizen (${facts.notes}) werden übernommen.`] : []),
-        'Custom-CSS und Übergänge werden nicht übernommen.',
+        ...(facts.notes ? [t('modal.export.pptx.notes', { count: facts.notes })] : []),
+        t('modal.export.pptx.css'),
       ],
       run: exportPptx,
       needsTauri: false,
@@ -98,18 +92,17 @@ export function ExportModal() {
 
   return (
     <Modal
-      title="Exportieren"
+      title={t('modal.export.title')}
       onClose={closeModal}
       footer={
         <button className={modalGhostBtn} onClick={closeModal}>
-          Schließen
+          {t('common.close')}
         </button>
       }
     >
       <div className="flex flex-col gap-2.5">
         <p className="text-[12px] leading-relaxed text-chrome-muted">
-          Die Formate unterscheiden sich in der Wiedergabetreue — hier steht, was in
-          diesem Deck jeweils verloren geht.
+          {t('modal.export.intro')}
         </p>
         {formats.map((f) => {
           const disabled = f.needsTauri && !tauri
@@ -141,9 +134,7 @@ export function ExportModal() {
                 </ul>
               )}
               {disabled && (
-                <span className="text-[11px] text-chrome-faint">
-                  Nur in der Desktop-App verfügbar.
-                </span>
+                <span className="text-[11px] text-chrome-faint">{t('modal.desktopOnly')}</span>
               )}
             </button>
           )

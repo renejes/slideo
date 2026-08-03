@@ -467,6 +467,58 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   „Upgrade nötig"); v1-benefit mit aufnehmen = Grandfather-Gratis-Upgrade. Aktivierung prüft vorab **ohne** Slot-Verbrauch.
   **Entscheidung: Lizenzierung VOR Notarisierung.** cargo test **42**, typecheck, vite build grün;
   GUI-/Polar-Test steht aus (echte Werte + Sandbox).
+- **i18n: deutsche Oberfläche, umschaltbar auf Englisch (E2, umgesetzt 2026-08-03 — Vertrag: [wording.md](docs/wording.md)):**
+  **722 Katalogschlüssel**, Deutsch bleibt Default. **Bewusst keine Bibliothek** ([src/i18n/index.ts](src/i18n/index.ts),
+  ~130 Zeilen): `t()` muss **ohne React-Kontext** laufen (die 59 Toasts entstehen im Zustand-Store, die
+  §20-Toolbar-Beschriftungen im injizierten Iframe-Skript — beide haben keinen React-Baum), und der Katalog muss
+  `as const` sein, damit **`tsc` die Vollständigkeit erzwingt**: `en.ts` ist `Record<I18nKey, string>`, jede
+  `en/`-Bereichsdatei zusätzlich gegen ihr deutsches Gegenstück → fehlende **und** erfundene Übersetzung sind
+  Compile-Fehler mit Zeilenangabe, kein Testfehler. Aufteilung in 9 Bereichsdateien (`common`/`ui`/`modals`/`media`/
+  `editor`/`presentation`/`store`/`lib`/`components`), flache punktgetrennte Schlüssel (verschachtelt bräche
+  `keyof typeof`). Plural über `tp()` + `Intl.PluralRules` (ersetzt ~10 `Folie${n===1?'':'n'}`-Hacks), Sätze mit
+  eingebetteten Knoten über [`<T>`](src/i18n/T.tsx) mit nummerierten Steckplätzen (nie Satzfragmente — daraus
+  lässt sich keine zweite Sprache bauen).
+  **Wechsel wirkt nach Neustart, nicht live** — bewusst: live kostete fünf Kopplungspunkte (Tiptap-Placeholder
+  einmalig in `useEditor()`, drei Render-`useMemo` ohne Locale in den deps, `classifyPreviewChange`, das
+  Projektor-Fenster als eigener WebView ohne Store). `applyLocale()` steht bereit; die Tests nutzen es bereits.
+  Das Projektor-Fenster bekommt die Sprache **automatisch** über denselben localStorage (gleiche Origin).
+  **Grenze Oberfläche ↔ Inhalt** (die heikelste Entscheidung, Regel in wording.md): *„Sieht diesen String jemand,
+  der Slideo nicht offen hat?"* → dann ist es Inhalt. Inhalt (Vorlagen-Markdown, Komponenten-Seeds, Titel-Default)
+  wird **einmalig beim Erzeugen** lokalisiert und ist danach eingefroren — ein Sprachwechsel fasst **nie** ein
+  bestehendes Deck an. Bewusst sprachunabhängig fest: `Slide N` (persistiert, Rust vergibt denselben Default →
+  sonst driften Mensch- und KI-Folien im selben Deck), `Unbenannt` in [normalize.ts](src/lib/normalize.ts)
+  (repariert eine **fremde** Datei), `(Kopie)`, Datei-Slugs.
+  **Rust-Grenze als Hybrid** ([errcode.rs](src-tauri/src/errcode.rs)): die ~25 **handlungsrelevanten** Fehler
+  (Lizenz, MCP-Registrierung, Folien-Fenster) melden `slideo:<code>[|<detail>]`, das Frontend übersetzt sie in
+  **`describeError()`** ([tauri.ts](src/lib/tauri.ts)) über `error.<code>`; der Diagnose-Schwanz (Datei-I/O,
+  History) bleibt deutsche Prosa und wird durchgereicht. **Achtung — die Fehlerklasse dieses Umbaus:** jeder
+  Anzeigeort MUSS durch `describeError()`, sonst sieht der Nutzer den Maschinencode. Genau das ist an fünf Stellen
+  passiert und erst im adversarialen Review aufgefallen (`status.lastError`, LicenseBar, PresentationMode ×2, zwei
+  lokale `errMsg`-Helfer) — der Scanner hat dafür jetzt die Regel `raw-error`.
+  **Neu additiv: `meta.language`** (`version` bleibt "1.0") = Sprache der **Folien**, nicht der Oberfläche. Treibt
+  `lang` in Vorschau/Präsentation/Standalone/Print/Thumbnails (`deckLang()`) und damit Silbentrennung,
+  Screenreader und die **Rechtschreibprüfung im `contenteditable`** beim §20-Inline-Edit. Bewusst **nicht** an die
+  Oberflächensprache gekoppelt — sonst trüge dasselbe Deck je nach Exporteur ein anderes `lang`. UI im
+  Design-Overlay; `classifyPreviewChange` behandelt eine Änderung als `full` (das `lang` liegt außerhalb jeder
+  Zone, ein In-Place-Patch käme dort nie an). Das **App-Dokument** folgt getrennt der Oberflächensprache
+  ([main.tsx](src/main.tsx)). **Offen:** per MCP angelegte Decks bekommen das Feld nicht (Rust kennt die Sprache
+  nicht) → Default `de`; ein `language`-Parameter für `create_presentation` gehört ins Stage-5-MCP-Bündel.
+  **#47 (ein Vokabular) im gewählten Umfang:** „Folie" (nie Slide/Zone) und „Präsentation" (nie Deck) in der
+  Oberfläche; Datenmodell heißt weiter `zone`. Snapshot/Schnappschuss, Speaker-Ansicht und KI-Agent/MCP-Client
+  behalten bewusst ihre heutige Formulierung.
+  **Absicherung (alles an `npm run build`):** `tsc` (Schlüssel + Katalog-Vollständigkeit) ·
+  [i18n.test.ts](src/i18n/i18n.test.ts) (Leerwerte, Platzhalter-Parität, Plural-Paare, **Backtick-Verbot** — Teile
+  des Katalogs landen in Template-Literalen) · [renderer.test.ts](src/lib/renderer.test.ts) läuft jetzt über
+  **beide Sprachen** (ein Apostroph im englischen Text hätte sonst nur dort das Markup zerlegt) ·
+  [check-i18n.mjs](scripts/check-i18n.mjs) **auf dem TypeScript-Parser**, nicht auf Regex: in `.tsx` ist JSX-Text
+  von `useState<Foo>(null)` nicht per Muster unterscheidbar — die Regex-Fassung meldete erst 40 Fehlalarme und
+  übersah bei engerer Fassung eine testweise eingebaute Beschriftung **vollständig**. **Jedes dieser Gates ist mit
+  einer Negativkontrolle belegt** (Text einbauen → Gate muss anschlagen); ohne das ist ein grünes Gate wertlos.
+  **AI-facing bleibt unberührt** (MCP-`instructions`, `slideo_guide`, Tool-Beschreibungen, `list_components`) —
+  deutsche **Dev-Kommentare** ebenso (Repo-Konvention). Deutscher Anzeigetext ist zeichengleich zum Vorzustand
+  (mechanisch über alle 722 Werte gegen `HEAD` geprüft), bis auf die 9 bewussten #47-Änderungen.
+  cargo test **54** (+2), Vitest **92** (+23), typecheck, build grün; adversarial reviewt (6 Dimensionen, je 2
+  Skeptiker → 13 bestätigte Funde auf 4 Defekte, alle gefixt). **GUI-Check ausstehend.**
 
 **Feature-Roadmap §18/§19 ist im Wesentlichen abgeschlossen** (Komponenten-Palette §18.7-Rest,
 Versionshistorie §19.9-Rest, Auto-Animate §19.1-Rest, echtes Zweitfenster §19.3-Rest umgesetzt; MCP-Parität

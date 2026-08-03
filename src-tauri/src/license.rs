@@ -133,9 +133,11 @@ fn read_from_disk() -> Store {
 
 fn write_to_disk(s: &Store) -> Result<(), String> {
     let Some(path) = store_path() else {
-        return Err("Kein Config-Verzeichnis gefunden".into());
+        return Err(crate::errcode::code("license.noConfigDir"));
     };
-    let dir = path.parent().ok_or("Kein übergeordneter Ordner")?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| crate::errcode::code("license.noParentDir"))?;
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let json = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
     let tmp = dir.join(format!(".license-{}.tmp", uuid::Uuid::new_v4().simple()));
@@ -294,25 +296,25 @@ async fn http_activate(c: &Client, key: &str, fp: &str, label: &str) -> Result<S
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("Netzwerkfehler bei der Aktivierung: {e}"))?;
+        .map_err(|e| crate::errcode::code_with("license.networkActivate", e))?;
     let code = resp.status().as_u16();
     if code == 403 {
-        return Err(
-            "Aktivierungslimit erreicht (max. Geräte). Gib ein anderes Gerät frei und versuche es erneut."
-                .into(),
-        );
+        return Err(crate::errcode::code("license.deviceLimit"));
     }
     if code == 404 {
-        return Err("Lizenzschlüssel nicht gefunden. Bitte den Schlüssel prüfen.".into());
+        return Err(crate::errcode::code("license.notFoundCheckKey"));
     }
     if !resp.status().is_success() {
-        return Err(format!("Aktivierung abgelehnt (HTTP {code})."));
+        return Err(crate::errcode::code_with("license.activateRejected", code));
     }
-    let v: Value = resp.json().await.map_err(|e| format!("Ungültige Antwort: {e}"))?;
+    let v: Value = resp
+        .json()
+        .await
+        .map_err(|e| crate::errcode::code_with("license.badResponse", e))?;
     v.get("id")
         .and_then(|x| x.as_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| "Aktivierungs-ID fehlt in der Antwort".into())
+        .ok_or_else(|| crate::errcode::code("license.activationIdMissing"))
 }
 
 async fn http_validate(c: &Client, key: &str, activation_id: Option<&str>) -> Result<Value, String> {
@@ -328,15 +330,17 @@ async fn http_validate(c: &Client, key: &str, activation_id: Option<&str>) -> Re
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("Netzwerkfehler bei der Prüfung: {e}"))?;
+        .map_err(|e| crate::errcode::code_with("license.networkValidate", e))?;
     let code = resp.status().as_u16();
     if code == 404 {
-        return Err("Lizenzschlüssel nicht gefunden.".into());
+        return Err(crate::errcode::code("license.notFound"));
     }
     if !resp.status().is_success() {
-        return Err(format!("Prüfung fehlgeschlagen (HTTP {code})."));
+        return Err(crate::errcode::code_with("license.validateFailed", code));
     }
-    resp.json().await.map_err(|e| format!("Ungültige Antwort: {e}"))
+    resp.json()
+        .await
+        .map_err(|e| crate::errcode::code_with("license.badResponse", e))
 }
 
 async fn http_deactivate(c: &Client, key: &str, activation_id: &str) -> Result<(), String> {
@@ -350,10 +354,10 @@ async fn http_deactivate(c: &Client, key: &str, activation_id: &str) -> Result<(
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("Netzwerkfehler: {e}"))?;
+        .map_err(|e| crate::errcode::code_with("license.networkDeactivate", e))?;
     let code = resp.status().as_u16();
     if !resp.status().is_success() && code != 204 {
-        return Err(format!("Deaktivierung fehlgeschlagen (HTTP {code})."));
+        return Err(crate::errcode::code_with("license.deactivateFailed", code));
     }
     Ok(())
 }
@@ -362,11 +366,11 @@ async fn http_deactivate(c: &Client, key: &str, activation_id: &str) -> Result<(
 /// Aktiviert einen Lizenzschlüssel auf diesem Gerät (activate → validate → Cache).
 pub async fn activate(key: String) -> Result<LicenseStatus, String> {
     if !configured() {
-        return Err("Lizenzierung ist noch nicht konfiguriert.".into());
+        return Err(crate::errcode::code("license.notConfigured"));
     }
     let key = key.trim().to_string();
     if key.is_empty() {
-        return Err("Bitte einen Lizenzschlüssel eingeben.".into());
+        return Err(crate::errcode::code("license.keyEmpty"));
     }
     let fp = fingerprint();
     let c = client()?;
@@ -376,21 +380,18 @@ pub async fn activate(key: String) -> Result<LicenseStatus, String> {
     let pre = http_validate(&c, &key, None).await?;
     let pre_status = pre.get("status").and_then(|x| x.as_str()).unwrap_or("");
     if pre_status != "granted" {
-        return Err(format!("Lizenz nicht gültig (Status: {pre_status})."));
+        return Err(crate::errcode::code_with("license.notGranted", pre_status));
     }
     let benefit_id = pre.get("benefit_id").and_then(|x| x.as_str()).map(String::from);
     if !benefit_entitled(benefit_id.as_deref()) {
-        return Err(
-            "Dieser Schlüssel gehört zu einer anderen Slideo-Version. Bitte das Upgrade für diese Version kaufen."
-                .into(),
-        );
+        return Err(crate::errcode::code("license.wrongVersion"));
     }
     // 2) Gerät aktivieren (bindet einen Slot) + final mit activation_id bestätigen.
     let activation_id = http_activate(&c, &key, &fp, &device_label()).await?;
     let v = http_validate(&c, &key, Some(&activation_id)).await?;
     let status = v.get("status").and_then(|x| x.as_str()).unwrap_or("").to_string();
     if status != "granted" {
-        return Err(format!("Lizenz nicht gültig (Status: {status})."));
+        return Err(crate::errcode::code_with("license.notGranted", status));
     }
     let mut s = crate::state::lock_recover(cell()).clone();
     s.key = Some(key);
@@ -485,7 +486,8 @@ pub async fn license_deactivate() -> Result<LicenseStatus, String> {
 /// Öffnet die Polar-Checkout-Seite im Standardbrowser.
 #[tauri::command]
 pub fn license_open_checkout() -> Result<(), String> {
-    let url = checkout_url().ok_or("Der Kauf-Link ist noch nicht konfiguriert.")?;
+    let url = checkout_url()
+        .ok_or_else(|| crate::errcode::code("license.checkoutNotConfigured"))?;
     crate::commands::open_in_default_app(std::path::Path::new(url))
 }
 

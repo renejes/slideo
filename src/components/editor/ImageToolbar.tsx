@@ -6,6 +6,7 @@ import { type ImageAlign, type ImageFloat } from '@/lib/tiptap-image'
 import { usePresentationStore } from '@/store/presentation'
 import { CropModal } from '@/components/modals/CropModal'
 import { notify } from '@/store/toast'
+import { t } from '@/i18n'
 
 // Floating-Toolbar für selektierte Bilder (Spec §18.1 „Light"): Ausrichtung im Fluss
 // und Float mit Textumfluss (Breite wird stufenlos per Resize in der Vorschau gezogen,
@@ -52,7 +53,7 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
       })
       .run()
     notify(
-      ok ? 'Bild zugeschnitten.' : 'Zuschneiden fehlgeschlagen (Bildauswahl verloren).',
+      ok ? t('editor.image.cropDone') : t('editor.image.cropFailed'),
       ok ? 'success' : 'error',
     )
   }
@@ -112,45 +113,45 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
           style={style}
         >
           <div className="flex flex-col gap-1.5 rounded-xl border border-chrome-border bg-chrome-surface p-2 shadow-pop">
-            <Row label="Ausrichtung">
+            <Row label={t('editor.image.align')}>
           {(['left', 'center', 'right'] as ImageAlign[]).map((a) => (
             <IconButton
               key={a}
               active={attrs.align === a}
               onClick={() => apply({ align: a, float: null })}
               icon={alignIcon[a]}
-              title={`Ausrichtung ${a}`}
+              title={t('editor.image.alignTitle', { align: a })}
             />
           ))}
         </Row>
-        <Row label="Umfluss">
+        <Row label={t('editor.image.wrap')}>
           <TextButton active={!attrs.float} onClick={() => apply({ float: null })}>
-            Kein
+            {t('editor.image.wrapNone')}
           </TextButton>
           <TextButton active={attrs.float === 'left'} onClick={() => apply({ float: 'left', align: null })}>
-            Links
+            {t('editor.image.wrapLeft')}
           </TextButton>
           <TextButton active={attrs.float === 'right'} onClick={() => apply({ float: 'right', align: null })}>
-            Rechts
+            {t('editor.image.wrapRight')}
           </TextButton>
         </Row>
-            <Row label="Alt-Text">
+            <Row label={t('editor.image.alt')}>
               <input
                 type="text"
                 value={attrs.alt ?? ''}
                 onChange={(e) => setAlt(e.target.value)}
-                placeholder="Bildbeschreibung (Barrierefreiheit)"
+                placeholder={t('editor.image.altPlaceholder')}
                 className="h-6 w-[13rem] rounded-md border border-chrome-border bg-white px-2 text-[12px] text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-1 focus:ring-chrome-accent/30"
               />
             </Row>
-            <Row label="Bild">
+            <Row label={t('editor.image.image')}>
               <button
                 onClick={openCrop}
                 className={btnBase + ' w-full gap-1 text-chrome-secondary hover:bg-chrome-surface-2'}
-                title="Bild zuschneiden"
+                title={t('editor.image.cropTitle')}
               >
                 <Icon name="crop" size={14} weight={400} />
-                Zuschneiden
+                {t('editor.image.crop')}
               </button>
             </Row>
           </div>

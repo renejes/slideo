@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
+import { t } from '@/i18n'
 import { getMcpActivity, type McpActivity } from '@/lib/mcp-registration'
 
 // Verbindungs-Anzeige für den KI-Kanal (Review 2026-08, Befund B8).
@@ -21,10 +22,10 @@ const POLL_MS = 5_000
 
 function ago(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000))
-  if (s < 60) return `vor ${s} s`
+  if (s < 60) return t('ui.chip.agoSec', { n: s })
   const m = Math.round(s / 60)
-  if (m < 60) return `vor ${m} min`
-  return `vor ${Math.round(m / 60)} h`
+  if (m < 60) return t('ui.chip.agoMin', { n: m })
+  return t('ui.chip.agoHour', { n: Math.round(m / 60) })
 }
 
 export function McpStatusChip() {
@@ -56,13 +57,17 @@ export function McpStatusChip() {
   const since = activity ? now - activity.at_ms : Infinity
   const fresh = since < FRESH_MS
   // Drei Zustände statt zwei: „noch nie" ist etwas anderes als „stumm geworden".
-  const label = !activity ? 'KI nicht verbunden' : fresh ? 'KI verbunden' : `KI ${ago(since)}`
+  const label = !activity
+    ? t('ui.chip.disconnected')
+    : fresh
+      ? t('ui.chip.connected')
+      : t('ui.chip.idle', { ago: ago(since) })
   const title = !activity
-    ? 'Seit dem Start hat noch kein KI-Tool Slideo erreicht.\n' +
-      'Achtung: dein MCP-Client meldet die Werkzeuge auch dann als vorhanden, wenn Slideo nicht läuft — ' +
-      'erst der erste echte Aufruf zeigt es.\nZum Einrichten klicken.'
-    : `Zuletzt: ${activity.tool} (${ago(since)})` +
-      (activity.client_version ? `\nConnector-Version ${activity.client_version}` : '')
+    ? t('ui.chip.titleNever')
+    : t('ui.chip.titleLast', { tool: activity.tool, ago: ago(since) }) +
+      (activity.client_version
+        ? '\n' + t('ui.chip.titleVersion', { version: activity.client_version })
+        : '')
 
   return (
     <button

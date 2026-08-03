@@ -1,3 +1,5 @@
+import { t } from '@/i18n'
+
 // WCAG-Kontrast (Barrierefreiheit, Spec §19.7). Reine Funktionen, UI-frei.
 
 function parseHex(color: string): [number, number, number] | null {
@@ -43,8 +45,9 @@ export interface ContrastRating {
 
 /** Bewertet ein Kontrastverhältnis für normalen Fließtext (WCAG AA/AAA). */
 export function rateContrast(ratio: number): ContrastRating {
+  // „AA"/„AAA" sind WCAG-Stufennamen und bleiben in jeder Sprache unübersetzt.
   if (ratio >= 7) return { ratio, label: 'AAA', pass: true }
   if (ratio >= 4.5) return { ratio, label: 'AA', pass: true }
-  if (ratio >= 3) return { ratio, label: 'nur große Schrift', pass: false }
-  return { ratio, label: 'zu niedrig', pass: false }
+  if (ratio >= 3) return { ratio, label: t('lib.contrast.largeTextOnly'), pass: false }
+  return { ratio, label: t('lib.contrast.tooLow'), pass: false }
 }

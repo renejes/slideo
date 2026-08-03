@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AssetMap, Presentation, Zone } from '@/types'
 import { renderSingleZonePage } from '@/lib/renderer'
 import { isTauri, assetUrlBase } from '@/lib/tauri'
+import { t } from '@/i18n'
 
 /**
  * Statische Folien-Vorschau (Thumbnail / Speaker-Mini / Übersicht).
@@ -73,7 +74,7 @@ export function SlidePreview({
       >
         <iframe
           src={src}
-          title={zone.label || 'Folienvorschau'}
+          title={zone.label || t('present.thumb.title')}
           sandbox="allow-scripts"
           tabIndex={-1}
           scrolling="no"

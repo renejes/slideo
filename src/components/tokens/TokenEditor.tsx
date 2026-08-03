@@ -11,6 +11,7 @@ import {
 import { usePresentationStore } from '@/store/presentation'
 import { PRESETS, type Preset } from '@/lib/presets'
 import { contrastRatio, rateContrast } from '@/lib/contrast'
+import { t, LOCALES } from '@/i18n'
 import { Icon } from '@/components/ui/Icon'
 
 // „Brand Kit" zum Bearbeiten der Design-Tokens (CSS Custom Properties). Lebt im
@@ -29,7 +30,7 @@ export function TokenEditor() {
   return (
     <div className="flex flex-col pb-1">
       <ThemePicker />
-      <Section title="Farben">
+      <Section title={t('editor.tokens.colors')}>
         <div className="flex flex-col gap-2.5">
           {COLOR_FIELDS.map((f) => (
             <TokenField key={f.key} field={f} />
@@ -40,6 +41,7 @@ export function TokenEditor() {
       <FontsSection />
       <LogoSection />
       <TransitionPicker />
+      <DeckLanguagePicker />
       <AdvancedSection />
     </div>
   )
@@ -75,7 +77,7 @@ function TokenField({ field }: { field: TokenFieldDef }) {
             value={normalizeColor(value)}
             onChange={(e) => setToken(field.key, e.target.value)}
             className="h-7 w-7 shrink-0 cursor-pointer rounded-md border border-chrome-border bg-white p-0.5"
-            aria-label={`${field.label} Farbe`}
+            aria-label={t('editor.tokens.colorAria', { label: field.label })}
           />
         )}
         <input
@@ -114,15 +116,15 @@ function FontsSection() {
     <div className="border-t border-chrome-border px-3 py-3">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-          Schriften
+          {t('editor.tokens.fonts')}
         </span>
         <button
           onClick={() => fileRef.current?.click()}
           className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-chrome-accent-600 transition-colors hover:bg-chrome-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Schriftdatei (woff2/woff/ttf/otf) hochladen"
+          title={t('editor.tokens.fontUpload')}
         >
           <Icon name="upload" size={15} weight={400} />
-          Hochladen
+          {t('editor.tokens.upload')}
         </button>
       </div>
       <div className="flex flex-col gap-2.5">
@@ -149,9 +151,7 @@ function FontsSection() {
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-[11px] text-chrome-faint">
-          Eigene Schrift hochladen → erscheint oben in „Überschrift-/Fließtext-Font".
-        </p>
+        <p className="mt-2 text-[11px] text-chrome-faint">{t('editor.tokens.fontHint')}</p>
       )}
       {/* Auswahlliste für die Font-Token-Felder (System + hochgeladen). */}
       <datalist id="slideo-fonts">
@@ -189,23 +189,23 @@ function LogoSection() {
     <div className="border-t border-chrome-border px-3 py-3">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-          Logo
+          {t('editor.tokens.logo')}
         </span>
         {logo ? (
           <button
             onClick={clearLogo}
             className="rounded-md px-1.5 py-1 text-[12px] text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
-            Entfernen
+            {t('editor.tokens.logoRemove')}
           </button>
         ) : (
           <button
             onClick={() => fileRef.current?.click()}
             className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-chrome-accent-600 transition-colors hover:bg-chrome-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-            title="Logo-Bild hochladen (PNG/SVG mit Transparenz empfohlen)"
+            title={t('editor.tokens.logoUpload')}
           >
             <Icon name="upload" size={15} weight={400} />
-            Hochladen
+            {t('editor.tokens.upload')}
           </button>
         )}
       </div>
@@ -228,9 +228,7 @@ function LogoSection() {
           </select>
         </div>
       ) : (
-        <p className="text-[11px] text-chrome-faint">
-          Logo-Bild hochladen → erscheint dezent auf jeder Folie (auch im Export).
-        </p>
+        <p className="text-[11px] text-chrome-faint">{t('editor.tokens.logoHint')}</p>
       )}
     </div>
   )
@@ -242,13 +240,13 @@ function ContrastCheck() {
   const tokens = presentation?.tokens
   if (!tokens) return null
   const checks = [
-    { label: 'Text / Hintergrund', fg: tokens['color-text'], bg: tokens['color-bg'] },
-    { label: 'Akzent / Hintergrund', fg: tokens['color-accent'], bg: tokens['color-bg'] },
+    { label: t('editor.tokens.contrastText'), fg: tokens['color-text'], bg: tokens['color-bg'] },
+    { label: t('editor.tokens.contrastAccent'), fg: tokens['color-accent'], bg: tokens['color-bg'] },
   ]
   return (
     <div className="border-t border-chrome-border px-3 py-3">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-        Kontrast (WCAG)
+        {t('editor.tokens.contrast')}
       </span>
       <div className="flex flex-col gap-1.5">
         {checks.map((c) => {
@@ -268,7 +266,11 @@ function ContrastCheck() {
                       ? 'bg-emerald-50 text-emerald-700'
                       : 'bg-chrome-warn-soft text-chrome-warn')
                   }
-                  title={rating.pass ? 'Erfüllt WCAG AA' : 'Unter WCAG AA (4.5:1) für normalen Text'}
+                  title={
+                    rating.pass
+                      ? t('editor.tokens.contrastPass')
+                      : t('editor.tokens.contrastFail')
+                  }
                 >
                   {rating.label}
                 </span>
@@ -292,22 +294,22 @@ function TransitionPicker() {
   return (
     <div className="border-t border-chrome-border px-3 py-3">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-        Übergang
+        {t('editor.tokens.transition')}
       </span>
       <select
         value={kind}
         onChange={(e) => setTransition(e.target.value as TransitionKind, duration)}
         className="w-full rounded-md border border-chrome-border bg-white px-2 py-1.5 text-[12px] text-chrome-text transition-colors focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
       >
-        {TRANSITIONS.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
+        {TRANSITIONS.map((tr) => (
+          <option key={tr.value} value={tr.value}>
+            {tr.label}
           </option>
         ))}
       </select>
       {kind !== 'none' && (
         <label className="mt-2 flex items-center justify-between gap-2 text-[11px] text-chrome-muted">
-          Dauer (ms)
+          {t('editor.tokens.transitionDuration')}
           <input
             type="number"
             min={0}
@@ -318,9 +320,41 @@ function TransitionPicker() {
           />
         </label>
       )}
-      <p className="mt-1.5 text-[11px] text-chrome-faint">
-        Gilt für den Präsentationsmodus und den HTML-Export.
-      </p>
+      <p className="mt-1.5 text-[11px] text-chrome-faint">{t('editor.tokens.transitionHint')}</p>
+    </div>
+  )
+}
+
+/**
+ * Sprache der FOLIEN (`meta.language`) — nicht der Oberfläche.
+ *
+ * Steht hier bei den deck-weiten Einstellungen, weil sie zum Dokument gehört und
+ * mit der Datei wandert: sie bestimmt das `lang` in Vorschau, Präsentation,
+ * Standalone-Export und PDF und damit Silbentrennung, Screenreader-Aussprache und
+ * die Rechtschreibprüfung beim Inline-Bearbeiten in der Vorschau.
+ */
+function DeckLanguagePicker() {
+  const presentation = usePresentationStore((s) => s.presentation)
+  const setDeckLanguage = usePresentationStore((s) => s.setDeckLanguage)
+  const value = presentation?.meta.language || 'de'
+
+  return (
+    <div className="border-t border-chrome-border px-3 py-3">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
+        {t('editor.tokens.deckLanguage')}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => setDeckLanguage(e.target.value)}
+        className="w-full rounded-md border border-chrome-border bg-white px-2 py-1.5 text-[12px] text-chrome-text transition-colors focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
+      >
+        {LOCALES.map((l) => (
+          <option key={l.value} value={l.value}>
+            {l.label}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1.5 text-[11px] text-chrome-faint">{t('editor.tokens.deckLanguageHint')}</p>
     </div>
   )
 }
@@ -340,9 +374,9 @@ function AdvancedSection() {
         aria-expanded={open}
       >
         <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} weight={400} />
-        Erweitert
+        {t('editor.tokens.advanced')}
         <span className="ml-auto text-[10px] font-medium normal-case tracking-normal text-chrome-faint">
-          Größen &amp; Abstände
+          {t('editor.tokens.advancedHint')}
         </span>
       </button>
       {open && (
@@ -355,10 +389,10 @@ function AdvancedSection() {
           <button
             onClick={resetTokens}
             className="mt-3 flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-            title="Alle Design-Tokens auf den Standard zurücksetzen"
+            title={t('editor.tokens.resetTitle')}
           >
             <Icon name="settings_backup_restore" size={15} weight={400} />
-            Alle Tokens zurücksetzen
+            {t('editor.tokens.reset')}
           </button>
         </div>
       )}
@@ -373,7 +407,7 @@ function ThemePicker() {
   return (
     <div className="px-3 pb-3 pt-1">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
-        Themes
+        {t('editor.tokens.themes')}
       </span>
       <div className="grid grid-cols-2 gap-1.5">
         {PRESETS.map((preset) => (
@@ -394,14 +428,14 @@ function ThemePicker() {
 
 /** Mini-Vorschau eines Presets: Hintergrund mit Primär- und Akzent-Punkt. */
 function Swatch({ preset }: { preset: Preset }) {
-  const t = preset.tokens
+  const tk = preset.tokens
   return (
     <span
       className="flex h-6 w-6 shrink-0 items-center justify-center gap-0.5 rounded-md border border-chrome-border"
-      style={{ background: t['color-bg'] }}
+      style={{ background: tk['color-bg'] }}
     >
-      <span className="h-2 w-2 rounded-full" style={{ background: t['color-primary'] }} />
-      <span className="h-2 w-2 rounded-full" style={{ background: t['color-accent'] }} />
+      <span className="h-2 w-2 rounded-full" style={{ background: tk['color-primary'] }} />
+      <span className="h-2 w-2 rounded-full" style={{ background: tk['color-accent'] }} />
     </span>
   )
 }

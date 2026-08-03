@@ -2,6 +2,7 @@ import { Modal, modalGhostBtn } from '@/components/ui/Modal'
 import { useUiStore } from '@/store/ui'
 import { usePresentationStore } from '@/store/presentation'
 import { AssetLibrary } from '@/components/ui/AssetLibrary'
+import { t } from '@/i18n'
 
 // Asset-Verwaltung (Bereich 2). Zwei Modi (aus dem ui-Store):
 //  - „manage": über den Topbar-Button — alle Medien importieren/verwalten/löschen.
@@ -21,12 +22,12 @@ export function AssetManagerModal() {
 
   return (
     <Modal
-      title={picking ? 'Medium einfügen' : 'Asset-Verwaltung'}
+      title={picking ? t('media.assets.pickTitle') : t('media.assets.manageTitle')}
       onClose={closeModal}
       width="w-[38rem]"
       footer={
         <button className={modalGhostBtn} onClick={closeModal}>
-          {picking ? 'Abbrechen' : 'Schließen'}
+          {picking ? t('common.cancel') : t('common.close')}
         </button>
       }
     >

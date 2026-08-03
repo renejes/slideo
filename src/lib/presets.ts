@@ -1,4 +1,5 @@
 import type { DesignTokens } from '@/types'
+import { t } from '@/i18n'
 
 // Theme-Presets: kuratierte Design-Token-Bündel für einen schnellen Look.
 // Anwenden = setTokensBulk(preset.tokens) (store.applyPreset).
@@ -11,6 +12,7 @@ import type { DesignTokens } from '@/types'
 // Namen fallen im Renderer ohnehin auf sans-serif/serif zurück.
 
 export interface Preset {
+  /** API-Wert (MCP `apply_preset`, presets.rs) — NIE übersetzen. */
   name: string
   label: string
   description: string
@@ -20,8 +22,8 @@ export interface Preset {
 export const PRESETS: Preset[] = [
   {
     name: 'editorial',
-    label: 'Editorial',
-    description: 'Hell, serif, redaktionell — ruhige Typo mit Terrakotta-Akzent.',
+    label: t('lib.preset.editorial.label'),
+    description: t('lib.preset.editorial.description'),
     tokens: {
       'color-primary': '#1f1d1b',
       'color-secondary': '#6b6357',
@@ -38,8 +40,8 @@ export const PRESETS: Preset[] = [
   },
   {
     name: 'dark-tech',
-    label: 'Dark Tech',
-    description: 'Dunkel, sachlich — Blau/Cyan-Akzente auf tiefem Nachtblau.',
+    label: t('lib.preset.dark-tech.label'),
+    description: t('lib.preset.dark-tech.description'),
     tokens: {
       'color-primary': '#3b82f6',
       'color-secondary': '#94a3b8',
@@ -56,8 +58,8 @@ export const PRESETS: Preset[] = [
   },
   {
     name: 'warm',
-    label: 'Warm',
-    description: 'Warmes Creme mit Orange — einladend und freundlich.',
+    label: t('lib.preset.warm.label'),
+    description: t('lib.preset.warm.description'),
     tokens: {
       'color-primary': '#c2410c',
       'color-secondary': '#9a8478',
@@ -74,8 +76,8 @@ export const PRESETS: Preset[] = [
   },
   {
     name: 'minimal',
-    label: 'Minimal',
-    description: 'Schwarz-Weiß, maximale Zurückhaltung — keine Eckenradien.',
+    label: t('lib.preset.minimal.label'),
+    description: t('lib.preset.minimal.description'),
     tokens: {
       'color-primary': '#111111',
       'color-secondary': '#8a8a8a',
@@ -92,8 +94,8 @@ export const PRESETS: Preset[] = [
   },
   {
     name: 'corporate',
-    label: 'Corporate',
-    description: 'Professionell — Marineblau auf Weiß, klare Blautöne.',
+    label: t('lib.preset.corporate.label'),
+    description: t('lib.preset.corporate.description'),
     tokens: {
       'color-primary': '#1e3a8a',
       'color-secondary': '#64748b',

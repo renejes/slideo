@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { t } from '@/i18n'
 import { Icon } from './Icon'
 
 interface ModalProps {
@@ -41,7 +42,7 @@ export function Modal({ title, onClose, children, footer, width = 'w-[30rem]' }:
           <button
             onClick={onClose}
             className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text"
-            aria-label="Schließen"
+            aria-label={t('common.close')}
           >
             <Icon name="close" size={18} weight={400} />
           </button>

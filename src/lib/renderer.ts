@@ -2,6 +2,7 @@ import type { Presentation, Zone, AssetMap, TransitionKind } from '@/types'
 import { markdownToHtml, splitMarkdownBlocks } from './markdown-tiptap'
 import { tokensToCssString } from './tokens'
 import { mediaKind, fontFormat, extFromName } from './assets'
+import { t } from '@/i18n'
 
 // Renderer: Markdown + Tokens → in sich geschlossene HTML-Page.
 //
@@ -13,8 +14,41 @@ import { mediaKind, fontFormat, extFromName } from './assets'
 // Basis der Token-CSS-Variablen. So ist die Page vollständig offline & portabel
 // (passend zu "DSGVO-konform, läuft lokal").
 
+// Attributwerte (und `<title>`-Textinhalt) escapen. `'` ist seit dem i18n-Umbau
+// zwingend dabei: Katalogtexte werden übersetzt, und englische Texte enthalten
+// regelmäßig Apostrophe („Don't"). Ein unescapetes `'` in einem einfach
+// gequoteten Attribut bricht das Markup, ohne dass tsc oder der Build es sehen.
 function escapeAttr(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+}
+
+/**
+ * Sprache der FOLIEN für das `lang`-Attribut der erzeugten Seite.
+ *
+ * Bewusst `meta.language` und NICHT die Oberflächensprache: dasselbe Deck soll in
+ * jedem Export dasselbe `lang` tragen, unabhängig davon, wer es exportiert. Fehlt
+ * das Feld (alle Dateien, die vor seiner Einführung entstanden sind), gilt wie
+ * bisher Deutsch.
+ */
+function deckLang(presentation: Presentation): string {
+  return escapeAttr(presentation.meta.language || 'de')
+}
+
+/**
+ * Wert für die Einbettung in ein injiziertes `<script>`-Literal.
+ *
+ * `JSON.stringify` allein genügt nicht: es escapet `/` nicht, ein `</script` im
+ * Text würde das Skript-Element vorzeitig schließen. Das Ersetzen von `<` durch
+ * die Unicode-Escape-Sequenz schließt das ab. Quotes, Backticks und Zeilenumbrüche
+ * neutralisiert `JSON.stringify` bereits — genau die Zeichen, an denen dieses
+ * Projekt bei den injizierten Skripten schon dreimal gestorben ist.
+ */
+function jsonForScript(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, '\\u003c')
 }
 
 /**
@@ -664,11 +698,37 @@ function navScript(
  *     Duplizieren/Löschen + Inline-Text-Edit einfacher Blöcke (p/h1–h3 → das editierte
  *     HTML konvertiert der Parent via Tiptap nach Markdown); kein Verschieben/Ebenen
  *     (Flussmodell). Re-Select über `slideo:reselect-block`. `selKind` ('element' | 'block').
+/**
+ * Beschriftungen für die §20-Mini-Toolbar im Iframe, gekeyt nach `data-de`.
+ *
+ * Eigene Funktion, weil das der einzige Ort im Renderer ist, an dem übersetzbarer
+ * Text in ein injiziertes Skript wandert — hier hängt später der Katalog-Lookup.
  */
+/** Tooltip des Block-Drag-Griffs in der editierbaren Vorschau. */
+function dragHandleLabel(): string {
+  return t('lib.preview.dragHandle')
+}
+
+function directEditToolbarLabels(): Record<string, string> {
+  return {
+    up: t('lib.preview.selectParent'),
+    text: t('lib.preview.editText'),
+    link: t('lib.preview.linkSlide'),
+    duplicate: t('common.duplicate'),
+    delete: t('lib.preview.delete'),
+  }
+}
+
 function editScript(directEdit: boolean): string {
   return `
 (function () {
   var DIRECT = ${directEdit ? 'true' : 'false'};
+  // Beschriftungen der §20-Mini-Toolbar. Bewusst als JSON-Objekt hereingereicht und
+  // per DOM-Property (btn.title = ...) gesetzt, NICHT als title="..."-Attribut im
+  // innerHTML-String: Attributtext in einfachen Quotes in einem Template-Literal
+  // wäre die dritte Escaping-Ebene übereinander — ein Apostroph im Text (englisch
+  // regelmäßig) würde hier den kompletten Overlay-Layer töten, bei grünem Build.
+  var UI = ${jsonForScript(directEditToolbarLabels())};
   // Sichtbar für das navScript: im Direktbearbeiten-Modus unterdrückt es
   // Zonen-Link-Klicks (der Klick selektiert dort Elemente, statt zu navigieren).
   window.__sldDirectEdit = DIRECT;
@@ -938,16 +998,22 @@ function editScript(directEdit: boolean): string {
     toolbar.className = 'slideo-de-toolbar slideo-de-ui';
     toolbar.style.display = 'none';
     toolbar.innerHTML =
-      '<button class="slideo-de-btn" data-de="up" title="Eine Ebene höher (Esc)">' +
+      '<button class="slideo-de-btn" data-de="up">' +
         '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>' +
-      '<button class="slideo-de-btn" data-de="text" title="Text bearbeiten (Doppelklick)">' +
+      '<button class="slideo-de-btn" data-de="text">' +
         '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>' +
-      '<button class="slideo-de-btn" data-de="link" title="Mit Folie verknüpfen (Zonen-Link)">' +
+      '<button class="slideo-de-btn" data-de="link">' +
         '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></button>' +
-      '<button class="slideo-de-btn" data-de="duplicate" title="Duplizieren">' +
+      '<button class="slideo-de-btn" data-de="duplicate">' +
         '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>' +
-      '<button class="slideo-de-btn" data-de="delete" title="Löschen (Entf)">' +
+      '<button class="slideo-de-btn" data-de="delete">' +
         '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/></svg></button>';
+    // Tooltips ueber die DOM-Property statt ueber innerHTML — konstruktiv escaping-frei.
+    var deBtns = toolbar.querySelectorAll('.slideo-de-btn');
+    for (var bi = 0; bi < deBtns.length; bi++) {
+      var lbl = UI[deBtns[bi].getAttribute('data-de')];
+      if (lbl) deBtns[bi].title = lbl;
+    }
     document.body.appendChild(toolbar);
 
     var selEl = null, selZone = null, selKind = null; // selKind: 'element' (HTML-Zone) | 'block' (Markdown)
@@ -1652,7 +1718,7 @@ function renderEditableBlocks(markdown: string): string {
       (b, i) =>
         `<div class="slideo-block" data-block-index="${i}">` +
         (showHandle
-          ? `<span class="slideo-drag" data-drag-handle title="Ziehen zum Umsortieren"></span>`
+          ? `<span class="slideo-drag" data-drag-handle title="${escapeAttr(dragHandleLabel())}"></span>`
           : '') +
         markdownToHtml(b) +
         `</div>`,
@@ -1815,7 +1881,7 @@ html, body { height: 100%; overflow-x: hidden; }`
       : '')
 
   return `<!doctype html>
-<html lang="de">
+<html lang="${deckLang(presentation)}">
 <head>
 <meta charset="utf-8" />
 ${standalone ? '' : SLIDE_CSP_META}
@@ -1860,7 +1926,7 @@ export function renderPrintPage(presentation: Presentation, assets?: AssetMap): 
     .join('\n')
 
   return `<!doctype html>
-<html lang="de">
+<html lang="${deckLang(presentation)}">
 <head>
 <meta charset="utf-8" />
 <title>${escapeAttr(presentation.meta.title)}</title>
@@ -1914,7 +1980,7 @@ export function renderSingleZonePage(
   assetUrlBase?: string,
 ): string {
   return `<!doctype html>
-<html lang="de"><head><meta charset="utf-8" />${SLIDE_CSP_META}<style>
+<html lang="${deckLang(presentation)}"><head><meta charset="utf-8" />${SLIDE_CSP_META}<style>
 ${fontFaceCss(presentation, assets)}
 :root {
 ${tokensToCssString(presentation.tokens)}

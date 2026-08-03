@@ -87,13 +87,13 @@ fn meta_http(method: &str, path: &str, body: Option<&str>) -> Result<(u16, Strin
     );
     stream
         .write_all(request.as_bytes())
-        .map_err(|e| format!("Senden fehlgeschlagen: {e}"))?;
+        .map_err(|e| crate::errcode::code_with("mcp.metaSendFailed", e))?;
     stream.flush().ok();
 
     let mut raw = Vec::new();
     stream
         .read_to_end(&mut raw)
-        .map_err(|e| format!("Lesen fehlgeschlagen: {e}"))?;
+        .map_err(|e| crate::errcode::code_with("mcp.metaReadFailed", e))?;
     let text = String::from_utf8_lossy(&raw).into_owned();
 
     let status = text
@@ -101,7 +101,7 @@ fn meta_http(method: &str, path: &str, body: Option<&str>) -> Result<(u16, Strin
         .next()
         .and_then(|line| line.split_whitespace().nth(1))
         .and_then(|code| code.parse::<u16>().ok())
-        .ok_or("Ungültige HTTP-Antwort von Meta-MCP")?;
+        .ok_or_else(|| crate::errcode::code("mcp.metaBadResponse"))?;
     Ok((status, text))
 }
 
@@ -250,11 +250,11 @@ fn desktop_registered() -> bool {
 
 fn desktop_register(exe: &str) -> Result<(), String> {
     let Some(path) = desktop_config_path() else {
-        return Err("Kein Config-Verzeichnis gefunden.".into());
+        return Err(crate::errcode::code("mcp.noConfigDir"));
     };
     // Keine Phantom-Config bei Nicht-Nutzern anlegen.
     if !desktop_available() {
-        return Err("Claude Desktop ist nicht installiert.".into());
+        return Err(crate::errcode::code("mcp.claudeDesktopMissing"));
     }
     set_mcp_server(&path, exe)
 }
@@ -290,7 +290,7 @@ fn claude_register(exe: &str) -> Result<(), String> {
     // `claude`-CLI ist daher oft nicht auffindbar. Der Datei-Edit ist äquivalent
     // (User-Scope = top-level `mcpServers`), idempotent und PATH-unabhängig.
     let Some(path) = claude_config_path() else {
-        return Err("Kein Home-Verzeichnis gefunden.".into());
+        return Err(crate::errcode::code("mcp.noHomeDir"));
     };
     set_mcp_server(&path, exe)
 }
@@ -349,7 +349,7 @@ fn meta_register(exe: &str) -> Result<(), String> {
     if (200..300).contains(&status) {
         Ok(())
     } else {
-        Err(format!("Meta-MCP /register antwortete mit HTTP {status}."))
+        Err(crate::errcode::code_with("mcp.metaRegisterHttp", status))
     }
 }
 
@@ -382,7 +382,7 @@ fn meta_unregister() -> Result<(), String> {
 fn current_exe() -> Result<String, String> {
     std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
-        .map_err(|e| format!("Eigenen Pfad nicht ermittelbar: {e}"))
+        .map_err(|e| crate::errcode::code_with("mcp.selfPathUnknown", e))
 }
 
 fn register(target: Target, exe: &str) -> Result<(), String> {

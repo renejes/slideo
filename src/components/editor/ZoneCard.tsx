@@ -5,6 +5,8 @@ import type { Zone } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
+import { t, tp } from '@/i18n'
+import { T } from '@/i18n/T'
 import { ZoneToolbar } from './ZoneToolbar'
 import { TiptapEditor } from './TiptapEditor'
 import { Icon } from '@/components/ui/Icon'
@@ -94,7 +96,7 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
     const all = Array.from(e.dataTransfer.files)
     const files = all.filter((f) => /^(image|video|audio)\//.test(f.type))
     if (files.length === 0) {
-      if (all.length > 0) notify('Nur Bilder, Video und Audio werden unterstützt.', 'info')
+      if (all.length > 0) notify(t('editor.card.mediaTypeOnly'), 'info')
       return
     }
     let failed = 0
@@ -106,7 +108,7 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
         failed++
       }
     }
-    if (failed > 0) notify(`${failed} Datei(en) konnten nicht gelesen werden.`, 'error')
+    if (failed > 0) notify(tp('editor.card.mediaReadFailed', failed), 'error')
   }
 
   const style: React.CSSProperties = {
@@ -142,7 +144,7 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-chrome-accent bg-chrome-accent-soft/85">
           <span className="flex items-center gap-1.5 text-[13px] font-semibold text-chrome-accent-600">
             <Icon name="image" size={18} weight={400} />
-            Medium hier ablegen
+            {t('editor.card.dropMedia')}
           </span>
         </div>
       )}
@@ -152,8 +154,8 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
           {...attributes}
           {...listeners}
           className="flex h-7 w-6 cursor-grab items-center justify-center rounded text-chrome-faint transition-colors hover:text-chrome-secondary active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Ziehen zum Umsortieren"
-          aria-label="Verschieben"
+          title={t('editor.card.dragHandle')}
+          aria-label={t('editor.card.dragHandleAria')}
         >
           <Icon name="drag_indicator" size={18} weight={400} />
         </button>
@@ -171,9 +173,9 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
       {overflowPx > 0 && (
         <div className="flex items-center gap-1.5 border-b border-chrome-warn/15 bg-chrome-warn-soft px-4 py-1.5 text-[12px]">
           <Icon name="warning" size={14} weight={500} className="text-chrome-warn" />
-          <span className="font-semibold text-chrome-warn">Inhalt läuft über</span>
+          <span className="font-semibold text-chrome-warn">{t('editor.card.overflowTitle')}</span>
           <span className="text-chrome-warn/70">
-            ~{overflowPx}px zu viel — wird in Präsentation und Export abgeschnitten.
+            {t('editor.card.overflowDetail', { px: overflowPx })}
           </span>
         </div>
       )}
@@ -182,10 +184,8 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
       {isHtml && (
         <div className="flex items-center gap-1.5 border-b border-chrome-warn/15 bg-chrome-warn-soft px-4 py-1.5 text-[12px]">
           <Icon name="bolt" size={14} weight={500} className="text-chrome-warn" />
-          <span className="font-semibold text-chrome-warn">Custom HTML</span>
-          <span className="text-chrome-warn/70">
-            Voller Browser-Modus — HTML, CSS &amp; JavaScript werden direkt gerendert.
-          </span>
+          <span className="font-semibold text-chrome-warn">{t('editor.card.htmlBadge')}</span>
+          <span className="text-chrome-warn/70">{t('editor.card.htmlHint')}</span>
         </div>
       )}
 
@@ -229,10 +229,10 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
         <button
           onClick={() => setActiveZone(zone.id)}
           className="block w-full px-4 py-2.5 text-left transition-colors hover:bg-chrome-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-          title="Zum Bearbeiten anklicken"
+          title={t('editor.card.clickToEdit')}
         >
           <span className="line-clamp-2 text-[12px] leading-relaxed text-chrome-muted">
-            {preview || <span className="italic text-chrome-faint">Leere Folie</span>}
+            {preview || <span className="italic text-chrome-faint">{t('editor.card.emptySlide')}</span>}
           </span>
         </button>
       )}
@@ -265,9 +265,14 @@ function CssPanel({ zone }: { zone: Zone }) {
       >
         <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} weight={400} />
         <Icon name="format_paint" size={15} weight={400} />
-        Custom CSS
-        {hasCss && <span className="h-1.5 w-1.5 rounded-full bg-chrome-accent-600" title="CSS aktiv" />}
-        <span className="ml-auto text-[11px] text-chrome-faint">stylt diese Folie</span>
+        {t('editor.card.cssTitle')}
+        {hasCss && (
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-chrome-accent-600"
+            title={t('editor.card.cssActive')}
+          />
+        )}
+        <span className="ml-auto text-[11px] text-chrome-faint">{t('editor.card.cssScope')}</span>
       </button>
       {open && (
         <div className="px-4 pb-3.5">
@@ -275,9 +280,13 @@ function CssPanel({ zone }: { zone: Zone }) {
             <CssEditor initialCss={cssValue} onChange={(value) => updateZoneCss(zone.id, value)} />
           </Suspense>
           <p className="mt-1.5 text-[11px] text-chrome-faint">
-            Selektoren beziehen sich auf diese Folie, z.B.{' '}
-            <code className="font-mono">h1 {'{'} letter-spacing: -.02em {'}'}</code>. Token-Variablen
-            wie <code className="font-mono">var(--color-accent)</code> bleiben themebar.
+            <T
+              k="editor.card.cssHint"
+              slots={[
+                <code className="font-mono">h1 {'{'} letter-spacing: -.02em {'}'}</code>,
+                <code className="font-mono">var(--color-accent)</code>,
+              ]}
+            />
           </p>
         </div>
       )}
@@ -299,18 +308,21 @@ function NotesPanel({ zone }: { zone: Zone }) {
       >
         <Icon name={open ? 'expand_more' : 'chevron_right'} size={16} weight={400} />
         <Icon name="sticky_note_2" size={15} weight={400} />
-        Notizen
+        {t('editor.card.notesTitle')}
         {hasNotes && (
-          <span className="h-1.5 w-1.5 rounded-full bg-chrome-accent-600" title="Notizen vorhanden" />
+          <span
+            className="h-1.5 w-1.5 rounded-full bg-chrome-accent-600"
+            title={t('editor.card.notesPresent')}
+          />
         )}
-        <span className="ml-auto text-[11px] text-chrome-faint">nur in der Speaker-View</span>
+        <span className="ml-auto text-[11px] text-chrome-faint">{t('editor.card.notesScope')}</span>
       </button>
       {open && (
         <div className="px-4 pb-3.5">
           <textarea
             value={notes}
             onChange={(e) => updateZoneNotes(zone.id, e.target.value)}
-            placeholder="Sprechernotizen für diese Folie …"
+            placeholder={t('editor.card.notesPlaceholder')}
             rows={3}
             className="w-full resize-y rounded-lg border border-chrome-border bg-chrome-bg px-3 py-2 text-[13px] leading-relaxed text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-1 focus:ring-chrome-accent/30"
           />

@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { t } from '@/i18n'
+import { T } from '@/i18n/T'
 
 // Review 2026-08, Befund M49: es gab im gesamten Baum KEINE ErrorBoundary. Ein
 // einziger Renderfehler — eine defekte oder von Hand editierte `.slideo`, ein
@@ -39,11 +41,10 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="flex flex-1 items-center justify-center bg-chrome-bg p-6">
         <div className="w-[34rem] max-w-full rounded-2xl border border-chrome-border bg-chrome-surface p-8 shadow-card">
           <h2 className="mb-2 text-[15px] font-semibold text-chrome-text">
-            {this.props.fallbackTitle ?? 'Diese Ansicht konnte nicht dargestellt werden'}
+            {this.props.fallbackTitle ?? t('ui.error.title')}
           </h2>
           <p className="mb-4 text-[13px] leading-relaxed text-chrome-secondary">
-            Deine Präsentation ist nicht verloren — sie liegt weiterhin auf der Platte. Häufigste
-            Ursache ist eine beschädigte oder von Hand bearbeitete <code>.slideo</code>-Datei.
+            <T k="ui.error.body" slots={[<code>.slideo</code>]} />
           </p>
           {/* Fehlertext kopierbar zeigen (Befund M21: Fehler landeten bisher in einem
               6-Sekunden-Toast und in der Konsole, die ein Desktop-Nutzer nicht erreicht). */}
@@ -55,13 +56,13 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={() => this.setState({ error: null })}
               className="rounded-md bg-chrome-accent-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-[#2553c9]"
             >
-              Erneut versuchen
+              {t('common.retry')}
             </button>
             <button
               onClick={() => window.location.reload()}
               className="rounded-md border border-chrome-border px-3 py-1.5 text-[13px] font-medium text-chrome-secondary transition-colors hover:text-chrome-text"
             >
-              App neu laden
+              {t('ui.error.reload')}
             </button>
           </div>
         </div>

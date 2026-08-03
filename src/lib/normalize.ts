@@ -97,6 +97,13 @@ export function normalizePresentation(raw: unknown): NormalizeResult {
         title: typeof meta.title === 'string' && meta.title ? meta.title : 'Unbenannt',
         created: typeof meta.created === 'string' ? meta.created : nowIso,
         modified: typeof meta.modified === 'string' ? meta.modified : nowIso,
+        // Additiv (Spec-Feld `meta.language`): nur uebernehmen, wenn es ein
+        // brauchbares BCP-47-artiges Tag ist. Alles andere faellt weg, der
+        // Renderer setzt dann seinen Default.
+        language:
+          typeof meta.language === 'string' && /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(meta.language)
+            ? meta.language
+            : undefined,
       },
       // Fehlende Tokens auffüllen: der Renderer schreibt sie als :root-Variablen,
       // eine fehlende Farbe ergäbe sonst `var(--color-bg)` ohne Wert.

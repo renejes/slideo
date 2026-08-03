@@ -49,10 +49,12 @@ import {
   recoveryWrite,
   recoveryClear,
   recoveryTake,
+  describeError,
   type RecoveryInfo,
   isTauri,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
+import { t, getLocale } from '@/i18n'
 
 type Mode = 'editor' | 'presentation'
 
@@ -194,6 +196,8 @@ interface PresentationState {
 
   // Präsentation (deck-weit)
   setTransition: (kind: TransitionKind, durationMs?: number) => void
+  /** Sprache der Folien (`meta.language`) — steuert `lang`, Silbentrennung, Rechtschreibprüfung. */
+  setDeckLanguage: (language: string) => void
 
   // UI
   setActiveZone: (id: string | null) => void
@@ -224,10 +228,6 @@ interface PresentationState {
 
 const now = () => new Date().toISOString()
 
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
-}
-
 function newId(): string {
   return crypto.randomUUID()
 }
@@ -248,10 +248,12 @@ function makeZone(order: number, markdown = ''): Zone {
 
 /** Starter-Template für eine frische, leere HTML-Zone. */
 function htmlStarter(): string {
+  // Inhalt, nicht Oberfläche: der Text wird beim ERZEUGEN in der aktuellen
+  // Sprache geschrieben und wandert in die `.slideo`-Datei (docs/wording.md).
   return [
     '<div style="text-align:center;color:var(--color-text);font-family:var(--font-heading)">',
-    '  <h1 style="font-size:3rem;margin:0">Interaktive Zone</h1>',
-    '  <p style="color:var(--color-secondary)">Beliebiges HTML, CSS &amp; JavaScript möglich.</p>',
+    `  <h1 style="font-size:3rem;margin:0">${t('store.htmlStarter.title')}</h1>`,
+    `  <p style="color:var(--color-secondary)">${t('store.htmlStarter.body')}</p>`,
     '</div>',
   ].join('\n')
 }
@@ -262,7 +264,7 @@ function makePresentation(title: string, template?: DeckTemplate): Presentation 
   const tokens = preset ? { ...DEFAULT_TOKENS, ...preset.tokens } : { ...DEFAULT_TOKENS }
   const seeds = template
     ? template.zones(title)
-    : [{ markdown: `# ${title}\n\nDein erster Slide. Leg los.` }]
+    : [{ markdown: t('store.newDeck.firstSlide', { title }) }]
   const zones = seeds.map((s, i) => {
     const z = makeZone(i, s.markdown)
     z.label = `Slide ${i + 1}`
@@ -272,7 +274,10 @@ function makePresentation(title: string, template?: DeckTemplate): Presentation 
   })
   return {
     version: FILE_FORMAT_VERSION,
-    meta: { title, created, modified: created },
+    // `language` ist die Sprache der FOLIEN, nicht der Oberfläche: hier einmal aus
+    // der Oberflächensprache vorbelegt, danach wandert sie mit der Datei und wird
+    // von einem späteren Sprachwechsel nicht mehr angefasst (docs/wording.md).
+    meta: { title, created, modified: created, language: getLocale() },
     tokens,
     zones,
   }
@@ -416,7 +421,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     // (recordHistory=false) still ablehnen, damit keine Toast-Flut entsteht.
     if (!useLicenseStore.getState().editingAllowed()) {
       if (recordHistory) {
-        notify('Testphase abgelaufen — Slideo ist schreibgeschützt. Aktiviere eine Lizenz zum Weiterbearbeiten.', 'error')
+        notify(t('store.readOnly.edit'), 'error')
       }
       return false
     }
@@ -494,10 +499,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
 
     newPresentation: (title, template) => {
       if (!useLicenseStore.getState().editingAllowed()) {
-        notify('Testphase abgelaufen — bitte aktiviere eine Lizenz, um neue Präsentationen zu erstellen.', 'error')
+        notify(t('store.readOnly.new'), 'error')
         return false
       }
-      const presentation = makePresentation(title || 'Unbenannt', template)
+      const presentation = makePresentation(title || t('store.newDeck.untitled'), template)
       set({
         presentation,
         filePath: null,
@@ -518,10 +523,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         const { presentation, fromNewerVersion } = normalizePresentation(raw.presentation)
         const assets = raw.assets
         if (fromNewerVersion) {
-          notify(
-            'Diese Datei stammt aus einer neueren Slideo-Version — sie wird bestmöglich geöffnet, aber Unbekanntes kann fehlen.',
-            'info',
-          )
+          notify(t('store.open.newerVersion'), 'info')
         }
         set({
           presentation,
@@ -535,10 +537,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           activeSlideIndex: 0,
         })
         useSettingsStore.getState().rememberRecent(path, presentation.meta.title)
-        notify('Präsentation geöffnet.', 'success')
+        notify(t('store.open.ok'), 'success')
       } catch (e) {
         console.error('[slideo] load_presentation fehlgeschlagen:', e)
-        notify(`Öffnen fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.open.failed', { error: describeError(e) }), 'error')
       }
     },
 
@@ -563,7 +565,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         // sonst bietet der nächste Start eine Wiederherstellung für nichts an.
         clearRecovery()
         useSettingsStore.getState().rememberRecent(target, presentation.meta.title)
-        notify('Gespeichert.', 'success')
+        notify(t('store.save.ok'), 'success')
         // Auto-Snapshot (Versionshistorie §19.9): still + im Backend dedupliziert;
         // Fehler dürfen das Speichern nicht stören (fire-and-forget).
         if (isTauri()) {
@@ -573,7 +575,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         }
       } catch (e) {
         console.error('[slideo] save_presentation fehlgeschlagen:', e)
-        notify(`Speichern fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.save.failed', { error: describeError(e) }), 'error')
       }
     },
 
@@ -594,10 +596,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       try {
         const html = renderStandalonePage(presentation, assets)
         await exportHtmlFile(path, html)
-        notify('Als HTML exportiert — überall im Browser abspielbar.', 'success')
+        notify(t('store.export.htmlOk'), 'success')
       } catch (e) {
         console.error('[slideo] export_html fehlgeschlagen:', e)
-        notify(`Export fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.export.failed', { error: describeError(e) }), 'error')
       }
     },
 
@@ -609,15 +611,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         // Standardbrowser auslagern; dort „Drucken → Als PDF sichern".
         try {
           await openPrintView(renderPrintPage(presentation, assets))
-          notify('Im Browser geöffnet — dort „Drucken → Als PDF sichern" (Cmd/Strg+P).', 'info')
+          notify(t('store.export.pdfOpened'), 'info')
         } catch (e) {
           console.error('[slideo] open_print_view fehlgeschlagen:', e)
-          notify(`PDF-Export fehlgeschlagen: ${errMsg(e)}`, 'error')
+          notify(t('store.export.pdfFailed', { error: describeError(e) }), 'error')
         }
       } else {
         // Reiner Browser-Dev: direkter Iframe-Druck funktioniert.
         exportPdfViaPrint(presentation, assets)
-        notify('Druckdialog geöffnet — „Als PDF sichern".', 'info')
+        notify(t('store.export.pdfDialog'), 'info')
       }
     },
 
@@ -632,7 +634,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           const path = await pickExportPptxPath(`${safeName}.pptx`)
           if (!path) return
           await exportPptxFile(path, base64)
-          notify('Als PowerPoint (.pptx) exportiert.', 'success')
+          notify(t('store.export.pptxOk'), 'success')
         } else {
           // Browser-Dev: Download über einen Blob aus dem base64-String.
           const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
@@ -645,11 +647,11 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           a.download = `${safeName}.pptx`
           a.click()
           URL.revokeObjectURL(url)
-          notify('PPTX heruntergeladen.', 'success')
+          notify(t('store.export.pptxDownloaded'), 'success')
         }
       } catch (e) {
         console.error('[slideo] export_pptx fehlgeschlagen:', e)
-        notify(`PPTX-Export fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.export.pptxFailed', { error: describeError(e) }), 'error')
       }
     },
 
@@ -1042,7 +1044,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const ok = mutate((p) => ({ ...p, fonts: [...(p.fonts ?? []), { family, asset }] }))
       if (!ok) return
       set({ assets: { ...get().assets, [asset]: dataUri } })
-      notify(`Schrift „${family}" hinzugefügt — in der Schriftart-Auswahl wählbar.`, 'success')
+      notify(t('store.font.added', { family }), 'success')
     },
 
     setLogo: (dataUri) => {
@@ -1056,7 +1058,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         get().removeAsset(asset) // nichts Verwaistes zurücklassen
         return
       }
-      notify('Logo gesetzt — erscheint auf jeder Folie.', 'success')
+      notify(t('store.logo.set'), 'success')
     },
 
     setLogoPosition: (position) => {
@@ -1093,7 +1095,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       // Bearbeiten verwerfen → nur in HTML-Zonen einfügen, sonst nur Hinweis (Asset
       // liegt bereits in der Library).
       if ((kind === 'video' || kind === 'audio') && !isHtmlZone) {
-        notify('Video/Audio gespeichert — in einer HTML-Zone einbinden (Toggle „HTML").', 'info')
+        notify(t('store.media.needsHtmlSlide'), 'info')
         return
       }
 
@@ -1121,7 +1123,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         }),
       }))
       if (!inserted) return // read-only → kein Erfolgs-Toast über einer Ablehnung (M54)
-      notify(kind === 'image' ? 'Bild eingefügt.' : 'Medium eingefügt.', 'success')
+      notify(t(kind === 'image' ? 'store.media.imageInserted' : 'store.media.inserted'), 'success')
     },
 
     setToken: (key, value) => {
@@ -1142,17 +1144,21 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     applyPreset: (name) => {
       const preset = findPreset(name)
       if (!preset) {
-        notify(`Theme „${name}" nicht gefunden.`, 'error')
+        notify(t('store.preset.notFound', { name }), 'error')
         return
       }
       if (!mutate((p) => ({ ...p, tokens: { ...p.tokens, ...preset.tokens } }))) return
-      notify(`Theme „${preset.label}" angewendet.`, 'success')
+      notify(t('store.preset.applied', { name: preset.label }), 'success')
     },
 
     setPresentationTitle: (title) => {
       const clean = title.trim()
       if (!clean) return
       mutate((p) => (p.meta.title === clean ? p : { ...p, meta: { ...p.meta, title: clean } }))
+    },
+
+    setDeckLanguage: (language) => {
+      mutate((p) => ({ ...p, meta: { ...p.meta, language } }))
     },
 
     setTransition: (kind, durationMs) => {
@@ -1171,11 +1177,11 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
     createSnapshot: async (label = '') => {
       const { presentation, assets, filePath } = get()
       if (!isTauri()) {
-        notify('Versionshistorie ist nur in der Desktop-App verfügbar.', 'info')
+        notify(t('store.history.desktopOnly'), 'info')
         return false
       }
       if (!presentation || !filePath) {
-        notify('Bitte die Präsentation zuerst speichern (Cmd/Strg+S).', 'info')
+        notify(t('store.history.saveFirst'), 'info')
         return false
       }
       try {
@@ -1189,13 +1195,13 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           newId(),
         )
         notify(
-          meta ? 'Schnappschuss erstellt.' : 'Keine Änderungen seit dem letzten Schnappschuss.',
+          t(meta ? 'store.history.created' : 'store.history.unchanged'),
           meta ? 'success' : 'info',
         )
         return !!meta
       } catch (e) {
         console.error('[slideo] create_snapshot fehlgeschlagen:', e)
-        notify(`Schnappschuss fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.history.createFailed', { error: describeError(e) }), 'error')
         return false
       }
     },
@@ -1204,7 +1210,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
       const { filePath } = get()
       if (!isTauri() || !filePath) return
       if (!useLicenseStore.getState().editingAllowed()) {
-        notify('Testphase abgelaufen — Wiederherstellen ist schreibgeschützt.', 'error')
+        notify(t('store.readOnly.restore'), 'error')
         return
       }
       try {
@@ -1219,10 +1225,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           isDirty: true,
           activeZoneId: presentation.zones[0]?.id ?? null,
         })
-        notify('Snapshot wiederhergestellt — zum Übernehmen speichern (Cmd/Strg+S).', 'success')
+        notify(t('store.history.restored'), 'success')
       } catch (e) {
         console.error('[slideo] restore_snapshot fehlgeschlagen:', e)
-        notify(`Wiederherstellen fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.restore.failed', { error: describeError(e) }), 'error')
       }
     },
 
@@ -1281,10 +1287,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
         activeSlideIndex: 0,
       })
       clearRecovery()
-      notify(
-        path ? 'Präsentation von der KI geöffnet.' : 'Neue Präsentation von der KI angelegt.',
-        'info',
-      )
+      notify(t(path ? 'store.mcp.opened' : 'store.mcp.created'), 'info')
     },
 
     applyExternalSave: (path) => {
@@ -1313,14 +1316,12 @@ export const usePresentationStore = create<PresentationState>((set, get) => {
           activeSlideIndex: 0,
         })
         notify(
-          info.original_path
-            ? 'Stand wiederhergestellt — zum Übernehmen speichern (Cmd/Strg+S).'
-            : 'Stand wiederhergestellt — noch ungespeichert, bitte speichern (Cmd/Strg+S).',
+          t(info.original_path ? 'store.recovery.restored' : 'store.recovery.restoredUnsaved'),
           'success',
         )
       } catch (e) {
         console.error('[slideo] restore_recovery fehlgeschlagen:', e)
-        notify(`Wiederherstellen fehlgeschlagen: ${errMsg(e)}`, 'error')
+        notify(t('store.restore.failed', { error: describeError(e) }), 'error')
       }
     },
   }

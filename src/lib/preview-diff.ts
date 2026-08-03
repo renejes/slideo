@@ -102,6 +102,13 @@ export function classifyPreviewChange(
   // Logo (auf JEDER Folie) und Fonts (<head> font-face) → global → Reload (beide selten).
   if (!logoEqual(prev.meta.logo, next.meta.logo)) return { kind: 'full' }
   if (!fontsEqual(prev.fonts, next.fonts)) return { kind: 'full' }
+  // Deck-Sprache steht im `<html lang="…">` und damit AUSSERHALB jeder Zone — ein
+  // In-Place-Patch käme dort nie an, die Vorschau behielte still die alte Sprache
+  // (und damit die falsche Rechtschreibprüfung beim Inline-Bearbeiten). Der
+  // `|| 'de'`-Fallback spiegelt `deckLang()` in renderer.ts: der Übergang
+  // `undefined` → `'de'` ändert das gerenderte Markup nicht und löst deshalb auch
+  // keinen überflüssigen Reload aus.
+  if ((prev.meta.language || 'de') !== (next.meta.language || 'de')) return { kind: 'full' }
 
   // Ab hier: gleiche Zonen-IDs in gleicher Reihenfolge, gleiche Assets/Fonts/Logo.
   const tokensChanged = !tokensEqual(prev.tokens, next.tokens)

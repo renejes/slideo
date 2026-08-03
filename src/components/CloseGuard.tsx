@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { isTauri } from '@/lib/tauri'
+import { t } from '@/i18n'
 import { Modal, modalGhostBtn, modalPrimaryBtn } from '@/components/ui/Modal'
 
 // Schützt vor Datenverlust beim Schließen: bietet explizit Speichern an.
@@ -65,26 +66,23 @@ export function CloseGuard() {
 
   return (
     <Modal
-      title="Ungespeicherte Änderungen"
+      title={t('ui.unsavedChanges')}
       onClose={() => setPrompting(false)}
       footer={
         <>
           <button className={modalGhostBtn} onClick={() => setPrompting(false)} disabled={busy}>
-            Abbrechen
+            {t('common.cancel')}
           </button>
           <button className={modalGhostBtn} onClick={handleDiscard} disabled={busy}>
-            Nicht speichern
+            {t('ui.closeGuard.discard')}
           </button>
           <button className={modalPrimaryBtn} onClick={handleSave} disabled={busy}>
-            Speichern
+            {t('common.save')}
           </button>
         </>
       }
     >
-      <p className="text-[13px] leading-relaxed text-chrome-secondary">
-        Diese Präsentation hat ungespeicherte Änderungen. Möchtest du sie vor dem Schließen
-        speichern?
-      </p>
+      <p className="text-[13px] leading-relaxed text-chrome-secondary">{t('ui.closeGuard.body')}</p>
     </Modal>
   )
 }

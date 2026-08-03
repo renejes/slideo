@@ -2,6 +2,18 @@ import { Icon } from './Icon'
 import { useUiStore } from '@/store/ui'
 import { useLicenseStore } from '@/store/license'
 import { notify } from '@/store/toast'
+import { t, tp, type I18nKey } from '@/i18n'
+import { describeError, type LicenseStatus } from '@/lib/tauri'
+
+// Schreibgeschützte Zustände → Katalog-Schlüssel. Die Enum-Werte selbst kommen aus
+// Rust (license.rs) und bleiben unverändert; übersetzt wird nur der Satz. Alles,
+// was hier nicht steht (heute: `trial_expired`), fällt auf den Trial-Satz zurück —
+// wie zuvor der letzte Zweig der Ternary-Kette.
+const READ_ONLY_MESSAGE: Partial<Record<LicenseStatus['state'], I18nKey>> = {
+  revoked: 'ui.license.state.revoked',
+  expired: 'ui.license.state.expired',
+  upgrade_required: 'ui.license.state.upgrade_required',
+}
 
 // Schmale Leiste unter der Topbar: Trial-Countdown bzw. Read-only-Hinweis nach Ablauf.
 // Blendet sich bei aktiver Lizenz (und im Browser-Dev) komplett aus.
@@ -22,23 +34,18 @@ export function LicenseBar() {
   const urgentTrial = status.state === 'trial' && days <= 5
 
   const message = readOnly
-    ? status.state === 'revoked'
-      ? 'Lizenz widerrufen — Slideo ist schreibgeschützt.'
-      : status.state === 'expired'
-        ? 'Lizenz abgelaufen — Slideo ist schreibgeschützt.'
-        : status.state === 'upgrade_required'
-          ? 'Deine Lizenz gilt für eine ältere Slideo-Version — Upgrade nötig (schreibgeschützt).'
-          : 'Testphase abgelaufen — Slideo ist schreibgeschützt (Öffnen & Exportieren bleibt möglich).'
-    : `Testphase: noch ${days} ${days === 1 ? 'Tag' : 'Tage'}.`
+    ? t(READ_ONLY_MESSAGE[status.state] ?? 'ui.license.state.trial_expired')
+    : tp('ui.license.trialDays', days)
 
   async function buy() {
     try {
       await openCheckout()
     } catch (e) {
+      const error = describeError(e)
       notify(
-        `Kauf-Seite konnte nicht geöffnet werden${
-          !status?.checkout_available ? ' (Lizenzierung noch nicht konfiguriert)' : ''
-        }: ${e instanceof Error ? e.message : String(e)}`,
+        status?.checkout_available
+          ? t('ui.license.buyFailed', { error })
+          : t('ui.license.buyFailedUnconfigured', { error }),
         'error',
       )
     }
@@ -63,14 +70,14 @@ export function LicenseBar() {
             className="flex items-center gap-1 rounded-md bg-chrome-accent-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-[#2553c9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
             <Icon name="sell" size={14} />
-            Slideo kaufen
+            {t('ui.license.buy')}
           </button>
         )}
         <button
           onClick={() => openModal('license')}
           className="rounded-md border border-chrome-border bg-white/60 px-2.5 py-1 text-[12px] font-medium text-chrome-secondary transition-colors hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
         >
-          Lizenz aktivieren
+          {t('ui.license.activate')}
         </button>
       </div>
     </div>

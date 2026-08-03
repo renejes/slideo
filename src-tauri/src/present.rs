@@ -76,13 +76,13 @@ pub fn open_share_window(app: AppHandle) -> Result<(), String> {
 pub fn set_projector_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), String> {
     let win = app
         .get_webview_window(PROJECTOR_LABEL)
-        .ok_or("Kein Folien-Fenster offen")?;
+        .ok_or_else(|| crate::errcode::code("present.noWindow"))?;
     if fullscreen {
         // Monitor bestimmen, auf dem das Fenster GERADE liegt (nach dem Ziehen).
         let mon = win
             .current_monitor()
             .map_err(|e| e.to_string())?
-            .ok_or("Kein Monitor für das Folien-Fenster gefunden")?;
+            .ok_or_else(|| crate::errcode::code("present.noMonitor"))?;
         let pos = *mon.position();
         let size = *mon.size();
         let _ = win.set_decorations(false);

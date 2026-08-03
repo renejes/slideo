@@ -4,6 +4,50 @@
 // bzw. werfen einen klaren Fehler statt eines kryptischen `undefined`-Crashs.
 
 import type { Asset, Presentation } from '@/types'
+import { t, type I18nKey } from '@/i18n'
+import { de } from '@/i18n/de'
+
+/**
+ * Macht aus einem Fehler vom Rust-Backend einen Text in der Sprache der Oberfläche.
+ *
+ * Ersetzt vier gleichlautende lokale `errMsg`-Helfer (Store, LicenseModal,
+ * HistoryModal, ComponentPaletteModal) durch eine Stelle — und ist zugleich das
+ * Vehikel für die Rust-Grenze (Review 2026-08, Entscheidung E2):
+ *
+ *  - Handlungsrelevante Fehler meldet Rust als MASCHINENCODE `slideo:<code>`,
+ *    optional mit `|<detail>`. Der Code wird hier über den Katalog übersetzt
+ *    (`error.<code>`), das Detail unübersetzt angehängt. Das ist die Menge, aus
+ *    der der Nutzer eine Handlung ableiten muss (Lizenz, MCP-Registrierung,
+ *    Fenster) — sie steht sonst auch in englischer Oberfläche auf Deutsch da.
+ *  - Alles andere — der Diagnose-Schwanz aus `reader.rs`/`writer.rs`/`history.rs`,
+ *    dazu die vielen Meldungen, die ohnehin auf einem `std`/`reqwest`-Text enden —
+ *    wird unverändert durchgereicht. Übersetzen wäre dort Aufwand ohne Gewinn.
+ *
+ * Weil die Erkennung am Präfix hängt, lässt sich die Rust-Seite Stück für Stück
+ * nachziehen, ohne eine einzige Aufrufstelle im Frontend erneut anzufassen.
+ */
+export function describeError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e)
+  if (!raw.startsWith('slideo:')) return raw
+
+  const body = raw.slice('slideo:'.length)
+  const sep = body.indexOf('|')
+  const code = sep === -1 ? body : body.slice(0, sep)
+  const detail = sep === -1 ? '' : body.slice(sep + 1).trim()
+
+  const key = `error.${code}`
+  // Unbekannter Code (älteres/neueres Backend): lieber den Rohtext zeigen als
+  // eine leere Meldung — der Nutzer soll etwas zum Weitermelden in der Hand haben.
+  if (!(key in de)) return raw
+
+  // Der Katalogtext entscheidet, WO das Detail steht: enthält er `{detail}`, wird
+  // es dort eingesetzt („Aktivierung abgelehnt (HTTP 403)."). Sonst hängt es
+  // hinten an — so bleibt ein Code auch dann lesbar, wenn sein Text den Platz-
+  // halter nicht vorsieht.
+  const hasSlot = (de as Record<string, string>)[key].includes('{detail}')
+  const text = t(key as I18nKey, { detail })
+  return !hasSlot && detail ? `${text} (${detail})` : text
+}
 
 export interface LoadResult {
   presentation: Presentation
@@ -26,10 +70,7 @@ export function assetUrlBase(): string {
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!isTauri()) {
-    throw new Error(
-      `Tauri-Backend nicht verfügbar (Command "${cmd}"). ` +
-        `Datei-Operationen funktionieren nur in der Desktop-App (npm run tauri:dev).`,
-    )
+    throw new Error(t('lib.tauri.unavailable', { cmd }))
   }
   const { invoke } = await import('@tauri-apps/api/core')
   return invoke<T>(cmd, args)

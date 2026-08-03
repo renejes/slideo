@@ -233,6 +233,7 @@ pub(crate) fn open_in_default_app(path: &std::path::Path) -> Result<(), String> 
         c
     };
 
-    cmd.spawn().map_err(|e| format!("Öffnen fehlgeschlagen: {e}"))?;
+    cmd.spawn()
+        .map_err(|e| crate::errcode::code_with("cmd.openFailed", e))?;
     Ok(())
 }

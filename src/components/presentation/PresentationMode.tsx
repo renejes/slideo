@@ -8,8 +8,10 @@ import {
   openShareWindow,
   setProjectorFullscreen,
   closePresentationWindow,
+  describeError,
 } from '@/lib/tauri'
 import { notify } from '@/store/toast'
+import { t } from '@/i18n'
 import { mapToAssets } from '@/lib/assets'
 import { Icon } from '@/components/ui/Icon'
 import { SpeakerView } from './SpeakerView'
@@ -344,12 +346,12 @@ export function PresentationMode() {
       setIsProjFullscreen(false)
       setView('speaker')
       setTool('none') // Laser/Stift im Zwei-Fenster-Modus (v1) deaktiviert
-      notify(
-        'Folien-Fenster geöffnet. Für Zoom/Meet: „Fenster teilen“ → „Slideo — Präsentation“. Für einen Beamer: aufs zweite Display ziehen, dann „Vollbild“.',
-        'info',
-      )
+      notify(t('present.share.opened'), 'info')
     } catch (e) {
-      notify(`Folien-Fenster fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
+      notify(
+        t('present.share.failed', { error: describeError(e) }),
+        'error',
+      )
     }
   }
   // Vollbild-Umschalter: randlos-füllend auf dem Monitor, auf dem das Fenster GERADE liegt
@@ -367,7 +369,10 @@ export function PresentationMode() {
         /* ignorieren */
       }
     } catch (e) {
-      notify(`Vollbild fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`, 'error')
+      notify(
+        t('present.fullscreen.failed', { error: describeError(e) }),
+        'error',
+      )
     }
   }
   async function stopProjector() {
@@ -397,7 +402,7 @@ export function PresentationMode() {
           ref={iframeRef}
           srcDoc={html}
           onLoad={handleLoad}
-          title="Präsentation"
+          title={t('present.iframe.title')}
           sandbox="allow-scripts"
           className="h-full w-full border-0"
         />
@@ -420,35 +425,47 @@ export function PresentationMode() {
       {/* Steuerleiste */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center justify-center pb-5">
         <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/10 bg-black/55 px-1.5 py-1 text-white/90 backdrop-blur">
-          <ControlButton onClick={() => doStep(-1)} title="Zurück (←)" icon="chevron_left" />
+          <ControlButton
+            onClick={() => doStep(-1)}
+            title={t('present.control.prev')}
+            icon="chevron_left"
+          />
           <span className="min-w-[3.5rem] text-center text-[13px] tabular-nums text-white/70">
             {Math.min(activeSlideIndex + 1, count)} / {count}
             {total > 1 && <span className="text-white/40"> · {step + 1}/{total}</span>}
           </span>
-          <ControlButton onClick={() => doStep(1)} title="Weiter (→)" icon="chevron_right" />
+          <ControlButton
+            onClick={() => doStep(1)}
+            title={t('present.control.next')}
+            icon="chevron_right"
+          />
 
           <Divider />
-          <ControlButton onClick={() => setOverview(true)} title="Übersicht (g)" icon="grid_view" />
+          <ControlButton
+            onClick={() => setOverview(true)}
+            title={t('present.control.overview')}
+            icon="grid_view"
+          />
           {/* Laser/Stift im Zwei-Bildschirm-Modus (v1) ausgeblendet: das Overlay läge nur
               über der Speaker-Ansicht des Laptops, nicht über der Beamer-Folie. */}
           {!projectorOpen && (
             <>
               <ControlButton
                 onClick={() => toggleTool('laser')}
-                title="Laserpointer (l)"
+                title={t('present.control.laser')}
                 icon="gps_fixed"
                 active={tool === 'laser'}
               />
               <ControlButton
                 onClick={() => toggleTool('pen')}
-                title="Stift (p)"
+                title={t('present.control.pen')}
                 icon="draw"
                 active={tool === 'pen'}
               />
               {tool === 'pen' && (
                 <ControlButton
                   onClick={() => setClearNonce((n) => n + 1)}
-                  title="Annotationen löschen (c)"
+                  title={t('present.control.clearAnnotations')}
                   icon="ink_eraser"
                 />
               )}
@@ -458,15 +475,15 @@ export function PresentationMode() {
           <Divider />
           <ControlButton
             onClick={() => setAuto((v) => !v)}
-            title={auto ? 'Auto-Advance stoppen (a)' : 'Auto-Advance starten (a)'}
+            title={auto ? t('present.control.autoStop') : t('present.control.autoStart')}
             icon={auto ? 'pause' : 'play_arrow'}
             active={auto}
           />
           <select
             value={autoSeconds}
             onChange={(e) => setAutoSeconds(Number(e.target.value))}
-            title="Sekunden pro Schritt"
-            aria-label="Sekunden pro Schritt (Auto-Advance)"
+            title={t('present.control.autoSeconds')}
+            aria-label={t('present.control.autoSecondsAria')}
             className="h-7 rounded-md border border-white/10 bg-white/5 px-1 text-[12px] text-white/80 outline-none hover:bg-white/10"
           >
             {AUTO_INTERVALS.map((s) => (
@@ -477,7 +494,7 @@ export function PresentationMode() {
           </select>
           <ControlButton
             onClick={() => setLoop((v) => !v)}
-            title={loop ? 'Schleife aus' : 'Schleife (am Ende von vorn)'}
+            title={loop ? t('present.control.loopOff') : t('present.control.loopOn')}
             icon="repeat"
             active={loop}
           />
@@ -491,7 +508,7 @@ export function PresentationMode() {
               {!projectorOpen ? (
                 <ControlButton
                   onClick={presentShareWindow}
-                  title="Folie im Extra-Fenster zeigen — für Zoom/Meet teilen oder auf einen zweiten Bildschirm ziehen (Notizen bleiben privat)"
+                  title={t('present.control.share')}
                   icon="screen_share"
                 />
               ) : (
@@ -500,15 +517,15 @@ export function PresentationMode() {
                     onClick={toggleProjectorFullscreen}
                     title={
                       isProjFullscreen
-                        ? 'Folien-Fenster: zurück zum Fenster (für Zoom/Meet teilen)'
-                        : 'Folien-Fenster: Vollbild auf seinem Bildschirm (auf den Beamer ziehen, dann klicken)'
+                        ? t('present.control.projectorWindowed')
+                        : t('present.control.projectorFullscreen')
                     }
                     icon={isProjFullscreen ? 'fullscreen_exit' : 'fullscreen'}
                     active={isProjFullscreen}
                   />
                   <ControlButton
                     onClick={stopProjector}
-                    title="Folien-Fenster schließen"
+                    title={t('present.control.projectorClose')}
                     icon="cancel_presentation"
                     active
                   />
@@ -521,10 +538,10 @@ export function PresentationMode() {
           <button
             onClick={() => setView((v) => (v === 'audience' ? 'speaker' : 'audience'))}
             className="flex h-7 items-center gap-1 rounded-full px-2.5 text-[13px] hover:bg-white/10"
-            title="Speaker-Ansicht umschalten (s)"
+            title={t('present.control.toggleSpeaker')}
           >
             <Icon name={view === 'audience' ? 'co_present' : 'slideshow'} size={18} weight={400} />
-            {view === 'audience' ? 'Speaker' : 'Folie'}
+            {view === 'audience' ? t('present.control.speaker') : t('present.control.slide')}
           </button>
         </div>
       </div>
@@ -532,10 +549,10 @@ export function PresentationMode() {
       <button
         onClick={() => setMode('editor')}
         className="absolute right-4 top-4 z-20 flex items-center gap-1 rounded-lg border border-white/10 bg-black/55 px-2.5 py-1.5 text-[13px] text-white/80 backdrop-blur transition-colors hover:bg-white/10"
-        title="Verlassen (Esc)"
+        title={t('present.exit.title')}
       >
         <Icon name="close" size={17} weight={400} />
-        Verlassen
+        {t('present.exit.label')}
       </button>
 
       {overview && (

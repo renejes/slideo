@@ -1,6 +1,8 @@
 // Alle zentralen TypeScript-Typen für Slideo.
 // Maßgeblich: docs/slideo-spec.md, Abschnitt 8.
 
+import { t } from '@/i18n'
+
 export interface Presentation {
   version: string
   meta: PresentationMeta
@@ -34,6 +36,22 @@ export interface PresentationMeta {
   modified: string // ISO 8601
   transition?: Transition // optional; fehlt = 'none' (reiner Scroll-Snap)
   logo?: BrandLogo // optionales Marken-Logo auf jeder Folie (Spec §19.4)
+  /**
+   * Sprache der FOLIEN (nicht der App-Oberfläche) als BCP-47-Tag, z.B. 'de' oder
+   * 'en'. Additiv wie `transition`/`logo`, `version` bleibt "1.0"; fehlt das Feld,
+   * gilt 'de'.
+   *
+   * Steuert das `lang`-Attribut in Vorschau, Präsentation, Standalone-Export,
+   * PDF-Druck und Thumbnails — und damit Silbentrennung, Screenreader-Aussprache
+   * und konkret die Rechtschreibprüfung im `contenteditable` beim §20-Inline-Edit:
+   * ein englisches Deck bei `lang="de"` bekäme dort jedes Wort unterkringelt.
+   *
+   * Bewusst NICHT an die Oberflächensprache gekoppelt — sonst trüge dasselbe Deck
+   * je nach Einstellung des Exportierenden ein anderes `lang`, der Sprachschalter
+   * veränderte also ausgelieferte Dateien. Beim Anlegen wird das Feld einmal aus
+   * der Oberflächensprache vorbelegt und wandert danach mit der Datei.
+   */
+  language?: string
 }
 
 export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
@@ -43,11 +61,14 @@ export interface BrandLogo {
   position: LogoPosition
 }
 
+// Diese Label-Listen werden auf Modulebene ausgewertet. Das ist zulässig, weil die
+// Anzeigesprache beim Start feststeht (ein Wechsel wirkt erst nach Neustart, siehe
+// i18n/index.ts). `value` bleibt der API-Wert, nur `label` ist Anzeigetext.
 export const LOGO_POSITIONS: { value: LogoPosition; label: string }[] = [
-  { value: 'top-left', label: 'Oben links' },
-  { value: 'top-right', label: 'Oben rechts' },
-  { value: 'bottom-left', label: 'Unten links' },
-  { value: 'bottom-right', label: 'Unten rechts' },
+  { value: 'top-left', label: t('editor.logoPos.topLeft') },
+  { value: 'top-right', label: t('editor.logoPos.topRight') },
+  { value: 'bottom-left', label: t('editor.logoPos.bottomLeft') },
+  { value: 'bottom-right', label: t('editor.logoPos.bottomRight') },
 ]
 
 export type TransitionKind = 'none' | 'fade' | 'slide' | 'zoom' | 'auto'
@@ -61,11 +82,11 @@ export interface Transition {
 export const DEFAULT_TRANSITION: Transition = { kind: 'none', duration_ms: 500 }
 
 export const TRANSITIONS: { value: TransitionKind; label: string }[] = [
-  { value: 'none', label: 'Keiner' },
-  { value: 'fade', label: 'Überblenden' },
-  { value: 'slide', label: 'Schieben' },
-  { value: 'zoom', label: 'Zoom' },
-  { value: 'auto', label: 'Auto-Animate' },
+  { value: 'none', label: t('editor.transition.none') },
+  { value: 'fade', label: t('editor.transition.fade') },
+  { value: 'slide', label: t('editor.transition.slide') },
+  { value: 'zoom', label: t('editor.transition.zoom') },
+  { value: 'auto', label: t('editor.transition.auto') },
 ]
 
 export interface DesignTokens {
@@ -158,29 +179,29 @@ export interface TokenFieldDef {
 }
 
 export const TOKEN_FIELDS: TokenFieldDef[] = [
-  { key: 'color-primary', label: 'Primär', kind: 'color' },
-  { key: 'color-secondary', label: 'Sekundär', kind: 'color' },
-  { key: 'color-bg', label: 'Hintergrund', kind: 'color' },
-  { key: 'color-surface', label: 'Oberfläche', kind: 'color' },
-  { key: 'color-text', label: 'Text', kind: 'color' },
-  { key: 'color-accent', label: 'Akzent', kind: 'color' },
-  { key: 'font-heading', label: 'Überschrift-Font', kind: 'font' },
-  { key: 'font-body', label: 'Fließtext-Font', kind: 'font' },
-  { key: 'font-size-base', label: 'Basis-Schriftgröße', kind: 'size' },
-  { key: 'spacing-base', label: 'Basis-Abstand', kind: 'size' },
-  { key: 'border-radius', label: 'Eckenradius', kind: 'size' },
+  { key: 'color-primary', label: t('editor.token.colorPrimary'), kind: 'color' },
+  { key: 'color-secondary', label: t('editor.token.colorSecondary'), kind: 'color' },
+  { key: 'color-bg', label: t('editor.token.colorBg'), kind: 'color' },
+  { key: 'color-surface', label: t('editor.token.colorSurface'), kind: 'color' },
+  { key: 'color-text', label: t('editor.token.colorText'), kind: 'color' },
+  { key: 'color-accent', label: t('editor.token.colorAccent'), kind: 'color' },
+  { key: 'font-heading', label: t('editor.token.fontHeading'), kind: 'font' },
+  { key: 'font-body', label: t('editor.token.fontBody'), kind: 'font' },
+  { key: 'font-size-base', label: t('editor.token.fontSizeBase'), kind: 'size' },
+  { key: 'spacing-base', label: t('editor.token.spacingBase'), kind: 'size' },
+  { key: 'border-radius', label: t('editor.token.borderRadius'), kind: 'size' },
 ]
 
 export const ZONE_LAYOUTS: { value: ZoneLayout; label: string }[] = [
-  { value: 'center', label: 'Zentriert' },
-  { value: 'hero', label: 'Hero' },
-  { value: 'top', label: 'Oben' },
-  { value: 'split', label: 'Zwei Spalten' },
-  { value: 'full', label: 'Vollflächig' },
+  { value: 'center', label: t('editor.layout.center') },
+  { value: 'hero', label: t('editor.layout.hero') },
+  { value: 'top', label: t('editor.layout.top') },
+  { value: 'split', label: t('editor.layout.split') },
+  { value: 'full', label: t('editor.layout.full') },
 ]
 
 export const TEXT_ALIGNS: { value: TextAlign; label: string }[] = [
-  { value: 'left', label: 'Links' },
-  { value: 'center', label: 'Mitte' },
-  { value: 'right', label: 'Rechts' },
+  { value: 'left', label: t('editor.textAlign.left') },
+  { value: 'center', label: t('editor.textAlign.center') },
+  { value: 'right', label: t('editor.textAlign.right') },
 ]

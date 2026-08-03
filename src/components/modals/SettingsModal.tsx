@@ -4,7 +4,7 @@ import { Icon } from '@/components/ui/Icon'
 import { useSettingsStore } from '@/store/settings'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
-import { isTauri } from '@/lib/tauri'
+import { describeError, isTauri } from '@/lib/tauri'
 import { pickDirectory } from '@/lib/dialog'
 import { copyText } from '@/lib/onboarding'
 import {
@@ -15,6 +15,8 @@ import {
 } from '@/lib/mcp-registration'
 import { McpTargetCards, mcpTargetLabel } from '@/components/ui/McpTargetCards'
 import { AssetLibrary } from '@/components/ui/AssetLibrary'
+import { t, LOCALES, getLocale, getStoredLocale, setStoredLocale, type Locale } from '@/i18n'
+import { T } from '@/i18n/T'
 
 // Einstellungen — bewusst als Shell angelegt, wird nach und nach gefüllt.
 export function SettingsModal() {
@@ -44,13 +46,13 @@ export function SettingsModal() {
   }
 
   return (
-    <Modal title="Einstellungen" onClose={closeModal} width="w-[34rem]">
+    <Modal title={t('modal.settings.title')} onClose={closeModal} width="w-[34rem]">
       <div className="flex flex-col divide-y divide-chrome-border">
         {/* Allgemein */}
-        <Section title="Allgemein">
+        <Section title={t('modal.settings.general')}>
           <Row
-            label="Standard-Speicherort"
-            hint="Vorausgewählter Ordner für neue Präsentationen."
+            label={t('modal.settings.defaultDir')}
+            hint={t('modal.settings.defaultDirHint')}
           >
             {tauri ? (
               <div className="flex items-center gap-2">
@@ -59,66 +61,113 @@ export function SettingsModal() {
                   dir="rtl"
                   title={defaultProjectDir ?? ''}
                 >
-                  {defaultProjectDir || 'Desktop (Standard)'}
+                  {defaultProjectDir || t('modal.settings.defaultDirFallback')}
                 </span>
                 <button className={modalGhostBtn} onClick={choose}>
-                  Ändern
+                  {t('modal.settings.change')}
                 </button>
                 {defaultProjectDir && (
                   <button
                     className="rounded-md p-1.5 text-chrome-muted hover:bg-chrome-surface-2 hover:text-chrome-text"
                     onClick={() => setDefaultProjectDir(null)}
-                    title="Zurücksetzen"
+                    title={t('common.reset')}
                   >
                     <Icon name="close" size={16} weight={400} />
                   </button>
                 )}
               </div>
             ) : (
-              <span className="text-[12px] text-chrome-muted">Nur in der Desktop-App</span>
+              <span className="text-[12px] text-chrome-muted">{t('common.desktopOnly')}</span>
             )}
           </Row>
+          <LanguageRow />
         </Section>
 
         {/* KI-Verbindung (MCP) */}
-        <Section title="KI-Verbindung (MCP)">
+        <Section title={t('modal.settings.mcp')}>
           <McpConnection />
         </Section>
 
         {/* Assets — geteilt mit dem Asset-Manager (Topbar) */}
-        <Section title="Assets">
+        <Section title={t('modal.settings.assets')}>
           <AssetLibrary />
         </Section>
 
         {/* Lizenz — aus der Topbar hierher verschoben (Befund M55). */}
-        <Section title="Lizenz">
+        <Section title={t('modal.settings.license')}>
           <button
             onClick={() => openModal('license')}
             className="flex w-full items-center gap-2 rounded-lg border border-chrome-border px-3 py-2 text-left text-[13px] text-chrome-secondary transition-colors hover:border-chrome-border-strong hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
             <Icon name="sell" size={17} weight={400} className="text-chrome-muted" />
-            Testphase, kaufen &amp; aktivieren
+            {t('modal.settings.licenseAction')}
           </button>
         </Section>
 
         {/* Über. Die „Bald verfügbar"-Sektion ist entfallen (Befund M64): sie kündigte
             Theme und Fonts an, die längst im Design-Overlay leben — sie versprach also
             als Zukunft, was bereits ausgeliefert war. */}
-        <Section title="Über">
+        <Section title={t('modal.settings.about')}>
           <div className="flex flex-col gap-1 py-1 text-[12px] text-chrome-muted">
             <div className="flex items-center gap-2">
               <span className="flex h-5 w-5 items-center justify-center rounded bg-chrome-accent-600 text-[11px] font-bold text-white">
                 S
               </span>
               <span className="text-[13px] font-medium text-chrome-text">Slideo</span>
-              <span>v{appVersion ?? '…'}</span>
+              <span>{t('modal.settings.version', { version: appVersion ?? '…' })}</span>
             </div>
             {/* Herstellerneutral (Befund M64): Slideo spricht MCP, nicht „Claude". */}
-            <p>Lokal, code-frei, MCP-nativ — nutzbar mit jedem MCP-fähigen KI-Client.</p>
+            <p>{t('modal.settings.aboutTagline')}</p>
           </div>
         </Section>
       </div>
     </Modal>
+  )
+}
+
+/**
+ * Sprache der OBERFLÄCHE (Review 2026-08, Entscheidung E2 vom 2026-08-03).
+ *
+ * Der Wechsel wirkt bewusst erst nach einem Neustart, statt live. Live zu
+ * schalten kostete fünf Kopplungspunkte quer durch die App — der
+ * Tiptap-Placeholder wird einmalig in `useEditor()` konfiguriert, drei
+ * Render-`useMemo` haben die Sprache nicht in ihren Abhängigkeiten,
+ * `classifyPreviewChange` kennt sie nicht (die Vorschau behielte ihre alten
+ * Tooltips), und das Projektor-Fenster ist ein eigener WebView ohne Store. Für
+ * eine Einstellung, die man einmal setzt, ist eine Zeile Hinweistext der bessere
+ * Handel. `applyLocale()` in `@/i18n` steht bereit, falls sich das ändern soll.
+ *
+ * NICHT zu verwechseln mit der Sprache der FOLIEN (`meta.language`, im
+ * Design-Overlay) — die gehört zum Dokument und wandert mit der Datei.
+ */
+function LanguageRow() {
+  const [choice, setChoice] = useState<Locale>(getStoredLocale())
+  const pending = choice !== getLocale()
+
+  return (
+    <Row label={t('modal.settings.language')} hint={t('modal.settings.languageHint')}>
+      <div className="flex items-center gap-2">
+        {pending && (
+          <span className="text-[11px] text-chrome-warn">{t('modal.settings.languageRestart')}</span>
+        )}
+        <select
+          value={choice}
+          onChange={(e) => {
+            const next = e.target.value as Locale
+            setStoredLocale(next)
+            setChoice(next)
+          }}
+          aria-label={t('modal.settings.language')}
+          className="rounded-md border border-chrome-border bg-white px-2 py-1 text-[13px] text-chrome-text transition-colors focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
+        >
+          {LOCALES.map((l) => (
+            <option key={l.value} value={l.value}>
+              {l.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </Row>
   )
 }
 
@@ -149,9 +198,9 @@ function McpConnection() {
     try {
       const next = await setMcpTarget(key)
       setStatus(next)
-      notify(`MCP-Ziel aktiv: ${mcpTargetLabel(key)}`, 'success')
+      notify(t('modal.settings.mcpTargetActive', { target: mcpTargetLabel(key) }), 'success')
     } catch (e) {
-      notify(e instanceof Error ? e.message : String(e), 'error')
+      notify(describeError(e), 'error')
       // Realen Zustand zurückholen — der Wechsel wurde nicht übernommen.
       await refresh()
     } finally {
@@ -160,16 +209,27 @@ function McpConnection() {
   }
 
   if (!tauri)
-    return <p className="py-1 text-[12px] text-chrome-muted">Nur in der Desktop-App verfügbar.</p>
-  if (loading) return <p className="py-1 text-[12px] text-chrome-muted">Status wird geladen…</p>
-  if (!status) return <p className="py-1 text-[12px] text-chrome-muted">Status nicht verfügbar.</p>
+    return <p className="py-1 text-[12px] text-chrome-muted">{t('modal.desktopOnly')}</p>
+  if (loading)
+    return <p className="py-1 text-[12px] text-chrome-muted">{t('modal.mcpStatusLoading')}</p>
+  if (!status)
+    return (
+      <p className="py-1 text-[12px] text-chrome-muted">
+        {t('modal.settings.mcpStatusUnavailable')}
+      </p>
+    )
 
   return (
     <div className="flex flex-col gap-2.5 py-1">
       <p className="text-[12px] leading-relaxed text-chrome-muted">
-        Slideo stellt deinem KI-Agenten (MCP-Client wie Claude Desktop, Codex CLI) seine Folien-Werkzeuge
-        bereit. Wähle, wo sich Slideo registriert — es ist immer genau{' '}
-        <span className="text-chrome-secondary">ein Ziel aktiv</span>, die anderen werden automatisch abgemeldet.
+        <T
+          k="modal.settings.mcpIntro"
+          slots={[
+            <span className="text-chrome-secondary">
+              {t('modal.settings.mcpIntroEmphasis')}
+            </span>,
+          ]}
+        />
       </p>
       <McpTargetCards
         status={status}
@@ -187,11 +247,14 @@ function McpConnection() {
           Hier steht es kopierbar: Slideo trägt nichts ein, der Nutzer selbst schon. */}
       {status.genericConfig && (
         <div className="flex flex-col gap-1.5 rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2.5">
-          <p className="text-[12px] font-medium text-chrome-secondary">Anderer MCP-Client</p>
+          <p className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.settings.otherClient')}
+          </p>
           <p className="text-[12px] leading-relaxed text-chrome-muted">
-            Cursor, Windsurf, Zed, LM Studio, Codex CLI &amp; Co. konfigurierst du selbst — dieses
-            Snippet in die <code className="font-mono">mcpServers</code>-Sektion des Clients
-            einfügen und ihn neu starten.
+            <T
+              k="modal.settings.otherClientHint"
+              slots={[<code className="font-mono">mcpServers</code>]}
+            />
           </p>
           <div className="flex items-start gap-2">
             <pre className="min-w-0 flex-1 overflow-x-auto rounded border border-chrome-border bg-chrome-surface px-2 py-1.5 font-mono text-[11px] leading-relaxed text-chrome-text">
@@ -200,11 +263,14 @@ function McpConnection() {
             <button
               onClick={() =>
                 void copyText(JSON.stringify(status.genericConfig, null, 2)).then((ok) =>
-                  notify(ok ? 'Konfiguration kopiert.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error'),
+                  notify(
+                    ok ? t('modal.settings.configCopied') : t('modal.copyFailed'),
+                    ok ? 'success' : 'error',
+                  ),
                 )
               }
-              title="Konfiguration kopieren"
-              aria-label="Konfiguration kopieren"
+              title={t('modal.settings.copyConfig')}
+              aria-label={t('modal.settings.copyConfig')}
               className="shrink-0 rounded-md p-1.5 text-chrome-muted transition-colors hover:bg-chrome-surface hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
             >
               <Icon name="content_copy" size={16} weight={400} />
@@ -221,7 +287,9 @@ function McpConnection() {
             weight={400}
             className="mt-0.5 shrink-0 text-chrome-warn"
           />
-          <p className="text-[12px] leading-relaxed text-chrome-warn">{status.lastError}</p>
+          <p className="text-[12px] leading-relaxed text-chrome-warn">
+            {describeError(status.lastError)}
+          </p>
         </div>
       )}
     </div>

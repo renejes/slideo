@@ -3,6 +3,7 @@ import type { AssetMap, Presentation } from '@/types'
 import { renderFullPage } from '@/lib/renderer'
 import { assetsToMap } from '@/lib/assets'
 import { assetUrlBase, getAssetsState, getPresentationState, isTauri } from '@/lib/tauri'
+import { t } from '@/i18n'
 
 const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
 
@@ -105,7 +106,7 @@ export function ProjectorView() {
       ref={iframeRef}
       srcDoc={html}
       onLoad={handleLoad}
-      title="Präsentation"
+      title={t('present.iframe.title')}
       sandbox="allow-scripts"
       className="fixed inset-0 h-full w-full border-0 bg-black"
     />

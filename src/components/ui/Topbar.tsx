@@ -1,6 +1,7 @@
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { isTauri } from '@/lib/tauri'
+import { t } from '@/i18n'
 import { Icon } from './Icon'
 import { McpStatusChip } from './McpStatusChip'
 
@@ -30,7 +31,7 @@ export function Topbar() {
   const openAssets = useUiStore((s) => s.openAssets)
 
   const tauri = isTauri()
-  const fileHint = tauri ? undefined : 'Nur in der Desktop-App verfügbar (npm run tauri:dev)'
+  const fileHint = tauri ? undefined : t('common.desktopOnlyHint')
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-chrome-border bg-chrome-surface px-3">
@@ -55,15 +56,15 @@ export function Topbar() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
             }}
-            title="Titel der Präsentation — zum Umbenennen klicken"
-            aria-label="Titel der Präsentation"
+            title={t('ui.topbar.titleHint')}
+            aria-label={t('ui.topbar.titleAria')}
             spellCheck={false}
             className="min-w-0 max-w-[22rem] flex-1 truncate rounded border border-transparent bg-transparent px-1 py-0.5 text-chrome-secondary outline-none transition-colors hover:border-chrome-border focus:border-chrome-accent focus:bg-white focus:text-chrome-text focus:ring-2 focus:ring-chrome-accent/30"
           />
           {isDirty && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-chrome-warn"
-              title="Ungespeicherte Änderungen"
+              title={t('ui.unsavedChanges')}
             />
           )}
         </div>
@@ -78,11 +79,11 @@ export function Topbar() {
       <div className="flex items-center gap-0.5">
         <button onClick={() => openModal('new')} className={ghost}>
           <Icon name="add" size={18} />
-          Neu
+          {t('ui.topbar.new')}
         </button>
         <button onClick={() => openDialog()} className={ghost} disabled={!tauri} title={fileHint}>
           <Icon name="folder_open" size={18} />
-          Öffnen
+          {t('ui.topbar.open')}
         </button>
         <button
           onClick={(e) => (e.shiftKey || e.altKey ? void saveAs() : void save())}
@@ -91,12 +92,12 @@ export function Topbar() {
           title={
             fileHint ??
             (filePath
-              ? `Speichern: ${filePath}\nMit Shift/Alt: Speichern unter … (Cmd/Strg+Shift+S)`
-              : 'Speichern unter …')
+              ? t('ui.topbar.saveHint', { path: filePath })
+              : t('ui.topbar.saveAsHint'))
           }
         >
           <Icon name="save" size={18} />
-          Speichern
+          {t('common.save')}
         </button>
         {/* EIN Export-Knopf statt drei (Review 2026-08, Befund M55/H24). Die drei
             Formate standen gleichwertig nebeneinander, obwohl die Treue zwischen
@@ -107,10 +108,10 @@ export function Topbar() {
           onClick={() => openModal('export')}
           className={ghost}
           disabled={!presentation}
-          title="Exportieren — HTML, PDF oder PowerPoint (mit Hinweis, was jeweils verloren geht)"
+          title={t('ui.topbar.exportHint')}
         >
           <Icon name="ios_share" size={18} />
-          Exportieren
+          {t('ui.topbar.export')}
         </button>
 
         <span className="mx-1 h-5 w-px bg-chrome-border" />
@@ -119,28 +120,28 @@ export function Topbar() {
           onClick={() => openModal('design')}
           className={ghost}
           disabled={!presentation}
-          title="Design — Theme, Farben, Schriften, Logo & Folien-Übergänge"
+          title={t('ui.topbar.designHint')}
         >
           <Icon name="palette" size={18} />
-          Design
+          {t('ui.topbar.design')}
         </button>
 
         <button
           onClick={() => openAssets('manage')}
           className={ghost}
           disabled={!presentation}
-          title="Asset-Verwaltung — Bilder, Videos & Audio importieren und verwalten"
+          title={t('ui.topbar.mediaHint')}
         >
           <Icon name="perm_media" size={18} />
-          Medien
+          {t('ui.topbar.media')}
         </button>
 
         <button
           onClick={() => openModal('find')}
           className={ghost + ' !px-2'}
           disabled={!presentation}
-          title="Suchen & Ersetzen (Cmd/Ctrl+F)"
-          aria-label="Suchen & Ersetzen"
+          title={t('ui.topbar.findHint')}
+          aria-label={t('ui.topbar.find')}
         >
           <Icon name="search" size={18} />
         </button>
@@ -148,8 +149,8 @@ export function Topbar() {
           onClick={() => openModal('history')}
           className={ghost + ' !px-2'}
           disabled={!presentation}
-          title="Versionsverlauf — lokale Snapshots wiederherstellen"
-          aria-label="Versionsverlauf"
+          title={t('ui.topbar.historyHint')}
+          aria-label={t('ui.topbar.history')}
         >
           <Icon name="history" size={18} />
         </button>
@@ -160,16 +161,16 @@ export function Topbar() {
         <button
           onClick={() => openModal('help')}
           className={ghost + ' !px-2'}
-          title="Hilfe — wie Slideo mit deinem KI-Agenten arbeitet"
-          aria-label="Hilfe"
+          title={t('ui.topbar.helpHint')}
+          aria-label={t('ui.topbar.help')}
         >
           <Icon name="help" size={18} />
         </button>
         <button
           onClick={() => openModal('settings')}
           className={ghost + ' !px-2'}
-          title="Einstellungen"
-          aria-label="Einstellungen"
+          title={t('ui.topbar.settings')}
+          aria-label={t('ui.topbar.settings')}
         >
           <Icon name="settings" size={18} />
         </button>
@@ -180,7 +181,7 @@ export function Topbar() {
           disabled={!presentation}
         >
           <Icon name="play_arrow" size={18} fill weight={400} />
-          Präsentieren
+          {t('ui.topbar.present')}
         </button>
       </div>
     </header>

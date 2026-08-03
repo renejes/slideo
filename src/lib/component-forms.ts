@@ -11,6 +11,15 @@
 //
 // Die Defaults unten sind UI-Seed-Werte (damit Formular + Vorschau sofort sinnvoll
 // aussehen); sie spiegeln grob die Rust-Fallbacks, müssen aber nicht identisch sein.
+//
+// Alle sichtbaren Texte kommen aus dem Katalog (i18n/{de,en}/components.ts). Die
+// Auswertung passiert beim Laden des Moduls, also in der Sprache des laufenden
+// Fensters — die Seed-Werte landen als INHALT in der Folie und sind danach
+// eingefroren (siehe docs/wording.md). NICHT übersetzt werden Werte, die als
+// API-Wert an den Rust-Generator gehen: `key`, `options[].value`, die Icon-Namen
+// aus ICON_NAMES (dort IST `label` der API-Wert) und die Select-Defaults.
+
+import { t } from '@/i18n'
 
 export type FieldType = 'text' | 'textarea' | 'number' | 'select'
 
@@ -83,45 +92,33 @@ export const COMPONENT_ICONS: Record<string, string> = {
  * und Fallback. Hier überschreiben wir nur die Anzeige für den (deutschen)
  * Editor. Fehlt ein Typ (neue Rust-Komponente) → Fallback auf den englischen
  * Rust-Text, damit sie trotzdem erscheint.
+ *
+ * Nachtrag i18n: die Überlagerung ist jetzt zweisprachig (Name aus historischen
+ * Gründen). Auf Englisch ist sie inhaltlich redundant — der Katalog spiegelt dort
+ * bewusst wortgleich components.rs, damit die Anzeige nicht je nach Sprache aus
+ * zwei verschiedenen Quellen kommt.
  */
 export const COMPONENT_CATALOG_DE: Record<string, { label: string; description: string }> = {
-  stat_cards: { label: 'Kennzahlen-Karten', description: 'Reihe großer KPI-Karten (Wert + Beschriftung).' },
-  bar_chart: { label: 'Balkendiagramm', description: 'Horizontale Balken, automatisch skaliert.' },
-  line_chart: { label: 'Liniendiagramm', description: 'Linienverlauf (Trend über Zeit) als SVG, token-bewusst.' },
-  donut_chart: { label: 'Donut-/Kreisdiagramm', description: 'Anteile als Donut mit Legende (Prozente automatisch).' },
-  progress: { label: 'Fortschrittsbalken', description: 'Beschriftete Prozent-Balken (0–100).' },
-  quote: { label: 'Zitat', description: 'Großes zentriertes Zitat mit Quelle.' },
-  timeline: { label: 'Zeitstrahl', description: 'Vertikaler Zeitstrahl mit Punkten.' },
-  comparison: { label: 'Vergleich (zwei Spalten)', description: 'Zwei gegenübergestellte Listen-Spalten.' },
-  callout: { label: 'Hinweis-Box', description: 'Hervorgehobener Kasten mit Titel und Text.' },
-  icon: {
-    label: 'Icon (Inline-SVG)',
-    description:
-      'Token-gefärbtes Symbol (optional mit Beschriftung). Namen: check, close, arrow_right, arrow_up, plus, minus, star, heart, bolt, circle, check_circle, shield, info, warning, lightbulb.',
-  },
-  toc: {
-    label: 'Inhaltsverzeichnis (Sprung-Links)',
-    description:
-      'Klickbare Folienübersicht — jeder Eintrag springt zur Zielfolie (Zonen-Link, Spec §23). target = Zonen-ID ODER 1-basierte Foliennummer; ein Rücksprung-Link auf die Inhalts-Folie bringt zurück.',
-  },
-  data_table: {
-    label: 'Tabelle',
-    description: 'Datentabelle, token-gestylt, gestreifte Zeilen. Max ~8 Zeilen (sonst Überlauf der 720px-Bühne).',
-  },
-  big_number: { label: 'Große Kennzahl', description: 'Eine herausragende Zahl (KPI-Hero) mit Label, optional Untertitel.' },
-  feature_grid: {
-    label: 'Feature-Raster',
-    description: 'Karten mit Icon + Titel + Text (2–3 nebeneinander). Icon-Namen wie bei „icon“.',
-  },
-  process_steps: {
-    label: 'Prozess-Schritte',
-    description: 'Nummerierte Schritte mit Pfeilen (horizontal). Am besten 3–5 Schritte.',
-  },
-  pricing: { label: 'Preistabelle', description: '2–4 Preis-Karten; eine via featured:true hervorgehoben.' },
-  gallery: {
-    label: 'Bild-Galerie',
-    description: 'Bildraster aus vorhandenen Assets (Namen aus list_assets); columns 1–4. Ohne Bilder werden Platzhalter gezeigt.',
-  },
+  // Schlüssel ausgeschrieben statt per Template-Literal zusammengesetzt: nur so
+  // prüft `tsc` sie gegen `I18nKey` (ein Tippfehler wäre sonst erst zur Laufzeit
+  // sichtbar — und in Produktion still).
+  stat_cards: { label: t('comp.catalog.stat_cards.label'), description: t('comp.catalog.stat_cards.description') },
+  bar_chart: { label: t('comp.catalog.bar_chart.label'), description: t('comp.catalog.bar_chart.description') },
+  line_chart: { label: t('comp.catalog.line_chart.label'), description: t('comp.catalog.line_chart.description') },
+  donut_chart: { label: t('comp.catalog.donut_chart.label'), description: t('comp.catalog.donut_chart.description') },
+  progress: { label: t('comp.catalog.progress.label'), description: t('comp.catalog.progress.description') },
+  quote: { label: t('comp.catalog.quote.label'), description: t('comp.catalog.quote.description') },
+  timeline: { label: t('comp.catalog.timeline.label'), description: t('comp.catalog.timeline.description') },
+  comparison: { label: t('comp.catalog.comparison.label'), description: t('comp.catalog.comparison.description') },
+  callout: { label: t('comp.catalog.callout.label'), description: t('comp.catalog.callout.description') },
+  icon: { label: t('comp.catalog.icon.label'), description: t('comp.catalog.icon.description') },
+  toc: { label: t('comp.catalog.toc.label'), description: t('comp.catalog.toc.description') },
+  data_table: { label: t('comp.catalog.data_table.label'), description: t('comp.catalog.data_table.description') },
+  big_number: { label: t('comp.catalog.big_number.label'), description: t('comp.catalog.big_number.description') },
+  feature_grid: { label: t('comp.catalog.feature_grid.label'), description: t('comp.catalog.feature_grid.description') },
+  process_steps: { label: t('comp.catalog.process_steps.label'), description: t('comp.catalog.process_steps.description') },
+  pricing: { label: t('comp.catalog.pricing.label'), description: t('comp.catalog.pricing.description') },
+  gallery: { label: t('comp.catalog.gallery.label'), description: t('comp.catalog.gallery.description') },
 }
 
 /** Icon-Namen der Rust-`icon`-Komponente (für das Auswahl-Feld). */
@@ -131,98 +128,155 @@ export const ICON_NAMES = [
 ]
 
 const TOKEN_COLORS: { value: string; label: string }[] = [
-  { value: 'var(--color-accent)', label: 'Akzent' },
-  { value: 'var(--color-primary)', label: 'Primär' },
-  { value: 'var(--color-secondary)', label: 'Sekundär' },
-  { value: 'var(--color-text)', label: 'Text' },
+  { value: 'var(--color-accent)', label: t('comp.form.color.accent') },
+  { value: 'var(--color-primary)', label: t('comp.form.color.primary') },
+  { value: 'var(--color-secondary)', label: t('comp.form.color.secondary') },
+  { value: 'var(--color-text)', label: t('comp.form.color.text') },
 ]
 
 export const COMPONENT_FORMS: Record<string, ComponentForm> = {
   stat_cards: {
     items: {
-      label: 'Kennzahlen',
-      addLabel: 'Kennzahl',
+      label: t('comp.form.stat_cards.items'),
+      addLabel: t('comp.form.stat_cards.addItem'),
       fields: [
-        { key: 'value', label: 'Wert', type: 'text', placeholder: '98%' },
-        { key: 'label', label: 'Beschriftung', type: 'text', placeholder: 'Zufriedenheit' },
+        {
+          key: 'value',
+          label: t('comp.form.stat_cards.value'),
+          type: 'text',
+          placeholder: t('comp.form.stat_cards.valuePlaceholder'),
+        },
+        {
+          key: 'label',
+          label: t('comp.form.stat_cards.label'),
+          type: 'text',
+          placeholder: t('comp.form.stat_cards.labelPlaceholder'),
+        },
       ],
       seed: [
-        { value: '98%', label: 'Zufriedenheit' },
-        { value: '3.2x', label: 'Wachstum' },
-        { value: '12k', label: 'Nutzer' },
+        { value: t('comp.seed.stat_cards.1.value'), label: t('comp.seed.stat_cards.1.label') },
+        { value: t('comp.seed.stat_cards.2.value'), label: t('comp.seed.stat_cards.2.label') },
+        { value: t('comp.seed.stat_cards.3.value'), label: t('comp.seed.stat_cards.3.label') },
       ],
     },
   },
 
   bar_chart: {
-    fields: [{ key: 'max', label: 'Maximum (optional, sonst automatisch)', type: 'number', placeholder: 'auto' }],
+    fields: [
+      {
+        key: 'max',
+        label: t('comp.form.bar_chart.max'),
+        type: 'number',
+        placeholder: t('comp.form.bar_chart.maxPlaceholder'),
+      },
+    ],
     numericFieldKeys: ['max'],
     items: {
-      label: 'Balken',
-      addLabel: 'Balken',
+      label: t('comp.form.bar_chart.items'),
+      addLabel: t('comp.form.bar_chart.addItem'),
       fields: [
-        { key: 'label', label: 'Label', type: 'text', placeholder: 'Q1' },
-        { key: 'value', label: 'Wert', type: 'number', placeholder: '40' },
+        {
+          key: 'label',
+          label: t('comp.form.bar_chart.label'),
+          type: 'text',
+          placeholder: t('comp.form.bar_chart.labelPlaceholder'),
+        },
+        {
+          key: 'value',
+          label: t('comp.form.bar_chart.value'),
+          type: 'number',
+          placeholder: t('comp.form.bar_chart.valuePlaceholder'),
+        },
       ],
       numericKeys: ['value'],
       seed: [
-        { label: 'Q1', value: '40' },
-        { label: 'Q2', value: '65' },
-        { label: 'Q3', value: '80' },
-        { label: 'Q4', value: '100' },
+        { label: t('comp.seed.bar_chart.1.label'), value: t('comp.seed.bar_chart.1.value') },
+        { label: t('comp.seed.bar_chart.2.label'), value: t('comp.seed.bar_chart.2.value') },
+        { label: t('comp.seed.bar_chart.3.label'), value: t('comp.seed.bar_chart.3.value') },
+        { label: t('comp.seed.bar_chart.4.label'), value: t('comp.seed.bar_chart.4.value') },
       ],
     },
   },
 
   line_chart: {
     items: {
-      label: 'Datenpunkte',
-      addLabel: 'Punkt',
+      label: t('comp.form.line_chart.items'),
+      addLabel: t('comp.form.line_chart.addItem'),
       fields: [
-        { key: 'label', label: 'Label', type: 'text', placeholder: 'Jan' },
-        { key: 'value', label: 'Wert', type: 'number', placeholder: '12' },
+        {
+          key: 'label',
+          label: t('comp.form.line_chart.label'),
+          type: 'text',
+          placeholder: t('comp.form.line_chart.labelPlaceholder'),
+        },
+        {
+          key: 'value',
+          label: t('comp.form.line_chart.value'),
+          type: 'number',
+          placeholder: t('comp.form.line_chart.valuePlaceholder'),
+        },
       ],
       numericKeys: ['value'],
       seed: [
-        { label: 'Jan', value: '12' },
-        { label: 'Feb', value: '19' },
-        { label: 'Mär', value: '15' },
-        { label: 'Apr', value: '27' },
-        { label: 'Mai', value: '34' },
+        { label: t('comp.seed.line_chart.1.label'), value: t('comp.seed.line_chart.1.value') },
+        { label: t('comp.seed.line_chart.2.label'), value: t('comp.seed.line_chart.2.value') },
+        { label: t('comp.seed.line_chart.3.label'), value: t('comp.seed.line_chart.3.value') },
+        { label: t('comp.seed.line_chart.4.label'), value: t('comp.seed.line_chart.4.value') },
+        { label: t('comp.seed.line_chart.5.label'), value: t('comp.seed.line_chart.5.value') },
       ],
     },
   },
 
   donut_chart: {
     items: {
-      label: 'Segmente',
-      addLabel: 'Segment',
+      label: t('comp.form.donut_chart.items'),
+      addLabel: t('comp.form.donut_chart.addItem'),
       fields: [
-        { key: 'label', label: 'Label', type: 'text', placeholder: 'Direkt' },
-        { key: 'value', label: 'Wert', type: 'number', placeholder: '45' },
+        {
+          key: 'label',
+          label: t('comp.form.donut_chart.label'),
+          type: 'text',
+          placeholder: t('comp.form.donut_chart.labelPlaceholder'),
+        },
+        {
+          key: 'value',
+          label: t('comp.form.donut_chart.value'),
+          type: 'number',
+          placeholder: t('comp.form.donut_chart.valuePlaceholder'),
+        },
       ],
       numericKeys: ['value'],
       seed: [
-        { label: 'Direkt', value: '45' },
-        { label: 'Suche', value: '30' },
-        { label: 'Social', value: '25' },
+        { label: t('comp.seed.donut_chart.1.label'), value: t('comp.seed.donut_chart.1.value') },
+        { label: t('comp.seed.donut_chart.2.label'), value: t('comp.seed.donut_chart.2.value') },
+        { label: t('comp.seed.donut_chart.3.label'), value: t('comp.seed.donut_chart.3.value') },
       ],
     },
   },
 
   progress: {
     items: {
-      label: 'Fortschrittsbalken',
-      addLabel: 'Balken',
+      label: t('comp.form.progress.items'),
+      addLabel: t('comp.form.progress.addItem'),
       fields: [
-        { key: 'label', label: 'Label', type: 'text', placeholder: 'Design' },
-        { key: 'percent', label: 'Prozent (0–100)', type: 'number', placeholder: '90' },
+        {
+          key: 'label',
+          label: t('comp.form.progress.label'),
+          type: 'text',
+          placeholder: t('comp.form.progress.labelPlaceholder'),
+        },
+        {
+          key: 'percent',
+          label: t('comp.form.progress.percent'),
+          type: 'number',
+          placeholder: t('comp.form.progress.percentPlaceholder'),
+        },
       ],
       numericKeys: ['percent'],
       seed: [
-        { label: 'Design', percent: '90' },
-        { label: 'Entwicklung', percent: '70' },
-        { label: 'Test', percent: '45' },
+        { label: t('comp.seed.progress.1.label'), percent: t('comp.seed.progress.1.percent') },
+        { label: t('comp.seed.progress.2.label'), percent: t('comp.seed.progress.2.percent') },
+        { label: t('comp.seed.progress.3.label'), percent: t('comp.seed.progress.3.percent') },
       ],
     },
   },
@@ -231,26 +285,36 @@ export const COMPONENT_FORMS: Record<string, ComponentForm> = {
     fields: [
       {
         key: 'text',
-        label: 'Zitat',
+        label: t('comp.form.quote.text'),
         type: 'textarea',
-        default: 'Großartige Ideen brauchen Mut, nicht Erlaubnis.',
+        default: t('comp.seed.quote.text'),
       },
-      { key: 'author', label: 'Quelle', type: 'text', default: 'Unbekannt' },
+      { key: 'author', label: t('comp.form.quote.author'), type: 'text', default: t('comp.seed.quote.author') },
     ],
   },
 
   timeline: {
     items: {
-      label: 'Stationen',
-      addLabel: 'Station',
+      label: t('comp.form.timeline.items'),
+      addLabel: t('comp.form.timeline.addItem'),
       fields: [
-        { key: 'title', label: 'Titel', type: 'text', placeholder: '2024' },
-        { key: 'text', label: 'Text', type: 'text', placeholder: 'Gründung' },
+        {
+          key: 'title',
+          label: t('comp.form.timeline.title'),
+          type: 'text',
+          placeholder: t('comp.form.timeline.titlePlaceholder'),
+        },
+        {
+          key: 'text',
+          label: t('comp.form.timeline.text'),
+          type: 'text',
+          placeholder: t('comp.form.timeline.textPlaceholder'),
+        },
       ],
       seed: [
-        { title: '2024', text: 'Gründung' },
-        { title: '2025', text: 'Erste 1.000 Nutzer' },
-        { title: '2026', text: 'Internationaler Start' },
+        { title: t('comp.seed.timeline.1.title'), text: t('comp.seed.timeline.1.text') },
+        { title: t('comp.seed.timeline.2.title'), text: t('comp.seed.timeline.2.text') },
+        { title: t('comp.seed.timeline.3.title'), text: t('comp.seed.timeline.3.text') },
       ],
     },
   },
@@ -259,27 +323,35 @@ export const COMPONENT_FORMS: Record<string, ComponentForm> = {
     columns: [
       {
         key: 'left',
-        titleLabel: 'Linke Spalte — Titel',
-        titlePlaceholder: 'Vorher',
-        listLabel: 'Punkte (eine Zeile = ein Punkt)',
-        seedTitle: 'Vorher',
-        seedItems: ['Manuelle Prozesse', 'Hohe Fehlerquote', 'Langsam'],
+        titleLabel: t('comp.form.comparison.left.title'),
+        titlePlaceholder: t('comp.form.comparison.left.titlePlaceholder'),
+        listLabel: t('comp.form.comparison.left.list'),
+        seedTitle: t('comp.seed.comparison.left.title'),
+        seedItems: [
+          t('comp.seed.comparison.left.1'),
+          t('comp.seed.comparison.left.2'),
+          t('comp.seed.comparison.left.3'),
+        ],
       },
       {
         key: 'right',
-        titleLabel: 'Rechte Spalte — Titel',
-        titlePlaceholder: 'Nachher',
-        listLabel: 'Punkte (eine Zeile = ein Punkt)',
-        seedTitle: 'Nachher',
-        seedItems: ['Automatisiert', 'Zuverlässig', 'Schnell'],
+        titleLabel: t('comp.form.comparison.right.title'),
+        titlePlaceholder: t('comp.form.comparison.right.titlePlaceholder'),
+        listLabel: t('comp.form.comparison.right.list'),
+        seedTitle: t('comp.seed.comparison.right.title'),
+        seedItems: [
+          t('comp.seed.comparison.right.1'),
+          t('comp.seed.comparison.right.2'),
+          t('comp.seed.comparison.right.3'),
+        ],
       },
     ],
   },
 
   callout: {
     fields: [
-      { key: 'title', label: 'Titel', type: 'text', default: 'Wichtig' },
-      { key: 'text', label: 'Text', type: 'textarea', default: 'Die zentrale Botschaft dieser Folie.' },
+      { key: 'title', label: t('comp.form.callout.title'), type: 'text', default: t('comp.seed.callout.title') },
+      { key: 'text', label: t('comp.form.callout.text'), type: 'textarea', default: t('comp.seed.callout.text') },
     ],
   },
 
@@ -287,79 +359,127 @@ export const COMPONENT_FORMS: Record<string, ComponentForm> = {
     fields: [
       {
         key: 'name',
-        label: 'Symbol',
+        label: t('comp.form.icon.name'),
         type: 'select',
         default: 'check',
+        // `label: n` ist hier KEIN Anzeigetext, sondern der Icon-Name selbst —
+        // der Rust-Generator kennt genau diese Bezeichner.
         options: ICON_NAMES.map((n) => ({ value: n, label: n })),
       },
-      { key: 'label', label: 'Beschriftung (optional)', type: 'text', placeholder: 'z.B. Sicher' },
-      { key: 'color', label: 'Farbe', type: 'select', default: 'var(--color-accent)', options: TOKEN_COLORS },
-      { key: 'size', label: 'Größe (rem)', type: 'number', default: '6' },
+      {
+        key: 'label',
+        label: t('comp.form.icon.label'),
+        type: 'text',
+        placeholder: t('comp.form.icon.labelPlaceholder'),
+      },
+      {
+        key: 'color',
+        label: t('comp.form.icon.color'),
+        type: 'select',
+        default: 'var(--color-accent)',
+        options: TOKEN_COLORS,
+      },
+      { key: 'size', label: t('comp.form.icon.size'), type: 'number', default: '6' },
     ],
     numericFieldKeys: ['size'],
   },
 
   toc: {
     items: {
-      label: 'Einträge',
-      addLabel: 'Eintrag',
+      label: t('comp.form.toc.items'),
+      addLabel: t('comp.form.toc.addItem'),
       fields: [
-        { key: 'label', label: 'Beschriftung', type: 'text', placeholder: 'Einleitung' },
+        {
+          key: 'label',
+          label: t('comp.form.toc.label'),
+          type: 'text',
+          placeholder: t('comp.form.toc.labelPlaceholder'),
+        },
         // target = 1-basierte Foliennummer (einfachster Fall) ODER Zonen-ID
         // (umsortier-fest). Das navScript löst beides zur Zielfolie auf (Spec §23).
-        { key: 'target', label: 'Ziel (Foliennummer oder Zonen-ID)', type: 'text', placeholder: '2' },
+        {
+          key: 'target',
+          label: t('comp.form.toc.target'),
+          type: 'text',
+          placeholder: t('comp.form.toc.targetPlaceholder'),
+        },
       ],
       seed: [
-        { label: 'Einleitung', target: '2' },
-        { label: 'Hauptteil', target: '3' },
-        { label: 'Fazit', target: '4' },
+        { label: t('comp.seed.toc.1.label'), target: t('comp.seed.toc.1.target') },
+        { label: t('comp.seed.toc.2.label'), target: t('comp.seed.toc.2.target') },
+        { label: t('comp.seed.toc.3.label'), target: t('comp.seed.toc.3.target') },
       ],
     },
   },
 
   big_number: {
     fields: [
-      { key: 'value', label: 'Zahl', type: 'text', default: '+42%' },
-      { key: 'label', label: 'Beschriftung', type: 'text', default: 'Wachstum im letzten Quartal' },
-      { key: 'sub', label: 'Untertitel (optional)', type: 'text', placeholder: 'seit Q1' },
+      { key: 'value', label: t('comp.form.big_number.value'), type: 'text', default: t('comp.seed.big_number.value') },
+      { key: 'label', label: t('comp.form.big_number.label'), type: 'text', default: t('comp.seed.big_number.label') },
+      {
+        key: 'sub',
+        label: t('comp.form.big_number.sub'),
+        type: 'text',
+        placeholder: t('comp.form.big_number.subPlaceholder'),
+      },
     ],
   },
 
   feature_grid: {
     items: {
-      label: 'Features',
-      addLabel: 'Feature',
+      label: t('comp.form.feature_grid.items'),
+      addLabel: t('comp.form.feature_grid.addItem'),
       fields: [
         {
           key: 'icon',
-          label: 'Icon',
+          label: t('comp.form.feature_grid.icon'),
           type: 'select',
           default: 'star',
           options: ICON_NAMES.map((n) => ({ value: n, label: n })),
         },
-        { key: 'title', label: 'Titel', type: 'text', placeholder: 'Schnell' },
-        { key: 'text', label: 'Text', type: 'text', placeholder: 'In Sekunden startklar.' },
+        {
+          key: 'title',
+          label: t('comp.form.feature_grid.title'),
+          type: 'text',
+          placeholder: t('comp.form.feature_grid.titlePlaceholder'),
+        },
+        {
+          key: 'text',
+          label: t('comp.form.feature_grid.text'),
+          type: 'text',
+          placeholder: t('comp.form.feature_grid.textPlaceholder'),
+        },
       ],
       seed: [
-        { icon: 'bolt', title: 'Schnell', text: 'In Sekunden startklar.' },
-        { icon: 'shield', title: 'Sicher', text: 'Läuft komplett lokal.' },
-        { icon: 'star', title: 'Einfach', text: 'Keine Lernkurve.' },
+        { icon: 'bolt', title: t('comp.seed.feature_grid.1.title'), text: t('comp.seed.feature_grid.1.text') },
+        { icon: 'shield', title: t('comp.seed.feature_grid.2.title'), text: t('comp.seed.feature_grid.2.text') },
+        { icon: 'star', title: t('comp.seed.feature_grid.3.title'), text: t('comp.seed.feature_grid.3.text') },
       ],
     },
   },
 
   process_steps: {
     items: {
-      label: 'Schritte',
-      addLabel: 'Schritt',
+      label: t('comp.form.process_steps.items'),
+      addLabel: t('comp.form.process_steps.addItem'),
       fields: [
-        { key: 'title', label: 'Titel', type: 'text', placeholder: 'Entdecken' },
-        { key: 'text', label: 'Text', type: 'text', placeholder: 'Bedarf verstehen' },
+        {
+          key: 'title',
+          label: t('comp.form.process_steps.title'),
+          type: 'text',
+          placeholder: t('comp.form.process_steps.titlePlaceholder'),
+        },
+        {
+          key: 'text',
+          label: t('comp.form.process_steps.text'),
+          type: 'text',
+          placeholder: t('comp.form.process_steps.textPlaceholder'),
+        },
       ],
       seed: [
-        { title: 'Entdecken', text: 'Bedarf verstehen' },
-        { title: 'Entwerfen', text: 'Lösung skizzieren' },
-        { title: 'Liefern', text: 'Umsetzen & messen' },
+        { title: t('comp.seed.process_steps.1.title'), text: t('comp.seed.process_steps.1.text') },
+        { title: t('comp.seed.process_steps.2.title'), text: t('comp.seed.process_steps.2.text') },
+        { title: t('comp.seed.process_steps.3.title'), text: t('comp.seed.process_steps.3.text') },
       ],
     },
   },

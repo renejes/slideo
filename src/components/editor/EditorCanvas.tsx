@@ -13,6 +13,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { usePresentationStore } from '@/store/presentation'
+import { t } from '@/i18n'
 import { ZoneCard } from './ZoneCard'
 import { Icon } from '@/components/ui/Icon'
 
@@ -64,7 +65,7 @@ export function EditorCanvas() {
           className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-chrome-border-strong py-3.5 text-[13px] font-medium text-chrome-muted transition-colors hover:border-chrome-accent hover:bg-chrome-accent-soft hover:text-chrome-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
         >
           <Icon name="add" size={18} />
-          Folie hinzufügen
+          {t('editor.canvas.addSlide')}
         </button>
       </div>
     </div>

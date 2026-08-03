@@ -7,6 +7,8 @@ import { useUiStore } from '@/store/ui'
 import { isTauri, pickSavePath } from '@/lib/tauri'
 import { confirmDialog, getDesktopDir, joinPath, pickDirectory } from '@/lib/dialog'
 import { TEMPLATES, findTemplate } from '@/lib/templates'
+import { t } from '@/i18n'
+import { T } from '@/i18n/T'
 
 function safeFileName(name: string): string {
   const cleaned = name
@@ -29,7 +31,7 @@ export function NewPresentationModal() {
   const setDefaultProjectDir = useSettingsStore((s) => s.setDefaultProjectDir)
 
   const tauri = isTauri()
-  const [name, setName] = useState('Meine Präsentation')
+  const [name, setName] = useState(t('modal.new.defaultName'))
   const [templateId, setTemplateId] = useState('blank')
   const [location, setLocation] = useState<string | null>(defaultProjectDir)
   const [busy, setBusy] = useState(false)
@@ -53,9 +55,7 @@ export function NewPresentationModal() {
     setBusy(true)
     try {
       if (hasPresentation && isDirty) {
-        const ok = await confirmDialog(
-          'Es gibt ungespeicherte Änderungen. Neue Präsentation trotzdem anlegen?',
-        )
+        const ok = await confirmDialog(t('modal.new.unsavedConfirm'))
         if (!ok) return // Modal bleibt offen
       }
 
@@ -79,7 +79,7 @@ export function NewPresentationModal() {
       // Erst wenn das Ziel feststeht, den Store anfassen — und den Rückgabewert prüfen
       // (Befund H14: im read-only-Zustand lehnte newPresentation ab, create() lief
       // trotzdem weiter und speicherte das ALTE Deck unter dem neuen Namen).
-      if (!newPresentation(name || 'Unbenannt', findTemplate(templateId))) return
+      if (!newPresentation(name || t('modal.new.untitled'), findTemplate(templateId))) return
 
       if (path) {
         const dir = path.replace(/[/\\][^/\\]*$/, '')
@@ -94,23 +94,25 @@ export function NewPresentationModal() {
 
   return (
     <Modal
-      title="Neue Präsentation"
+      title={t('modal.new.title')}
       onClose={closeModal}
       footer={
         <>
           <button className={modalGhostBtn} onClick={closeModal}>
-            Abbrechen
+            {t('common.cancel')}
           </button>
           <button className={modalPrimaryBtn} onClick={create} disabled={busy}>
             <Icon name="add" size={18} />
-            Erstellen
+            {t('modal.new.create')}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-chrome-secondary">Projektname</span>
+          <span className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.new.projectName')}
+          </span>
           <input
             autoFocus
             value={name}
@@ -121,29 +123,36 @@ export function NewPresentationModal() {
         </label>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-chrome-secondary">Vorlage</span>
+          <span className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.new.template')}
+          </span>
           <div className="grid grid-cols-2 gap-1.5">
-            {TEMPLATES.map((t) => (
+            {/* `tpl` statt `t` — der Kurzname würde sonst die i18n-`t()` verdecken. */}
+            {TEMPLATES.map((tpl) => (
               <button
-                key={t.id}
-                onClick={() => setTemplateId(t.id)}
-                title={t.description}
+                key={tpl.id}
+                onClick={() => setTemplateId(tpl.id)}
+                title={tpl.description}
                 className={
                   'flex flex-col items-start gap-0.5 rounded-lg border px-2.5 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
-                  (templateId === t.id
+                  (templateId === tpl.id
                     ? 'border-chrome-accent bg-chrome-accent-soft'
                     : 'border-chrome-border hover:border-chrome-border-strong')
                 }
               >
-                <span className="text-[13px] font-medium text-chrome-text">{t.label}</span>
-                <span className="text-[11px] leading-snug text-chrome-muted">{t.description}</span>
+                <span className="text-[13px] font-medium text-chrome-text">{tpl.label}</span>
+                <span className="text-[11px] leading-snug text-chrome-muted">
+                  {tpl.description}
+                </span>
               </button>
             ))}
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-chrome-secondary">Speicherort</span>
+          <span className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.new.location')}
+          </span>
           {tauri ? (
             <div className="flex items-center gap-2">
               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2">
@@ -153,24 +162,26 @@ export function NewPresentationModal() {
                   dir="rtl"
                   title={location ?? ''}
                 >
-                  {location || 'Zuletzt genutzter Ordner'}
+                  {location || t('modal.new.locationFallback')}
                 </span>
               </div>
               <button className={modalGhostBtn} onClick={chooseLocation}>
-                Wählen…
+                {t('modal.new.choose')}
               </button>
             </div>
           ) : (
             <p className="rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2 text-[12px] text-chrome-muted">
-              Speicherort-Auswahl nur in der Desktop-App. Die Präsentation wird in-memory
-              angelegt; speichern später per „Speichern".
+              {t('modal.new.locationBrowserHint')}
             </p>
           )}
           {tauri && (
             <span className="text-[11px] text-chrome-muted">
-              „Erstellen" öffnet den Speichern-Dialog — vorbelegt mit{' '}
-              <code className="font-mono">{safeFileName(name)}.slideo</code> in diesem Ordner.
-              Dort lässt sich Name und Ort noch ändern.
+              <T
+                k="modal.new.createHint"
+                slots={[
+                  <code className="font-mono">{safeFileName(name)}.slideo</code>,
+                ]}
+              />
             </span>
           )}
         </div>

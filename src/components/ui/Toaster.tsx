@@ -1,4 +1,5 @@
 import { useToastStore, type ToastType } from '@/store/toast'
+import { t } from '@/i18n'
 import { Icon } from './Icon'
 
 const ICON: Record<ToastType, string> = {
@@ -22,18 +23,18 @@ export function Toaster() {
 
   return (
     <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex w-80 max-w-[90vw] flex-col gap-2">
-      {toasts.map((t) => (
+      {toasts.map((toast) => (
         <div
-          key={t.id}
+          key={toast.id}
           className="pointer-events-auto flex items-start gap-2.5 rounded-xl border border-chrome-border bg-chrome-surface px-3.5 py-3 shadow-pop"
           role="status"
         >
-          <Icon name={ICON[t.type]} size={18} weight={400} className={ACCENT[t.type]} />
-          <span className="flex-1 text-[13px] leading-snug text-chrome-text">{t.message}</span>
+          <Icon name={ICON[toast.type]} size={18} weight={400} className={ACCENT[toast.type]} />
+          <span className="flex-1 text-[13px] leading-snug text-chrome-text">{toast.message}</span>
           <button
-            onClick={() => dismiss(t.id)}
+            onClick={() => dismiss(toast.id)}
             className="rounded text-chrome-faint transition-colors hover:text-chrome-secondary"
-            aria-label="Schließen"
+            aria-label={t('common.close')}
           >
             <Icon name="close" size={16} weight={400} />
           </button>

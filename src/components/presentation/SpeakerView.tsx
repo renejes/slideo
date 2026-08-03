@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Presentation } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
+import { t } from '@/i18n'
 import { SlidePreview } from './SlidePreview'
 
 interface SpeakerViewProps {
@@ -33,12 +34,17 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
     <div className="flex h-full w-full flex-col gap-3 p-4 text-white">
       {/* Kopfzeile: aktuelle Folie + Timer/Zähler */}
       <div className="flex shrink-0 items-center justify-between">
-        <Label>Aktuell · {current?.label ?? '—'}</Label>
+        <Label>{t('present.speaker.current', { label: current?.label ?? '—' })}</Label>
         <div className="flex items-baseline gap-3">
           <span className="text-2xl font-semibold tabular-nums">{formatTime(elapsed)}</span>
           <span className="text-sm text-white/50 tabular-nums">
             {Math.min(index + 1, count)} / {count}
-            {stepTotal > 1 && <span className="text-white/30"> · Schritt {step + 1}/{stepTotal}</span>}
+            {stepTotal > 1 && (
+              <span className="text-white/30">
+                {' · '}
+                {t('present.speaker.step', { current: step + 1, total: stepTotal })}
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -55,14 +61,16 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
       {/* Untere Info-Leiste: nächste Folie + Notizen nebeneinander */}
       <div className="flex h-[32%] min-h-[9rem] shrink-0 gap-4">
         <div className="flex w-[34%] min-w-[13rem] flex-col gap-1.5">
-          <Label>{next ? `Nächste · ${next.label}` : 'Letzte Folie'}</Label>
+          <Label>
+            {next ? t('present.speaker.next', { label: next.label }) : t('present.speaker.last')}
+          </Label>
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <div className="relative aspect-video h-full max-h-full max-w-full overflow-hidden rounded-lg border border-white/10 bg-black">
               {next ? (
                 <SlidePreview presentation={presentation} zone={next} assets={assets} />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-white/30">
-                  Ende der Präsentation
+                  {t('present.speaker.end')}
                 </div>
               )}
             </div>
@@ -70,9 +78,9 @@ export function SpeakerView({ presentation, index, elapsed, step = 0, stepTotal 
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <Label>Notizen</Label>
+          <Label>{t('present.speaker.notes')}</Label>
           <div className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap rounded-lg border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/85">
-            {notes || <span className="text-white/30">Keine Notizen für diese Folie.</span>}
+            {notes || <span className="text-white/30">{t('present.speaker.noNotes')}</span>}
           </div>
         </div>
       </div>

@@ -4,7 +4,14 @@ import { Icon } from '@/components/ui/Icon'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
-import { isTauri, listComponents, renderComponent, type ComponentMeta } from '@/lib/tauri'
+import { t } from '@/i18n'
+import {
+  describeError,
+  isTauri,
+  listComponents,
+  renderComponent,
+  type ComponentMeta,
+} from '@/lib/tauri'
 import { tokensToCssString } from '@/lib/tokens'
 import {
   COMPONENT_FORMS,
@@ -19,10 +26,6 @@ import {
 } from '@/lib/component-forms'
 
 type Placement = 'new' | 'append' | 'replace'
-
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
-}
 
 // Deutsche Anzeige-Texte für die menschliche Palette; Fallback auf den englischen
 // Rust-Katalog (AI-facing), falls ein Typ hier (noch) nicht gepflegt ist.
@@ -64,7 +67,7 @@ export function ComponentPaletteModal() {
         setSelectedType((prev) => prev ?? list[0]?.type ?? null)
       })
       .catch((e) => {
-        if (!cancelled) setCatalogError(errMsg(e))
+        if (!cancelled) setCatalogError(describeError(e))
       })
     return () => {
       cancelled = true
@@ -88,7 +91,8 @@ export function ComponentPaletteModal() {
   useEffect(() => {
     if (!selectedType || !tauri) return
     let cancelled = false
-    const t = setTimeout(() => {
+    // `timer` statt `t` — `t` ist seit der i18n-Umstellung der Uebersetzer-Import.
+    const timer = setTimeout(() => {
       renderComponent(selectedType, params, dataId)
         .then((html) => {
           if (cancelled) return
@@ -96,12 +100,12 @@ export function ComponentPaletteModal() {
           setPreviewError(null)
         })
         .catch((e) => {
-          if (!cancelled) setPreviewError(errMsg(e))
+          if (!cancelled) setPreviewError(describeError(e))
         })
     }, 220)
     return () => {
       cancelled = true
-      clearTimeout(t)
+      clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, paramsKey, tauri, dataId])
@@ -131,10 +135,16 @@ export function ComponentPaletteModal() {
 
   const placements = useMemo(() => {
     const list: { value: Placement; label: string }[] = []
-    if (active && !targetHasContent) list.push({ value: 'replace', label: `In „${active.label}" einsetzen` })
+    if (active && !targetHasContent)
+      list.push({ value: 'replace', label: t('media.palette.placeReplace', { label: active.label }) })
     if (active && active.content_type === 'html' && targetHasContent)
-      list.push({ value: 'append', label: `An „${active.label}" anhängen` })
-    list.push({ value: 'new', label: active ? `Als neue Folie nach „${active.label}"` : 'Als neue Folie' })
+      list.push({ value: 'append', label: t('media.palette.placeAppend', { label: active.label }) })
+    list.push({
+      value: 'new',
+      label: active
+        ? t('media.palette.placeNewAfter', { label: active.label })
+        : t('media.palette.placeNew'),
+    })
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, active?.content_type, active?.label, targetHasContent])
@@ -158,10 +168,10 @@ export function ComponentPaletteModal() {
     try {
       const html = await renderComponent(selectedType, params, dataId)
       insertComponent({ targetZoneId: activeZoneId, placement, html })
-      notify('Komponente eingefügt.', 'success')
+      notify(t('media.palette.inserted'), 'success')
       closeModal()
     } catch (e) {
-      notify(`Einfügen fehlgeschlagen: ${errMsg(e)}`, 'error')
+      notify(t('media.palette.insertFailed', { error: describeError(e) }), 'error')
     }
   }
 
@@ -184,22 +194,22 @@ export function ComponentPaletteModal() {
 
   return (
     <Modal
-      title="Komponente einfügen"
+      title={t('media.palette.title')}
       onClose={closeModal}
       width="w-[60rem]"
       footer={
         <>
           {markdownNotice && (
             <span className="mr-auto max-w-[24rem] text-[11px] leading-snug text-chrome-muted">
-              Aktive Folie enthält Markdown — die Komponente wird als neue HTML-Folie eingefügt.
+              {t('media.palette.markdownNotice')}
             </span>
           )}
           <button className={modalGhostBtn} onClick={closeModal}>
-            Abbrechen
+            {t('common.cancel')}
           </button>
           <button className={modalPrimaryBtn} onClick={insert} disabled={!selectedType || !tauri}>
             <Icon name="add" size={18} />
-            Einfügen
+            {t('media.palette.insert')}
           </button>
         </>
       }
@@ -208,10 +218,10 @@ export function ComponentPaletteModal() {
         <div className="flex flex-col items-center gap-2 py-10 text-center">
           <Icon name="widgets" size={32} weight={300} className="text-chrome-faint" />
           <p className="text-[13px] text-chrome-secondary">
-            Die Komponenten-Palette ist nur in der Desktop-App verfügbar.
+            {t('media.palette.unavailable')}
           </p>
           <p className="max-w-[28rem] text-[11px] text-chrome-faint">
-            Der Komponenten-Generator läuft im Rust-Backend (npm run tauri:dev).
+            {t('media.palette.unavailableHint')}
           </p>
         </div>
       ) : (
@@ -220,7 +230,7 @@ export function ComponentPaletteModal() {
           <div className="w-52 shrink-0 overflow-y-auto border-r border-chrome-border pr-3">
             <div className="flex flex-col gap-1">
               {catalog.length === 0 && (
-                <p className="px-1 py-2 text-[12px] text-chrome-faint">Lädt …</p>
+                <p className="px-1 py-2 text-[12px] text-chrome-faint">{t('common.loading')}</p>
               )}
               {catalog.map((c) => (
                 <button
@@ -253,7 +263,7 @@ export function ComponentPaletteModal() {
             <div className="shrink-0 overflow-hidden rounded-lg border border-chrome-border bg-chrome-surface-2">
               <div className="flex items-center justify-between border-b border-chrome-border px-3 py-1.5">
                 <span className="text-[11px] font-medium uppercase tracking-wide text-chrome-faint">
-                  Vorschau
+                  {t('media.palette.preview')}
                 </span>
                 {previewError && (
                   <span className="truncate text-[11px] text-chrome-danger" title={previewError}>
@@ -262,7 +272,7 @@ export function ComponentPaletteModal() {
                 )}
               </div>
               <iframe
-                title="Komponenten-Vorschau"
+                title={t('media.palette.previewFrame')}
                 sandbox=""
                 srcDoc={srcDoc}
                 className="h-44 w-full border-0 bg-transparent"
@@ -282,7 +292,7 @@ export function ComponentPaletteModal() {
 
               {!form && selectedType && (
                 <p className="rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2 text-[12px] text-chrome-muted">
-                  Diese Komponente wird mit Standardwerten eingefügt.
+                  {t('media.palette.defaults')}
                 </p>
               )}
 
@@ -326,14 +336,17 @@ export function ComponentPaletteModal() {
                             placeholder={col.placeholder ?? col.label}
                             onChange={(e) => updateItem(i, col.key, e.target.value)}
                             className={inputClass}
-                            aria-label={`${col.label} (Zeile ${i + 1})`}
+                            aria-label={t('media.palette.itemFieldAria', {
+                              label: col.label,
+                              row: i + 1,
+                            })}
                           />
                         ))}
                         <button
                           onClick={() => removeItem(i)}
                           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-danger/10 hover:text-chrome-danger"
-                          title="Zeile entfernen"
-                          aria-label={`Zeile ${i + 1} entfernen`}
+                          title={t('media.palette.removeRow')}
+                          aria-label={t('media.palette.removeRowAria', { row: i + 1 })}
                         >
                           <Icon name="close" size={15} />
                         </button>
@@ -341,7 +354,7 @@ export function ComponentPaletteModal() {
                     ))}
                     {state.items.length === 0 && (
                       <p className="text-[11px] text-chrome-faint">
-                        Keine Einträge — wird mit Beispieldaten gerendert.
+                        {t('media.palette.noItems')}
                       </p>
                     )}
                   </div>
@@ -388,14 +401,14 @@ export function ComponentPaletteModal() {
                 <input
                   value={dataId}
                   onChange={(e) => setDataId(e.target.value.replace(/[^A-Za-z0-9_:-]/g, '').slice(0, 64))}
-                  placeholder="optional — für Auto-Animate (Übergang „auto“)"
-                  aria-label="data-id für Auto-Animate (optional)"
-                  title="Erlaubt: Buchstaben, Ziffern, - _ : (max. 64). Andere Zeichen werden entfernt."
+                  placeholder={t('media.palette.dataIdPlaceholder')}
+                  aria-label={t('media.palette.dataIdAria')}
+                  title={t('media.palette.dataIdTitle')}
                   className="min-w-0 flex-1 rounded-md border border-chrome-border bg-white px-2 py-1 text-[12px] text-chrome-text placeholder:text-chrome-faint focus:border-chrome-accent focus:outline-none focus:ring-2 focus:ring-chrome-accent/30"
                 />
               </div>
               <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-chrome-faint">
-                Einfügen
+                {t('media.palette.placementLabel')}
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {placements.map((p) => (

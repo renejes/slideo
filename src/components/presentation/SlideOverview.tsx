@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Presentation, AssetMap } from '@/types'
 import { Icon } from '@/components/ui/Icon'
+import { t, tp } from '@/i18n'
 import { SlidePreview } from './SlidePreview'
 
 interface SlideOverviewProps {
@@ -83,22 +84,22 @@ export function SlideOverview({ presentation, assets, current, onJump, onClose }
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Folien-Übersicht"
+      aria-label={t('present.overview.aria')}
       /* Voll deckend OHNE backdrop-filter: ein backdrop-filter auf einem Vorfahren lässt
          in WebKit verschachtelte Iframes (die Folien-Thumbnails) leer rendern. */
       className="absolute inset-0 z-30 flex flex-col bg-[#0b0b0f]"
     >
       <div className="flex items-center justify-between px-6 py-4 text-white">
         <span className="text-sm font-medium text-white/70">
-          Übersicht · {count} {count === 1 ? 'Folie' : 'Folien'}
+          {tp('present.overview.count', count)}
         </span>
         <button
           onClick={onClose}
           className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-[13px] text-white/80 transition-colors hover:bg-white/10"
-          title="Schließen (Esc)"
+          title={t('present.overview.close')}
         >
           <Icon name="close" size={17} weight={400} />
-          Schließen
+          {t('common.close')}
         </button>
       </div>
 
@@ -140,7 +141,7 @@ export function SlideOverview({ presentation, assets, current, onJump, onClose }
                 </span>
                 {isCurrent && (
                   <span className="absolute right-1.5 top-1.5 rounded bg-chrome-accent px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                    Aktuell
+                    {t('present.overview.current')}
                   </span>
                 )}
               </div>

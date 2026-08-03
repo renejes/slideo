@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import vm from 'node:vm'
 import { renderFullPage, renderStandalonePage, renderPrintPage, renderSingleZonePage, scopeCss } from './renderer'
 import type { Presentation, Zone } from '@/types'
 import { DEFAULT_TOKENS, DEFAULT_ZONE_STYLE, FILE_FORMAT_VERSION } from '@/types'
+import { applyLocale } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Der eigentliche Grund für dieses File (Review 2026-08, Befund S3):
@@ -73,37 +74,62 @@ function extractScripts(html: string): string[] {
   return out
 }
 
-describe('injizierte Iframe-Skripte: Syntax', () => {
-  // Jede Kombination, die die App tatsächlich rendert.
-  const variants: { name: string; html: string }[] = [
-    { name: 'Vorschau (editable+directEdit)', html: renderFullPage(deck(), { editable: true, directEdit: true }) },
-    { name: 'Vorschau (editable, ohne directEdit)', html: renderFullPage(deck(), { editable: true, directEdit: false }) },
-    { name: 'Präsentation (present)', html: renderFullPage(deck(), { present: true }) },
-    { name: 'Anzeige (nicht editierbar)', html: renderFullPage(deck(), {}) },
-    { name: 'Standalone-Export', html: renderStandalonePage(deck(), {}) },
-    { name: 'Print', html: renderPrintPage(deck(), {}) },
-    { name: 'Einzelfolie (Thumbnail/Speaker)', html: renderSingleZonePage(deck(), deck().zones[0], {}) },
-  ]
+// Jede Kombination, die die App tatsächlich rendert — als Thunk, damit sie je
+// Sprache neu ausgewertet wird.
+const VARIANTS: { name: string; render: () => string }[] = [
+  { name: 'Vorschau (editable+directEdit)', render: () => renderFullPage(deck(), { editable: true, directEdit: true }) },
+  { name: 'Vorschau (editable, ohne directEdit)', render: () => renderFullPage(deck(), { editable: true, directEdit: false }) },
+  { name: 'Präsentation (present)', render: () => renderFullPage(deck(), { present: true }) },
+  { name: 'Anzeige (nicht editierbar)', render: () => renderFullPage(deck(), {}) },
+  { name: 'Standalone-Export', render: () => renderStandalonePage(deck(), {}) },
+  { name: 'Print', render: () => renderPrintPage(deck(), {}) },
+  { name: 'Einzelfolie (Thumbnail/Speaker)', render: () => renderSingleZonePage(deck(), deck().zones[0], {}) },
+]
 
-  for (const v of variants) {
-    it(`${v.name} liefert nur parsebares JavaScript`, () => {
-      const scripts = extractScripts(v.html)
-      for (const [i, src] of scripts.entries()) {
-        expect(
-          () => new vm.Script(src, { filename: `${v.name}#${i}.js` }),
-          `Skript ${i} in „${v.name}" ist syntaktisch kaputt`,
-        ).not.toThrow()
-      }
+// Seit dem i18n-Umbau reicht EIN Durchlauf nicht mehr: die Beschriftungen der
+// §20-Mini-Toolbar und der Tooltip des Drag-Griffs kommen aus dem Katalog. Ein
+// Apostroph im englischen Text („Don't") würde in einem einfach gequoteten
+// Attribut das Markup zerlegen — auf Deutsch bliebe die Suite grün. Also beide
+// Sprachen durch dieselben sieben Render-Pfade.
+for (const locale of ['de', 'en'] as const) {
+  describe(`injizierte Iframe-Skripte: Syntax (${locale})`, () => {
+    beforeEach(() => applyLocale(locale))
+    afterEach(() => applyLocale('de'))
+
+    for (const v of VARIANTS) {
+      it(`${v.name} liefert nur parsebares JavaScript`, () => {
+        const scripts = extractScripts(v.render())
+        for (const [i, src] of scripts.entries()) {
+          expect(
+            () => new vm.Script(src, { filename: `${v.name}#${i}.js` }),
+            `Skript ${i} in „${v.name}" (${locale}) ist syntaktisch kaputt`,
+          ).not.toThrow()
+        }
+      })
+    }
+
+    it('die Editiermodi injizieren überhaupt Skripte (Schutz gegen leeres Grün)', () => {
+      // Ohne diese Zusicherung würde die Suite auch dann grün, wenn die Skripte
+      // gar nicht mehr injiziert werden — dann prüfte sie nichts.
+      expect(extractScripts(renderFullPage(deck(), { editable: true, directEdit: true })).length).toBeGreaterThanOrEqual(3)
+      expect(extractScripts(renderFullPage(deck(), { present: true })).length).toBeGreaterThanOrEqual(1)
     })
-  }
 
-  it('die Editiermodi injizieren überhaupt Skripte (Schutz gegen leeres Grün)', () => {
-    // Ohne diese Zusicherung würde die Suite auch dann grün, wenn die Skripte
-    // gar nicht mehr injiziert werden — dann prüfte sie nichts.
-    expect(extractScripts(renderFullPage(deck(), { editable: true, directEdit: true })).length).toBeGreaterThanOrEqual(3)
-    expect(extractScripts(renderFullPage(deck(), { present: true })).length).toBeGreaterThanOrEqual(1)
+    it('die Katalogtexte kommen escaped im Markup an', () => {
+      const html = renderFullPage(deck(), { editable: true, directEdit: true })
+      // Der Drag-Griff-Tooltip läuft durch escapeAttr → kein nacktes ' oder " im Attribut.
+      const handle = /<span class="slideo-drag"[^>]*title="([^"]*)"/.exec(html)
+      expect(handle, 'Drag-Griff mit title nicht gefunden').not.toBeNull()
+      expect(handle?.[1]).not.toMatch(/["']/)
+      // Die Toolbar-Beschriftungen stehen als JSON im Skript, nicht als Attribut —
+      // dort darf kein unescapetes </script und kein roher Zeilenumbruch stehen.
+      const ui = /var UI = (\{.*?\});/.exec(html)
+      expect(ui, 'UI-Objekt im editScript nicht gefunden').not.toBeNull()
+      expect(ui?.[1]).not.toContain('</script')
+      expect(() => JSON.parse(ui?.[1] ?? '')).not.toThrow()
+    })
   })
-})
+}
 
 describe('Renderer-Grundinvarianten', () => {
   it('nur In-App-Seiten tragen die strikte Folien-CSP, der Standalone-Export nicht (Audit S3)', () => {

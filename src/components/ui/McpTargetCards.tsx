@@ -1,3 +1,4 @@
+import { t, type I18nKey } from '@/i18n'
 import { Icon } from './Icon'
 import type { McpStatus, McpTarget } from '@/lib/mcp-registration'
 
@@ -5,24 +6,24 @@ import type { McpStatus, McpTarget } from '@/lib/mcp-registration'
 // Sektion (sofortiges Umschalten) und vom Erststart-Modal (lokale Vorauswahl,
 // Bestätigung per Footer-Button). Rein präsentational; die Lade-/Wechsel-Logik
 // liegt beim jeweiligen Aufrufer.
+//
+// `label` ist ein Eigenname (Produktname) und bleibt darum im Code; der `hintKey`
+// zeigt in den Katalog, weil die Zeile beschreibenden Text enthält.
 
-export const MCP_TARGETS: { key: McpTarget; label: string; icon: string; hint: string }[] = [
-  { key: 'desktop', label: 'Claude Desktop', icon: 'computer', hint: 'claude_desktop_config.json' },
-  { key: 'meta', label: 'Meta-MCP', icon: 'hub', hint: 'localhost:3663 · Aggregator-Proxy' },
-  { key: 'claude', label: 'Claude Code', icon: 'terminal', hint: '~/.claude.json · User-Scope' },
+export const MCP_TARGETS: { key: McpTarget; label: string; icon: string; hintKey: I18nKey }[] = [
+  { key: 'desktop', label: 'Claude Desktop', icon: 'computer', hintKey: 'ui.mcp.hint.desktop' },
+  { key: 'meta', label: 'Meta-MCP', icon: 'hub', hintKey: 'ui.mcp.hint.meta' },
+  { key: 'claude', label: 'Claude Code', icon: 'terminal', hintKey: 'ui.mcp.hint.claude' },
 ]
 
 export function mcpTargetLabel(key: McpTarget): string {
-  return MCP_TARGETS.find((t) => t.key === key)?.label ?? key
+  return MCP_TARGETS.find((target) => target.key === key)?.label ?? key
 }
 
 function availLabel(key: McpTarget, available: boolean): string {
-  if (available) return key === 'meta' ? 'Läuft' : key === 'desktop' ? 'Installiert' : 'Erkannt'
-  return key === 'meta'
-    ? 'Nicht erreichbar'
-    : key === 'desktop'
-      ? 'Nicht installiert'
-      : 'Nicht erkannt'
+  // Der zusammengesetzte Schlüssel ist typgeprüft: `McpTarget` × yes|no ergibt
+  // genau die sechs Katalog-Einträge.
+  return t(`ui.mcp.avail.${key}.${available ? 'yes' : 'no'}`)
 }
 
 interface McpTargetCardsProps {
@@ -48,14 +49,14 @@ export function McpTargetCards({
 }: McpTargetCardsProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      {MCP_TARGETS.map((t) => {
-        const st = status[t.key]
-        const isSelected = selected === t.key
-        const isBusy = busy === t.key
+      {MCP_TARGETS.map((target) => {
+        const st = status[target.key]
+        const isSelected = selected === target.key
+        const isBusy = busy === target.key
         return (
           <button
-            key={t.key}
-            onClick={() => onSelect(t.key)}
+            key={target.key}
+            onClick={() => onSelect(target.key)}
             disabled={disabled}
             aria-pressed={isSelected}
             className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 disabled:cursor-default ${
@@ -72,34 +73,34 @@ export function McpTargetCards({
               {isSelected && <span className="h-2 w-2 rounded-full bg-chrome-accent-600" />}
             </span>
             <Icon
-              name={t.icon}
+              name={target.icon}
               size={20}
               weight={400}
               className={isSelected ? 'text-chrome-accent-600' : 'text-chrome-faint'}
             />
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
-                <span className="text-[13px] font-medium text-chrome-text">{t.label}</span>
+                <span className="text-[13px] font-medium text-chrome-text">{target.label}</span>
                 {showActiveBadge && isSelected && (
                   <span className="rounded bg-chrome-accent-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                    Aktiv
+                    {t('ui.mcp.active')}
                   </span>
                 )}
               </span>
               <span className="block truncate font-mono text-[11px] text-chrome-muted">
-                {t.hint}
+                {t(target.hintKey)}
               </span>
             </span>
             <span
               className={`shrink-0 text-[11px] ${
                 isBusy
                   ? 'text-chrome-muted'
-                  : t.key === 'meta' && !st.available
+                  : target.key === 'meta' && !st.available
                     ? 'text-chrome-warn'
                     : 'text-chrome-faint'
               }`}
             >
-              {isBusy ? 'Wechsle…' : availLabel(t.key, st.available)}
+              {isBusy ? t('ui.mcp.switching') : availLabel(target.key, st.available)}
             </span>
           </button>
         )

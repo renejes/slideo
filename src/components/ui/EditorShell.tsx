@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLayoutStore, EDITOR_MIN, PREVIEW_MIN } from '@/store/layout'
+import { t } from '@/i18n'
 import { Icon } from './Icon'
 import { Splitter } from './Splitter'
 import { EditorCanvas } from '@/components/editor/EditorCanvas'
@@ -65,11 +66,13 @@ export function EditorShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-chrome-border px-3.5 text-chrome-muted">
             <Icon name="edit" size={15} weight={400} />
-            <span className="text-[11px] font-semibold uppercase tracking-wider">Editor</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider">
+              {t('ui.shell.editor')}
+            </span>
             <button
               onClick={toggleEditor}
-              title="Editor einklappen"
-              aria-label="Editor einklappen"
+              title={t('ui.shell.collapse', { name: t('ui.shell.editor') })}
+              aria-label={t('ui.shell.collapse', { name: t('ui.shell.editor') })}
               className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
             >
               <Icon name="chevron_left" size={18} />
@@ -80,9 +83,11 @@ export function EditorShell() {
           </div>
         </div>
       ) : (
-        <CollapsedRail side="left" icon="edit" label="Editor" onExpand={toggleEditor} />
+        <CollapsedRail side="left" icon="edit" label={t('ui.shell.editor')} onExpand={toggleEditor} />
       )}
-      {pFixed > 0 && <Splitter onDelta={(dx) => nudge(-dx)} ariaLabel="Vorschau skalieren" />}
+      {pFixed > 0 && (
+        <Splitter onDelta={(dx) => nudge(-dx)} ariaLabel={t('ui.shell.resizePreview')} />
+      )}
 
       {/* Vorschau */}
       {previewOpen ? (
@@ -93,7 +98,12 @@ export function EditorShell() {
           <PreviewPane onCollapse={togglePreview} />
         </div>
       ) : (
-        <CollapsedRail side="right" icon="chevron_left" label="Vorschau" onExpand={togglePreview} />
+        <CollapsedRail
+          side="right"
+          icon="chevron_left"
+          label={t('ui.shell.preview')}
+          onExpand={togglePreview}
+        />
       )}
     </div>
   )
@@ -115,8 +125,8 @@ function CollapsedRail({
   return (
     <button
       onClick={onExpand}
-      title={`${label} einblenden`}
-      aria-label={`${label} einblenden`}
+      title={t('ui.shell.expand', { name: label })}
+      aria-label={t('ui.shell.expand', { name: label })}
       className={
         'group flex w-9 shrink-0 flex-col items-center gap-2 bg-chrome-bg py-2 text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-chrome-accent/40 ' +
         border +

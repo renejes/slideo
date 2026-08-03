@@ -7,6 +7,7 @@ import { classifyPreviewChange } from '@/lib/preview-diff'
 import { findSourceRange } from '@/lib/dom-edit'
 import { htmlBlockToMarkdown } from '@/lib/tiptap-markdown'
 import { isTauri, assetUrlBase } from '@/lib/tauri'
+import { t } from '@/i18n'
 import { Icon } from '@/components/ui/Icon'
 
 const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
@@ -446,12 +447,14 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
     <section className="relative flex h-full w-full flex-col border-l border-chrome-border bg-chrome-bg">
       <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5 text-chrome-muted">
         <Icon name="visibility" size={15} weight={400} />
-        <span className="text-[11px] font-semibold uppercase tracking-wider">Vorschau</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider">
+          {t('present.preview.heading')}
+        </span>
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={togglePreviewEdit}
             aria-pressed={previewEdit}
-            title="Direktbearbeiten: in der Vorschau anklicken — HTML-Elemente bzw. Markdown-Blöcke: Text bearbeiten (Doppelklick), duplizieren, löschen"
+            title={t('present.preview.directEditHint')}
             className={
               'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ' +
               (previewEdit
@@ -464,13 +467,13 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
                 deckungsgleich mit dem eigenen Tooltip und ehrlich gegenüber dem,
                 was der Toggle NICHT abschaltet — Block-Drag und Bild-Resize sind
                 Hover-Werkzeuge der Vorschau und laufen unabhängig davon. */}
-            Direktbearbeiten
+            {t('present.preview.directEdit')}
           </button>
           {onCollapse && (
             <button
               onClick={onCollapse}
-              title="Vorschau einklappen"
-              aria-label="Vorschau einklappen"
+              title={t('present.preview.collapse')}
+              aria-label={t('present.preview.collapse')}
               className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
             >
               <Icon name="chevron_right" size={18} />
@@ -483,7 +486,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
           ref={iframeRef}
           srcDoc={html}
           onLoad={handleLoad}
-          title="Vorschau"
+          title={t('present.preview.heading')}
           sandbox="allow-scripts"
           className="h-full w-full rounded-xl border border-chrome-border bg-black shadow-card"
         />
@@ -497,17 +500,21 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         >
           <div
             role="dialog"
-            aria-label="Mit Folie verknüpfen"
+            aria-label={t('present.preview.linkSlide')}
             onClick={(e) => e.stopPropagation()}
             className="flex max-h-full w-72 flex-col overflow-hidden rounded-xl border border-chrome-border bg-chrome-surface shadow-pop"
           >
             <div className="flex items-center gap-1.5 border-b border-chrome-border px-3 py-2">
               <Icon name="link" size={15} weight={400} />
-              <span className="text-[12px] font-semibold text-chrome-text">Mit Folie verknüpfen</span>
+              <span className="text-[12px] font-semibold text-chrome-text">
+                {t('present.preview.linkSlide')}
+              </span>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto py-1">
               {pickerZones.length === 0 ? (
-                <div className="px-3 py-2 text-[12px] text-chrome-muted">Keine Folien.</div>
+                <div className="px-3 py-2 text-[12px] text-chrome-muted">
+                  {t('present.preview.noSlides')}
+                </div>
               ) : (
                 pickerZones.map((z, i) => {
                   const active = linkPicker.current === z.id || linkPicker.current === String(i + 1)
@@ -521,7 +528,9 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
                       }
                     >
                       <span className="w-6 shrink-0 text-[11px] tabular-nums text-chrome-muted">{i + 1}</span>
-                      <span className="min-w-0 flex-1 truncate">{z.label || `Folie ${i + 1}`}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {z.label || t('present.preview.slideFallback', { index: i + 1 })}
+                      </span>
                     </button>
                   )
                 })
@@ -532,7 +541,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
                 onClick={() => chooseLink('')}
                 className="border-t border-chrome-border px-3 py-2 text-left text-[12px] text-chrome-muted transition-colors hover:text-chrome-text"
               >
-                Link entfernen
+                {t('present.preview.removeLink')}
               </button>
             )}
           </div>

@@ -4,6 +4,7 @@
 
 mod commands;
 mod components;
+mod errcode;
 mod file;
 mod history;
 mod ipc;

@@ -10,14 +10,17 @@ import {
   type McpStatus,
   type McpTarget,
 } from '@/lib/mcp-registration'
+import { describeError } from '@/lib/tauri'
+import { t } from '@/i18n'
+import { T } from '@/i18n/T'
 
 // Erststart-Auswahl der MCP-Verbindung. Erscheint, solange noch kein Ziel gewählt
 // wurde (Backend-Status `configured === false`). Slideo registriert sich bewusst
 // ERST nach „Aktivieren" — vorher wird nichts eingetragen.
-/** Beispielfrage fürs Erfolgspanel — bewusst kurz und ohne Slideo-Jargon. */
-const EXAMPLE_ASK = 'Welche Slideo-Werkzeuge hast du? Bau mir damit eine Testfolie.'
 
 export function McpSetupModal({ onClose }: { onClose: () => void }) {
+  /** Beispielfrage fürs Erfolgspanel — bewusst kurz und ohne Slideo-Jargon. */
+  const exampleAsk = t('modal.mcpSetup.exampleAsk')
   const [status, setStatus] = useState<McpStatus | null>(null)
   const [pick, setPick] = useState<McpTarget | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -45,7 +48,7 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
       setDone(pick)
     } catch (e) {
       // z.B. Meta-MCP nicht erreichbar — Modal offen lassen, anderes Ziel wählbar.
-      notify(e instanceof Error ? e.message : String(e), 'error')
+      notify(describeError(e), 'error')
     } finally {
       setSubmitting(false)
     }
@@ -55,12 +58,12 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
   if (done) {
     return (
       <Modal
-        title="Fast fertig — einmal neu starten"
+        title={t('modal.mcpSetup.doneTitle')}
         onClose={onClose}
         width="w-[32rem]"
         footer={
           <button className={modalPrimaryBtn} onClick={onClose}>
-            Verstanden
+            {t('modal.gotIt')}
           </button>
         }
       >
@@ -68,36 +71,41 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-start gap-2 rounded-lg border border-chrome-warn/30 bg-chrome-warn-soft px-3 py-2.5">
             <Icon name="warning" size={18} weight={400} className="mt-0.5 shrink-0 text-chrome-warn" />
             <p className="text-[13px] leading-relaxed text-chrome-warn">
-              <span className="font-semibold">
-                Starte {mcpTargetLabel(done)} jetzt einmal neu.
-              </span>{' '}
-              MCP-Clients lesen ihre Server-Liste nur beim Start — vorher sieht dein Agent
-              Slideo nicht.
+              <T
+                k="modal.mcpSetup.restartBody"
+                slots={[
+                  <span className="font-semibold">
+                    {t('modal.mcpSetup.restartNow', { target: mcpTargetLabel(done) })}
+                  </span>,
+                ]}
+              />
             </p>
           </div>
           <p className="text-[13px] leading-relaxed text-chrome-secondary">
-            Danach dort einfach fragen, zum Beispiel:
+            {t('modal.mcpSetup.askExample')}
           </p>
           <div className="flex items-start gap-2 rounded-lg border border-chrome-border bg-chrome-surface-2 px-3 py-2.5">
             <code className="flex-1 font-mono text-[12px] leading-relaxed text-chrome-text">
-              {EXAMPLE_ASK}
+              {exampleAsk}
             </code>
             <button
               onClick={() =>
-                void copyText(EXAMPLE_ASK).then((ok) =>
-                  notify(ok ? 'Kopiert.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error'),
+                void copyText(exampleAsk).then((ok) =>
+                  notify(
+                    ok ? t('modal.mcpSetup.copied') : t('modal.copyFailed'),
+                    ok ? 'success' : 'error',
+                  ),
                 )
               }
-              title="Kopieren"
-              aria-label="Kopieren"
+              title={t('modal.mcpSetup.copy')}
+              aria-label={t('modal.mcpSetup.copy')}
               className="shrink-0 rounded-md p-1 text-chrome-muted transition-colors hover:bg-chrome-surface hover:text-chrome-text"
             >
               <Icon name="content_copy" size={16} weight={400} />
             </button>
           </div>
           <p className="text-[12px] leading-relaxed text-chrome-muted">
-            Ob es geklappt hat, zeigt der Punkt oben rechts in der Leiste: er springt auf
-            „KI verbunden", sobald der erste Aufruf Slideo erreicht.
+            {t('modal.mcpSetup.statusHint')}
           </p>
         </div>
       </Modal>
@@ -106,30 +114,36 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal
-      title="KI-Agent verbinden (MCP)"
+      title={t('modal.mcpSetup.title')}
       onClose={onClose}
       width="w-[32rem]"
       footer={
         <>
           <button className={modalGhostBtn} onClick={onClose} disabled={submitting}>
-            Jetzt nicht
+            {t('modal.mcpSetup.notNow')}
           </button>
           <button className={modalPrimaryBtn} onClick={activate} disabled={!pick || submitting}>
-            {submitting ? 'Aktiviere…' : 'Aktivieren'}
+            {submitting ? t('modal.mcpSetup.activating') : t('modal.mcpSetup.activate')}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px] leading-relaxed text-chrome-secondary">
-          Slideo ist ein <span className="font-medium text-chrome-text">MCP-Server</span> und stellt deinem
-          KI-Agenten{' '}
-          <span className="font-medium text-chrome-text">
-            {status?.toolCount ?? 37} Folien-Werkzeuge
-          </span>{' '}
-          bereit (z.B. Claude Desktop, Codex CLI) — der Agent baut & bearbeitet dein Deck, Slideo zeigt es live.
-          Wähle, wo sich Slideo registriert (erst{' '}
-          <span className="font-medium text-chrome-text">nach deiner Auswahl</span>, immer nur ein Ziel).
+          <T
+            k="modal.mcpSetup.intro"
+            slots={[
+              <span className="font-medium text-chrome-text">
+                {t('modal.mcpSetup.introServer')}
+              </span>,
+              <span className="font-medium text-chrome-text">
+                {t('modal.mcpSetup.introTools', { count: status?.toolCount ?? 37 })}
+              </span>,
+              <span className="font-medium text-chrome-text">
+                {t('modal.mcpSetup.introChoice')}
+              </span>,
+            ]}
+          />
         </p>
         {status ? (
           <McpTargetCards
@@ -139,11 +153,9 @@ export function McpSetupModal({ onClose }: { onClose: () => void }) {
             onSelect={setPick}
           />
         ) : (
-          <p className="py-2 text-[12px] text-chrome-muted">Status wird geladen…</p>
+          <p className="py-2 text-[12px] text-chrome-muted">{t('modal.mcpStatusLoading')}</p>
         )}
-        <p className="text-[11px] text-chrome-muted">
-          Lässt sich jederzeit in den Einstellungen unter „KI-Verbindung (MCP)" ändern.
-        </p>
+        <p className="text-[11px] text-chrome-muted">{t('modal.mcpSetup.changeLater')}</p>
       </div>
     </Modal>
   )

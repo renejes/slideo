@@ -3,33 +3,35 @@ import { Icon } from '@/components/ui/Icon'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { samplePrompt, copyText } from '@/lib/onboarding'
+import { t, type I18nKey } from '@/i18n'
+import { T } from '@/i18n/T'
 
 // Onboarding-Hilfe: erklärt die Kern-These (ein KI-Agent baut das Deck via MCP,
 // der Mensch editiert drüber) in 4 Schritten + bietet einen Beispiel-Prompt zum
 // Kopieren. Reines UI; öffenbar über den „?"-Knopf in der Topbar / EmptyState.
-const STEPS: { icon: string; title: string; body: string }[] = [
+const STEPS: { icon: string; title: I18nKey; body: I18nKey }[] = [
   {
     icon: 'dashboard',
-    title: '1 · Deck anlegen',
-    body: 'Vorlage wählen oder leer starten. Slideo ist Editor & Player — die Folien baut die KI.',
+    title: 'modal.help.step1.title',
+    body: 'modal.help.step1.body',
   },
   {
     icon: 'hub',
-    title: '2 · KI-Agent verbinden',
-    body: 'Einen MCP-Client öffnen (z.B. Claude Desktop, Codex CLI, …). Falls noch nicht aktiv: Einstellungen → KI-Verbindung (MCP).',
+    title: 'modal.help.step2.title',
+    body: 'modal.help.step2.body',
   },
   {
     icon: 'auto_awesome',
-    title: '3 · Thema beschreiben',
+    title: 'modal.help.step3.title',
     // Bewusst ohne Zahl (Befund M1/S30): eine hartkodierte Tool-Zahl driftet still von
     // `tools::tool_schemas()` weg — hier stand 35, während es 37 waren. Wo die Zahl
     // wirklich hilft (Setup-Modal), kommt sie jetzt zur Laufzeit aus `mcp_status`.
-    body: 'Im KI-Agent z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Er nutzt dafür Slideos Folien-Werkzeuge.',
+    body: 'modal.help.step3.body',
   },
   {
     icon: 'arrow_selector_tool',
-    title: '4 · Live verfeinern',
-    body: 'Die Folien erscheinen sofort. Du editierst direkt in der Vorschau: Text, Bilder, Verschieben, Verlinken.',
+    title: 'modal.help.step4.title',
+    body: 'modal.help.step4.body',
   },
 ]
 
@@ -37,26 +39,35 @@ export function HelpModal() {
   const closeModal = useUiStore((s) => s.closeModal)
 
   async function copyExample() {
-    const ok = await copyText(samplePrompt('dein Thema'))
-    notify(ok ? 'Beispiel-Prompt kopiert — in deinen KI-Agent einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
+    // Leerer Titel → samplePrompt() setzt den lokalisierten Themen-Platzhalter ein.
+    // Ein hartkodiertes „dein Thema" stünde sonst auch in englischer Oberfläche da.
+    const ok = await copyText(samplePrompt(''))
+    notify(
+      ok ? t('modal.help.promptCopied') : t('modal.copyFailed'),
+      ok ? 'success' : 'error',
+    )
   }
 
   return (
     <Modal
-      title="Wie Slideo mit deinem KI-Agent arbeitet"
+      title={t('modal.help.title')}
       onClose={closeModal}
       width="w-[34rem]"
       footer={
         <button className={modalPrimaryBtn} onClick={closeModal}>
-          Verstanden
+          {t('modal.gotIt')}
         </button>
       }
     >
       <div className="flex flex-col gap-3">
         <p className="text-[13px] leading-relaxed text-chrome-secondary">
-          Slideo läuft lokal und hat <span className="font-medium text-chrome-text">keine eigene KI</span>.
-          Die Präsentation baut <span className="font-medium text-chrome-text">dein KI-Agent</span> über den
-          MCP-Server (ein beliebiger MCP-Client — z.B. Claude Desktop, Codex CLI) — du verfeinerst sie hier.
+          <T
+            k="modal.help.intro"
+            slots={[
+              <span className="font-medium text-chrome-text">{t('modal.help.introNoAi')}</span>,
+              <span className="font-medium text-chrome-text">{t('modal.help.introAgent')}</span>,
+            ]}
+          />
         </p>
 
         <ol className="flex flex-col gap-2">
@@ -69,8 +80,8 @@ export function HelpModal() {
                 <Icon name={s.icon} size={17} weight={400} />
               </span>
               <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-chrome-text">{s.title}</div>
-                <div className="text-[12px] leading-relaxed text-chrome-muted">{s.body}</div>
+                <div className="text-[13px] font-semibold text-chrome-text">{t(s.title)}</div>
+                <div className="text-[12px] leading-relaxed text-chrome-muted">{t(s.body)}</div>
               </div>
             </li>
           ))}
@@ -81,7 +92,7 @@ export function HelpModal() {
           className="flex items-center justify-center gap-1.5 rounded-lg border border-chrome-border px-3 py-2 text-[12px] font-medium text-chrome-secondary transition-colors hover:border-chrome-border-strong hover:text-chrome-text"
         >
           <Icon name="content_copy" size={15} weight={400} />
-          Beispiel-Prompt kopieren
+          {t('modal.help.copyPrompt')}
         </button>
       </div>
     </Modal>

@@ -6,32 +6,15 @@
 
 ## PROMPT ANFANG
 
-Wir arbeiten gemeinsam an **Slideo**. Dein Auftrag in dieser Session ist **E2: Internationalisierung** — ein i18n-Layer plus Sprachumschalter in den Einstellungen, **Deutsch bleibt Default**. Das ist ein breiter, mechanischer Durchgang über ~67 `.tsx`-Dateien. **Lies dich zuerst ein und kläre den Plan mit mir, bevor du anfängst zu migrieren** — ein halb migrierter Zustand ist schlechter als der heutige.
+Wir arbeiten gemeinsam an **Slideo**. Dein Auftrag in dieser Session ist der **Rest von Block 3** — vier Aufräum-Maßnahmen aus dem August-Review (#42, #43, #44, #46). Das sind unabhängige Einzelschnitte; nimm sie einzeln, nicht als Paket.
 
 **Projektverzeichnis:** `/Users/renejesser/Desktop/Programming - Projekte/slideo`
 **Branch:** `stage-1-2-foundation` (nicht `main` — dort liegen alle Änderungen des August-Reviews, noch nicht gemerged).
 
 **Was Slideo ist:** Lokale, offline laufende Desktop-App für Präsentationen (Tauri 2 + React/TS + Vite). **Kein AI-Layer in der App** — der KI-Client des Nutzers (jeder MCP-fähige) baut das Deck über einen mitgelieferten lokalen MCP-Server mit **38 Tools**, der Mensch editiert direkt in der Live-Vorschau drüber. Eine Präsentation ist eine HTML-Page aus „Zones" (Slides), `.slideo` = ZIP aus `presentation.json` + `assets/`.
 
-### Dein Auftrag: E2 — i18n
+### Dein Auftrag: Rest von Block 3
 
-**Entscheidung des Entwicklers (2026-08-03):** Oberfläche bleibt **Deutsch**, wird aber in den Einstellungen **umschaltbar** (Englisch als zweite Sprache). Begründung und Kontext: [docs/review-2026-08/README.md](review-2026-08/README.md), Abschnitt „Was als Nächstes zu entscheiden ist", Zeile E2.
-
-Wichtige Randbedingungen:
-
-- **Die MCP-/AI-facing Fläche ist BEREITS Englisch** (`server_instructions`, `slideo_guide`, alle Tool-Beschreibungen, `list_components`, Overflow-Hinweise, Fehler an die KI). Die bleibt unangetastet — hier geht es nur um das **App-Chrome**.
-- **Die Palette-Anzeige** überlagert den englischen Rust-Katalog bewusst mit `COMPONENT_CATALOG_DE` ([component-forms.ts](../src/lib/component-forms.ts)). Diese Trennung ist gewollt und muss beim i18n-Umbau erhalten bleiben — oder sauber in den Katalog überführt werden.
-- **Nimm #47 gleich mit** (Review-Befund M58/S25): die UI mischt heute vier Vokabeln für dasselbe Objekt — *Slide · Folie · Zone · Deck* —, dazu *Schnappschuss* vs. *Snapshot* und „Auto-Animate" in einer sonst deutschen Liste. Ein Message-Katalog erzwingt genau eine Entscheidung pro Begriff. Empfehlung: **„Folie"** durchgehend.
-- Die deutschen **Dev-Kommentare im Code bleiben** (Repo-Konvention).
-- Die geteilten Datei-I/O-Fehler in [reader.rs](../src-tauri/src/file/reader.rs)/[writer.rs](../src-tauri/src/file/writer.rs) sind deutsch und primär im Frontend sichtbar — beim Umbau mitdenken.
-
-### Was in dieser Session NICHT dran ist
-- **Stage 5 (der Keil)** — gebündeltes MCP-Release (`apply_slides`, `add_asset`, vollständiges `create_zone`, Tool-Annotationen, Plan-Freigabe), Auto-fit, Messkanal zur KI, Split-Direktmanipulation, Brand-Ingest. Siehe [optimierung.md](review-2026-08/optimierung.md).
-- **Rest von Block 3** (siehe unten).
-- **Auto-Updater** — bewusst zurückgestellt.
-- **Notarisierung** — Konfiguration steht ([docs/release-macos.md](release-macos.md)), der Durchlauf ist Sache des Entwicklers (Apple-Lizenz vorhanden).
-
-### Offen aus Block 3 (nach der i18n-Session)
 | # | Maßnahme | Aufwand | Behebt |
 |---|---|---|---|
 | #42 | `zone.order` als zweite Wahrheit streichen — Array autoritativ, `order` beim Schreiben aus dem Index ableiten | S | S7 |
@@ -39,34 +22,56 @@ Wichtige Randbedingungen:
 | #44 | Meta-MCP-Ziel löschen (samt handgerolltem HTTP-Client über std-TCP); `desktop`/`claude` zu unabhängigen Schaltern | M | M63, S33 |
 | #46 | Ordentliches Modal-Primitive (Focus-Trap, Scroll-Lock, Initialfokus, Confirm-on-Dismiss) | S | M4, M56, S26 |
 
-**#45 ist erledigt** (postMessage-Herkunftsprüfung in allen drei Handlern + `ipc.json` wird beim App-Exit gelöscht). **#47 fällt mit i18n mit.**
+**Beachte bei #44:** die Fehlerpfade der MCP-Registrierung melden seit der i18n-Session **Fehlercodes** (`slideo:mcp.*`, siehe unten). Fällt das Meta-MCP-Ziel weg, müssen die zugehörigen Katalogschlüssel in `src/i18n/{de,en}/common.ts` mit weg — sonst bleiben tote Einträge stehen.
+**Beachte bei #46:** die Modal-Texte liegen jetzt im Katalog (`modal.*`), nicht mehr inline.
+
+### Was in dieser Session NICHT dran ist
+- **Stage 5 (der Keil)** — gebündeltes MCP-Release (`apply_slides`, `add_asset`, vollständiges `create_zone`, Tool-Annotationen, Plan-Freigabe), Auto-fit, Messkanal zur KI, Split-Direktmanipulation, Brand-Ingest. Siehe [optimierung.md](review-2026-08/optimierung.md).
+- **Auto-Updater** — bewusst zurückgestellt.
+- **Notarisierung** — Konfiguration steht ([docs/release-macos.md](release-macos.md)), der Durchlauf ist Sache des Entwicklers (Apple-Lizenz vorhanden).
+
+**#45 und #47 sind erledigt.** #47 fiel mit der i18n-Session, im bewusst gewählten Umfang (siehe unten).
 
 ### Bitte zuerst lesen (in dieser Reihenfolge)
 1. **`CLAUDE.md`** (Projektwurzel) — maßgeblich für den Ist-Stand, alle Architektur-Entscheidungen.
-2. **`docs/review-2026-08/README.md`** — Einstieg ins August-Review: Umsetzungsstand Stage 1–4, die fünf getroffenen Entscheidungen, bewusste Abweichungen.
-3. **`docs/review-2026-08/optimierung.md`** — die 47 Maßnahmen mit Aufwand/Wirkung, die 5 Stages.
-4. `docs/review-2026-08/befunde.md` + `markt.md` nur bei Bedarf (Befund-IDs nachschlagen).
+2. **`docs/wording.md`** — der Vokabular- und i18n-Vertrag. **Bindend für jeden neuen Anzeigetext.**
+3. **`docs/review-2026-08/README.md`** — Einstieg ins August-Review: Umsetzungsstand, die fünf getroffenen Entscheidungen.
+4. **`docs/review-2026-08/optimierung.md`** — die 47 Maßnahmen mit Aufwand/Wirkung, die 5 Stages.
+5. `docs/review-2026-08/befunde.md` + `markt.md` nur bei Bedarf (Befund-IDs nachschlagen).
 
-### Stand nach dem August-Review (alles auf `stage-1-2-foundation`)
-**Stage 1–3 vollständig, Stage 4 bis auf i18n.** Kurz, was sich geändert hat und was du beim Umbau nicht kaputtmachen darfst:
+### Stand nach der i18n-Session (2026-08-03, alles auf `stage-1-2-foundation`)
 
-- **Es gibt jetzt ein Testnetz** (vorher keins): 69 Vitest-Tests. Darunter eine **Syntax-Garde über die injizierten Iframe-Skripte** ([renderer.test.ts](../src/lib/renderer.test.ts)) — sie rendert alle sieben Seitenvarianten und parst jedes `<script>` mit `vm.Script`. `npm run build` führt die Tests mit (`tsc && vitest run && vite build`).
-- ⚠️ **Die Backtick-Falle**: `navScript`/`editScript`/`patchScript` **und der `SLIDE_CSS`-Block** in [renderer.ts](../src/lib/renderer.ts) sind Template-Literale. Ein Backtick oder rohes `\n` — *auch in einem Kommentar darin* — zerlegt das Literal; `tsc` bleibt grün, zur Laufzeit stirbt der ganze Overlay. Ich bin in einer Session dreimal reingelaufen. Der Test fängt es, aber schreib in diesen Blöcken ASCII und keine Backticks.
-- **Datenverlust-Pfade sind zu**: Autosave + Crash-Recovery ([recovery.rs](../src-tauri/src/recovery.rs)), Flush-Handshake vor mutierenden MCP-Tools, `Effect::Opened/Saved` (Pfad + Assets fahren mit), `mutate` gibt `boolean` zurück.
-- **Neu in der UI** (bei i18n zu erfassen): Redo, Folie duplizieren (Cmd+D), Speichern-unter (Cmd+Shift+S), inline umbenennbarer Deck-Titel, Overflow-Badge auf der Folienkarte, Verbindungs-Chip (`McpStatusChip`), Export-Dialog (`ExportModal`), Neustart-Panel im MCP-Setup, „Anderer MCP-Client"-Snippet in den Einstellungen, Zuletzt-geöffnet im Empty-State, ErrorBoundary.
-- **MCP-Tools 37 → 38** (`duplicate_zone`). Nach Backend-Änderungen: `cargo build` + Client-Neustart.
+**Stage 1–4 vollständig** (Stage 4 bis auf Notarisierungs-Durchlauf und Auto-Updater).
+
+**Wenn du irgendwo Anzeigetext anfasst, gelten drei Regeln:**
+1. **Nie ein deutsches Literal in die Oberfläche schreiben.** Schlüssel in `src/i18n/de/<bereich>.ts` **und** `en/<bereich>.ts` anlegen, dann `t('…')`. `tsc` erzwingt beide Sprachen — eine fehlende Übersetzung ist ein Compile-Fehler, kein Testfehler. Plural über `tp()`, Sätze mit `<code>`/`<span>` über `<T>` mit `{0}`-Steckplätzen (nie in Fragmente zerlegen).
+2. **Backend-Fehler NIE roh anzeigen.** Immer `describeError(e)` aus `@/lib/tauri`. Die Rust-Seite meldet handlungsrelevante Fehler als `slideo:<code>`; ohne den Übersetzer sieht der Nutzer den Maschinencode. Genau das ist beim Umbau an fünf Stellen passiert — der Scanner hat dafür jetzt die Regel `raw-error`.
+3. **Dev-Kommentare bleiben deutsch** (Repo-Konvention), und die **AI-facing MCP-Fläche bleibt englisch und unangetastet**.
+
+⚠️ **Die Backtick-Falle** (unverändert gültig): `navScript`/`editScript`/`patchScript` **und der `SLIDE_CSS`-Block** in [renderer.ts](../src/lib/renderer.ts) sind Template-Literale. Ein Backtick oder ein rohes `\n` — *auch in einem Kommentar darin* — zerlegt das Literal; `tsc` bleibt grün, zur Laufzeit stirbt der ganze Overlay. Der Katalog verbietet Backticks per Test, und `renderer.test.ts` parst jetzt **beide Sprachen**. Schreib in diesen Blöcken trotzdem ASCII.
+
+**Weiteres aus der i18n-Session, das du nicht kaputtmachen darfst:**
+- **`meta.language`** (additiv, `version` bleibt "1.0") = Sprache der **Folien**, nicht der Oberfläche. Wer eine neue Render-Variante baut, muss `deckLang(presentation)` benutzen statt `lang="de"`.
+- **`classifyPreviewChange`** kennt `meta.language` als `full`-Auslöser. Jedes neue **deck-weite** Feld, das außerhalb einer Zone gerendert wird, braucht dort einen Eintrag — sonst kommt die Änderung nie in der Vorschau an.
+- Der **Sprachwechsel wirkt nach Neustart**, nicht live. Das ist eine Produktentscheidung; `applyLocale()` steht bereit, es fehlen nur fünf Kopplungspunkte (im Kopfkommentar von [src/i18n/index.ts](../src/i18n/index.ts) namentlich aufgeführt).
+
+**Offen / bewusst nicht gemacht:**
+- Per **MCP** angelegte Decks bekommen kein `meta.language` (Rust kennt die Oberflächensprache nicht) → Default `de`. Ein `language`-Parameter für `create_presentation` gehört ins **Stage-5-Bündel**.
+- Der Fenstertitel des Folien-Fensters (`present.rs`) ist hart deutsch — er muss zur Fensterliste von Zoom/Meet passen und wird in beiden Sprachen gleich zitiert.
 
 ### Verifikation
 ```bash
-npm run build                      # tsc + vitest (69) + vite build
-cd src-tauri && cargo test         # 52 Tests (+1 ignoriert: Release-Gate)
+npm run build                      # tsc + vitest (92) + vite build
+node scripts/check-i18n.mjs        # muss 0 Fundstellen melden
+cd src-tauri && cargo test         # 54 Tests (+1 ignoriert: Release-Gate)
 cd src-tauri && cargo check
 ```
-**GUI-Abhängiges prüft der Mensch** — sag genau, was zu klicken ist. Der volle GUI-Durchlauf über Stage 1–3 steht noch aus.
+**GUI-Abhängiges prüft der Mensch** — sag genau, was zu klicken ist. Der volle GUI-Durchlauf über Stage 1–4 steht noch aus; für i18n gehören dazu: Sprache umstellen + Neustart, Design-Overlay → „Sprache der Folien", ein MCP-Registrierungsfehler in den Einstellungen (muss Prosa zeigen, nicht `slideo:…`), Plural-Stellen bei genau 1 (Verlauf, Export-Dialog, Übersicht), die §20-Mini-Toolbar in englischer Oberfläche.
 
 ### Arbeitsweise
 - Bei größeren Schritten erst Plan/Scope klären.
 - Adversariales Multi-Agent-Review je größerem Schritt; bestätigte Findings fixen.
+- **Für jedes Gate eine Negativkontrolle**: Fehler künstlich einbauen, prüfen, dass das Gate anschlägt, zurückbauen. Ein grünes Gate ohne diesen Nachweis sagt nichts — in der i18n-Session war der erste Scanner für die im Projekt dominierende Textform blind und meldete trotzdem „0 Fundstellen".
 - Architektur-Entscheidungen in `CLAUDE.md` verankern.
 - **Commit/Push/Merge nur auf mein Wort.**
 
@@ -75,6 +80,6 @@ cd src-tauri && cargo check
 ---
 
 ### Hinweis zur Nutzung
-- **Diese Session:** E2 — i18n-Layer + Sprachumschalter, Deutsch als Default, #47 (ein Vokabular) inklusive.
-- **Danach:** Rest von Block 3 (#42, #43, #44, #46), dann Stage 5 (der Keil).
-- **Parallel beim Menschen:** notarisierter Build ([release-macos.md](release-macos.md)) und der GUI-Durchlauf über Stage 1–3.
+- **Diese Session:** Rest von Block 3 (#42, #43, #44, #46).
+- **Danach:** Stage 5 (der Keil) — inkl. `language`-Parameter für `create_presentation`.
+- **Parallel beim Menschen:** notarisierter Build ([release-macos.md](release-macos.md)) und der GUI-Durchlauf über Stage 1–4.

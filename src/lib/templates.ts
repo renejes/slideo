@@ -1,7 +1,13 @@
 import type { ZoneLayout, RevealMode } from '@/types'
+import { t } from '@/i18n'
 
 // Starter-Templates (Spec §19.4): kuratierte Decks (Token-Preset + Seed-Zonen),
 // im Neu-Dialog auswählbar. Tokens kommen aus presets.ts (eine Quelle).
+//
+// `label`/`description` sind Oberfläche. Das Markdown aus `zones()` ist dagegen
+// INHALT (docs/wording.md): es wird genau einmal beim Anlegen des Decks in der
+// damals eingestellten Sprache erzeugt und ist danach eingefroren — ein späterer
+// Sprachwechsel fasst ein bestehendes Deck nie an.
 
 export interface TemplateZone {
   markdown: string
@@ -10,6 +16,7 @@ export interface TemplateZone {
 }
 
 export interface DeckTemplate {
+  /** API-/Persistenz-Wert (Auswahl im Neu-Dialog) — NIE übersetzen. */
   id: string
   label: string
   description: string
@@ -21,51 +28,52 @@ export interface DeckTemplate {
 export const TEMPLATES: DeckTemplate[] = [
   {
     id: 'blank',
-    label: 'Leer',
-    description: 'Eine Titelfolie — freier Aufbau.',
-    zones: (title) => [{ markdown: `# ${title}\n\nDein erster Slide. Leg los.` }],
+    label: t('lib.template.blank.label'),
+    description: t('lib.template.blank.description'),
+    zones: (title) => [{ markdown: t('lib.template.blank.slide1', { title }) }],
   },
   {
     id: 'pitch',
-    label: 'Pitch',
-    description: 'Startup-Pitch: Problem → Lösung → Markt → Ask.',
+    label: t('lib.template.pitch.label'),
+    description: t('lib.template.pitch.description'),
     preset: 'dark-tech',
     zones: (title) => [
-      { markdown: `# ${title}\n\nTagline in einem Satz.`, layout: 'hero' },
-      { markdown: `## Problem\n\n- Schmerzpunkt der Zielgruppe\n- Warum bestehende Lösungen scheitern\n- Warum jetzt`, reveal: 'steps' },
-      { markdown: `## Lösung\n\nDein Produkt in einem Satz.\n\n+++\n\n### So funktioniert's\n\n- Schritt 1\n- Schritt 2\n- Schritt 3`, layout: 'split' },
-      { markdown: `## Markt\n\n**TAM** – Gesamtmarkt\n\n**SAM** – erreichbarer Markt\n\n**SOM** – realistischer Anteil` },
-      { markdown: `## Traktion\n\n- Nutzer / Umsatz\n- Wachstum pro Monat\n- Wichtige Meilensteine`, reveal: 'steps' },
-      { markdown: `## Ask\n\nWir suchen **X €** für **Y**.\n\nKontakt: …`, layout: 'hero' },
+      { markdown: t('lib.template.pitch.slide1', { title }), layout: 'hero' },
+      { markdown: t('lib.template.pitch.slide2'), reveal: 'steps' },
+      { markdown: t('lib.template.pitch.slide3'), layout: 'split' },
+      { markdown: t('lib.template.pitch.slide4') },
+      { markdown: t('lib.template.pitch.slide5'), reveal: 'steps' },
+      { markdown: t('lib.template.pitch.slide6'), layout: 'hero' },
     ],
   },
   {
     id: 'lecture',
-    label: 'Vortrag',
-    description: 'Vortrag/Lehre: Titel, Agenda, Kapitel, Fazit.',
+    label: t('lib.template.lecture.label'),
+    description: t('lib.template.lecture.description'),
     preset: 'minimal',
     zones: (title) => [
-      { markdown: `# ${title}\n\nName · Datum`, layout: 'hero' },
-      { markdown: `## Agenda\n\n1. Einführung\n2. Hauptteil\n3. Beispiele\n4. Zusammenfassung`, reveal: 'steps' },
-      { markdown: `## Einführung\n\nKernbegriffe und Kontext kurz umreißen.` },
-      { markdown: `## Hauptteil\n\nDeine zentrale Aussage — ein Gedanke pro Folie.` },
-      { markdown: `## Zusammenfassung\n\n- Kernpunkt 1\n- Kernpunkt 2\n- Ausblick`, reveal: 'steps' },
+      { markdown: t('lib.template.lecture.slide1', { title }), layout: 'hero' },
+      { markdown: t('lib.template.lecture.slide2'), reveal: 'steps' },
+      { markdown: t('lib.template.lecture.slide3') },
+      { markdown: t('lib.template.lecture.slide4') },
+      { markdown: t('lib.template.lecture.slide5'), reveal: 'steps' },
     ],
   },
   {
     id: 'editorial',
-    label: 'Editorial',
-    description: 'Redaktioneller Look: große Typo, ruhige Abschnitte.',
+    label: t('lib.template.editorial.label'),
+    description: t('lib.template.editorial.description'),
     preset: 'editorial',
     zones: (title) => [
-      { markdown: `# ${title}`, layout: 'hero' },
-      { markdown: `## Eine starke These\n\nEin Absatz, der sie ruhig entfaltet.` },
-      { markdown: `> Ein prägnantes Zitat, das hängen bleibt.`, layout: 'center' },
-      { markdown: `## Drei Punkte\n\n- Erstens\n- Zweitens\n- Drittens`, reveal: 'steps' },
+      { markdown: t('lib.template.editorial.slide1', { title }), layout: 'hero' },
+      { markdown: t('lib.template.editorial.slide2') },
+      { markdown: t('lib.template.editorial.slide3'), layout: 'center' },
+      { markdown: t('lib.template.editorial.slide4'), reveal: 'steps' },
     ],
   },
 ]
 
 export function findTemplate(id: string): DeckTemplate | undefined {
-  return TEMPLATES.find((t) => t.id === id)
+  // Parameter bewusst nicht `t` — das würde den Katalog-Helfer verschatten.
+  return TEMPLATES.find((tpl) => tpl.id === id)
 }

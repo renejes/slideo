@@ -3,6 +3,7 @@ import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
 import { samplePrompt, copyText } from '@/lib/onboarding'
+import { t } from '@/i18n'
 import { Icon } from './Icon'
 
 const SEEN_KEY = 'slideo.onboardingSeen'
@@ -36,36 +37,33 @@ export function OnboardingNudge() {
 
   async function copyPrompt() {
     const ok = await copyText(samplePrompt(title))
-    notify(ok ? 'Prompt kopiert — in deinen KI-Agent einfügen.' : 'Kopieren nicht möglich.', ok ? 'success' : 'error')
+    notify(ok ? t('ui.nudge.copied') : t('ui.nudge.copyFailed'), ok ? 'success' : 'error')
   }
 
   return (
     <div className="flex shrink-0 items-center gap-3 border-b border-chrome-border bg-chrome-accent-soft px-4 py-2">
       <Icon name="auto_awesome" size={17} weight={400} className="shrink-0 text-chrome-accent-600" />
       <p className="min-w-0 flex-1 text-[12px] leading-snug text-chrome-text">
-        <span className="font-medium">Dein KI-Agent baut deine Folien.</span>{' '}
-        <span className="text-chrome-secondary">
-          Öffne deinen MCP-Client (z.B. Claude Desktop, Codex CLI) und beschreib dein Thema — oder kopier dir einen
-          fertigen Prompt.
-        </span>
+        <span className="font-medium">{t('ui.nudge.headline')}</span>{' '}
+        <span className="text-chrome-secondary">{t('ui.nudge.body')}</span>
       </p>
       <button
         onClick={copyPrompt}
         className="flex shrink-0 items-center gap-1.5 rounded-md bg-chrome-accent-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-[#2553c9]"
       >
         <Icon name="content_copy" size={14} weight={400} />
-        Prompt kopieren
+        {t('ui.nudge.copy')}
       </button>
       <button
         onClick={() => openModal('help')}
         className="shrink-0 rounded-md px-2 py-1 text-[12px] font-medium text-chrome-accent-600 transition-colors hover:bg-white/40"
       >
-        Wie das geht?
+        {t('ui.nudge.how')}
       </button>
       <button
         onClick={dismiss}
-        title="Hinweis ausblenden"
-        aria-label="Hinweis ausblenden"
+        title={t('ui.nudge.dismiss')}
+        aria-label={t('ui.nudge.dismiss')}
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-white/40 hover:text-chrome-text"
       >
         <Icon name="close" size={15} weight={400} />

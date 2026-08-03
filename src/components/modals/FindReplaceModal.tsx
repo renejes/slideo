@@ -4,6 +4,7 @@ import { Icon } from '@/components/ui/Icon'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
 import { notify } from '@/store/toast'
+import { t, tp } from '@/i18n'
 
 // Deck-weites Suchen & Ersetzen (Spec §19.9). Wirkt auf den Markdown- bzw.
 // HTML-Inhalt aller Zonen (groß-/kleinschreibungsgenau, wie MCP replace_in_zone).
@@ -25,7 +26,10 @@ export function FindReplaceModal() {
   function doReplace() {
     if (!search) return
     const n = replaceAllInDeck(search, replace)
-    notify(n > 0 ? `${n} Vorkommen ersetzt.` : 'Keine Treffer.', n > 0 ? 'success' : 'info')
+    notify(
+      n > 0 ? tp('modal.findReplace.replaced', n) : t('modal.findReplace.noMatches'),
+      n > 0 ? 'success' : 'info',
+    )
     if (n > 0) closeModal()
   }
 
@@ -34,23 +38,25 @@ export function FindReplaceModal() {
 
   return (
     <Modal
-      title="Suchen & Ersetzen"
+      title={t('modal.findReplace.title')}
       onClose={closeModal}
       footer={
         <>
           <button className={modalGhostBtn} onClick={closeModal}>
-            Abbrechen
+            {t('common.cancel')}
           </button>
           <button className={modalPrimaryBtn} onClick={doReplace} disabled={!search || count === 0}>
             <Icon name="find_replace" size={18} />
-            Alle ersetzen
+            {t('modal.findReplace.replaceAll')}
           </button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-chrome-secondary">Suchen nach</span>
+          <span className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.findReplace.find')}
+          </span>
           <input
             autoFocus
             value={search}
@@ -60,7 +66,9 @@ export function FindReplaceModal() {
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-chrome-secondary">Ersetzen durch</span>
+          <span className="text-[12px] font-medium text-chrome-secondary">
+            {t('modal.findReplace.replaceWith')}
+          </span>
           <input
             value={replace}
             onChange={(e) => setReplace(e.target.value)}
@@ -69,7 +77,9 @@ export function FindReplaceModal() {
           />
         </label>
         <span className="text-[12px] text-chrome-muted">
-          {search ? `${count} ${count === 1 ? 'Treffer' : 'Treffer'} im gesamten Deck` : 'Suchbegriff eingeben …'}
+          {search
+            ? tp('modal.findReplace.matches', count)
+            : t('modal.findReplace.enterTerm')}
         </span>
       </div>
     </Modal>

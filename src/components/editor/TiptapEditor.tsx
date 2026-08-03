@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { baseExtensions } from '@/lib/tiptap-extensions'
 import { editorToMarkdown } from '@/lib/tiptap-markdown'
 import { useLicenseStore } from '@/store/license'
+import { t } from '@/i18n'
 import { ImageToolbar } from './ImageToolbar'
 
 interface TiptapEditorProps {
@@ -29,7 +30,9 @@ export function TiptapEditor({ initialMarkdown, onChange, onFocus }: TiptapEdito
   const editor = useEditor({
     extensions: [
       ...baseExtensions(),
-      Placeholder.configure({ placeholder: 'Schreib hier deinen Slide-Inhalt …' }),
+      // Einmalig in useEditor() konfiguriert: ein Sprachwechsel wirkt hier erst
+      // nach einem Neustart (bekannt, siehe i18n/index.ts `applyLocale`).
+      Placeholder.configure({ placeholder: t('editor.tiptap.placeholder') }),
     ],
     content: initialMarkdown,
     editorProps: {

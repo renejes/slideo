@@ -2,6 +2,8 @@ import { useRef } from 'react'
 import { usePresentationStore } from '@/store/presentation'
 import { confirmDialog } from '@/lib/dialog'
 import { parseDataUri, mediaKind } from '@/lib/assets'
+import { t, tp } from '@/i18n'
+import { T } from '@/i18n/T'
 import { Icon } from './Icon'
 
 // Wiederverwendbare Asset-Bibliothek (Bereich 2 der Workflow-Optimierung).
@@ -22,8 +24,8 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
   async function confirmRemove(name: string) {
     const refs = countAssetRefs(name)
     const msg = refs
-      ? `„${name}" wird an ${refs} Stelle${refs === 1 ? '' : 'n'} im Deck verwendet.\n\nTrotzdem entfernen? (Rückgängig mit Cmd/Strg+Z)`
-      : `„${name}" entfernen? (Rückgängig mit Cmd/Strg+Z)`
+      ? tp('ui.assets.removeUsed', refs, { name })
+      : t('ui.assets.removeConfirm', { name })
     if (await confirmDialog(msg)) removeAsset(name)
   }
   const fileRef = useRef<HTMLInputElement>(null)
@@ -44,7 +46,9 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
   }
 
   if (!hasPresentation) {
-    return <p className="py-1 text-[12px] text-chrome-muted">Erst eine Präsentation öffnen/anlegen.</p>
+    return (
+      <p className="py-1 text-[12px] text-chrome-muted">{t('ui.assets.noPresentation')}</p>
+    )
   }
 
   return (
@@ -52,13 +56,17 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 text-[12px] leading-snug text-chrome-muted">
           {picking ? (
-            'Asset anklicken zum Einfügen — oder neue importieren (Mehrfachauswahl).'
+            t('ui.assets.pickHint')
           ) : (
-            <>
-              Bilder, Videos & Audio — auch von der KI per{' '}
-              <code className="font-mono">list_assets</code> als{' '}
-              <code className="font-mono">assets/&lt;name&gt;</code> nutzbar.
-            </>
+            <T
+              k="ui.assets.libraryHint"
+              slots={[
+                // Als Ausdruck statt als JSX-Text: beides sind API-Bezeichner,
+                // kein Anzeigetext (und so sieht es auch der Katalog-Scan).
+                <code className="font-mono">{'list_assets'}</code>,
+                <code className="font-mono">{'assets/<name>'}</code>,
+              ]}
+            />
           )}
         </p>
         <input
@@ -74,13 +82,13 @@ export function AssetLibrary({ onPick }: { onPick?: (name: string) => void }) {
           className="flex shrink-0 items-center gap-1.5 rounded-lg bg-chrome-accent-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2553c9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
         >
           <Icon name="upload" size={15} weight={400} />
-          Importieren
+          {t('ui.assets.import')}
         </button>
       </div>
 
       {entries.length === 0 ? (
         <p className="rounded-lg border border-dashed border-chrome-border py-8 text-center text-[12px] text-chrome-faint">
-          Noch keine Assets — importiere welche (Mehrfachauswahl möglich).
+          {t('ui.assets.empty')}
         </p>
       ) : (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -134,7 +142,7 @@ function AssetTile({
       {onPick ? (
         <button
           onClick={() => onPick(name)}
-          title={`Einfügen: ${name}`}
+          title={t('ui.assets.insert', { name })}
           className="flex flex-col gap-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
         >
           {preview}
@@ -148,8 +156,8 @@ function AssetTile({
       )}
       <button
         onClick={onRemove}
-        title="Asset entfernen"
-        aria-label="Asset entfernen"
+        title={t('ui.assets.remove')}
+        aria-label={t('ui.assets.remove')}
         className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-white/85 text-chrome-faint opacity-0 shadow-sm transition-opacity hover:bg-chrome-danger/10 hover:text-chrome-danger focus-visible:opacity-100 group-hover:opacity-100"
       >
         <Icon name="delete" size={14} weight={400} />

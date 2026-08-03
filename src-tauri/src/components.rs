@@ -461,9 +461,9 @@ fn data_table(params: &Value) -> String {
         .filter(|v: &Vec<Vec<String>>| !v.is_empty())
         .unwrap_or_else(|| {
             vec![
-                vec!["Geschwindigkeit".into(), "langsam".into(), "schnell".into()],
-                vec!["Aufwand".into(), "hoch".into(), "gering".into()],
-                vec!["Kosten".into(), "€€€".into(), "€".into()],
+                vec!["Speed".into(), "slow".into(), "fast".into()],
+                vec!["Effort".into(), "high".into(), "low".into()],
+                vec!["Cost".into(), "$$$".into(), "$".into()],
             ]
         });
     let head = cols
@@ -624,7 +624,7 @@ fn pricing(params: &Value) -> String {
                 "border:1px solid var(--color-surface)"
             };
             let badge = if featured {
-                "<div style=\"display:inline-block;margin-bottom:.5rem;background:var(--color-accent);color:var(--color-bg);font-size:.8rem;font-weight:700;padding:.15rem .7rem;border-radius:999px\">Beliebt</div>"
+                "<div style=\"display:inline-block;margin-bottom:.5rem;background:var(--color-accent);color:var(--color-bg);font-size:.8rem;font-weight:700;padding:.15rem .7rem;border-radius:999px\">Popular</div>"
             } else {
                 ""
             };
@@ -663,7 +663,7 @@ fn gallery(params: &Value) -> String {
     let tiles = if imgs.is_empty() {
         (0..3)
             .map(|_| {
-                "<div style=\"aspect-ratio:4/3;background:var(--color-surface);border-radius:var(--border-radius);display:flex;align-items:center;justify-content:center;color:var(--color-secondary);font-size:.9rem\">Bild</div>".to_string()
+                "<div style=\"aspect-ratio:4/3;background:var(--color-surface);border-radius:var(--border-radius);display:flex;align-items:center;justify-content:center;color:var(--color-secondary);font-size:.9rem\">Image</div>".to_string()
             })
             .collect::<String>()
     } else {
@@ -829,7 +829,7 @@ mod tests {
         let g = render("gallery", &json!({ "images": ["a.png", "../x\"><script>.png"] })).unwrap();
         assert!(g.contains("assets/a.png"));
         assert!(!g.contains("<script>"));
-        assert!(render("gallery", &json!({})).unwrap().contains("Bild")); // Platzhalter
+        assert!(render("gallery", &json!({})).unwrap().contains("Image")); // Platzhalter
     }
 
     #[test]

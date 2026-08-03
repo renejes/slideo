@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '@/components/ui/Icon'
 import { notify } from '@/store/toast'
+import { t } from '@/i18n'
 
 interface CropModalProps {
   /** Bildquelle (Data-URI / aufgelöste Anzeige-URL). */
@@ -97,7 +98,7 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
       const nw = img.naturalWidth || dispW
       const nh = img.naturalHeight || dispH
       if (!nw || !nh) {
-        notify('Zuschneiden nicht möglich (Bildgröße unbekannt).', 'error')
+        notify(t('media.crop.errNoSize'), 'error')
         return
       }
       const sx = Math.round(rect.x * nw)
@@ -111,7 +112,7 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
       canvas.height = sh
       const ctx = canvas.getContext('2d')
       if (!ctx) {
-        notify('Zuschneiden nicht möglich (kein Canvas-Kontext).', 'error')
+        notify(t('media.crop.errNoCanvas'), 'error')
         return
       }
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
@@ -119,10 +120,10 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
         const isJpeg = /^data:image\/jpe?g/i.test(src)
         onApply(canvas.toDataURL(isJpeg ? 'image/jpeg' : 'image/png', 0.92))
       } catch {
-        notify('Zuschneiden fehlgeschlagen (Bildquelle nicht lesbar).', 'error')
+        notify(t('media.crop.errFailed'), 'error')
       }
     }
-    img.onerror = () => notify('Bild konnte nicht geladen werden.', 'error')
+    img.onerror = () => notify(t('media.crop.errLoad'), 'error')
     img.src = src
   }
 
@@ -142,7 +143,7 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Bild zuschneiden"
+      aria-label={t('media.crop.title')}
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-6"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onCancel()
@@ -151,8 +152,8 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
       <div className="flex max-h-full w-full max-w-3xl flex-col gap-3 rounded-2xl border border-chrome-border bg-chrome-surface p-4 shadow-pop">
         <div className="flex items-center gap-2">
           <Icon name="crop" size={18} weight={400} className="text-chrome-secondary" />
-          <span className="text-[14px] font-semibold text-chrome-text">Bild zuschneiden</span>
-          <span className="ml-auto text-[12px] text-chrome-muted">Rahmen ziehen, dann „Zuschneiden"</span>
+          <span className="text-[14px] font-semibold text-chrome-text">{t('media.crop.title')}</span>
+          <span className="ml-auto text-[12px] text-chrome-muted">{t('media.crop.hint')}</span>
         </div>
 
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-chrome-bg p-2">
@@ -194,14 +195,14 @@ export function CropModal({ src, onApply, onCancel }: CropModalProps) {
             onClick={onCancel}
             className="rounded-lg border border-chrome-border px-3.5 py-2 text-[13px] font-medium text-chrome-secondary transition-colors hover:border-chrome-border-strong hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
-            Abbrechen
+            {t('common.cancel')}
           </button>
           <button
             onClick={apply}
             className="flex items-center gap-1.5 rounded-lg bg-chrome-accent-600 px-3.5 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2553c9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
           >
             <Icon name="crop" size={16} weight={400} />
-            Zuschneiden
+            {t('media.crop.apply')}
           </button>
         </div>
       </div>
