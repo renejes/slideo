@@ -15,7 +15,9 @@ import {
 } from '@/lib/mcp-registration'
 import { McpTargetCards, mcpTargetLabel } from '@/components/ui/McpTargetCards'
 import { AssetLibrary } from '@/components/ui/AssetLibrary'
-import { t, LOCALES, getLocale, getStoredLocale, setStoredLocale, type Locale } from '@/i18n'
+import { chatLogin, chatLogout, chatStatus, displayChatError } from '@/lib/chat/api'
+import type { ChatStatus } from '@/lib/chat/chatTypes'
+import { t, LOCALES, getLocale, getStoredLocale, setStoredLocale, tp, type Locale } from '@/i18n'
 import { T } from '@/i18n/T'
 
 // Einstellungen — bewusst als Shell angelegt, wird nach und nach gefüllt.
@@ -83,6 +85,10 @@ export function SettingsModal() {
           <LanguageRow />
         </Section>
 
+        <Section title={t('chat.cursorSection')}>
+          <CursorAccount tauri={tauri} />
+        </Section>
+
         {/* KI-Verbindung (MCP) */}
         <Section title={t('modal.settings.mcp')}>
           <McpConnection />
@@ -122,6 +128,88 @@ export function SettingsModal() {
         </Section>
       </div>
     </Modal>
+  )
+}
+
+function CursorAccount({ tauri }: { tauri: boolean }) {
+  const [status, setStatus] = useState<ChatStatus | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const load = useCallback(async () => {
+    if (!tauri) return
+    try {
+      setStatus(await chatStatus())
+    } catch {
+      setStatus(null)
+    }
+  }, [tauri])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function login(): Promise<void> {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await chatLogin()
+      if (!res?.ok) setError(displayChatError(res?.error || t('chat.loginFailed')))
+      await load()
+    } catch (e) {
+      setError(describeError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function logout(): Promise<void> {
+    await chatLogout()
+    await load()
+  }
+
+  if (!tauri) {
+    return <p className="py-1 text-[12px] text-chrome-muted">{t('chat.desktopOnly')}</p>
+  }
+
+  const daysLeft =
+    status?.loggedIn && typeof status.expiresAt === 'number'
+      ? Math.max(0, Math.ceil((status.expiresAt - Date.now()) / 86_400_000))
+      : null
+
+  return (
+    <div className="flex flex-col gap-2 py-1">
+      {status?.loggedIn && status.expired ? (
+        <>
+          <p className="text-[12px] text-chrome-muted">{t('chat.expired')}</p>
+          <button className={modalGhostBtn} onClick={() => void login()} disabled={busy}>
+            {t('chat.signIn')}
+          </button>
+        </>
+      ) : status?.loggedIn ? (
+        <>
+          <p className="text-[13px] text-chrome-text">
+            {status.email ? t('chat.signedInAs', { email: status.email }) : t('chat.signedIn')}
+          </p>
+          {daysLeft !== null && (
+            <p className="text-[12px] text-chrome-muted">{tp('chat.expiresInDays', daysLeft)}</p>
+          )}
+          <p className="text-[12px] text-chrome-muted">{t('chat.cursorChatHint')}</p>
+          <button className={modalGhostBtn} onClick={() => void logout()}>
+            {t('chat.signOut')}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-[12px] text-chrome-muted">{t('chat.signInBody')}</p>
+          <button className={modalGhostBtn} onClick={() => void login()} disabled={busy}>
+            {t('chat.signIn')}
+          </button>
+          {error && <p className="text-[12px] text-chrome-danger">{error}</p>}
+        </>
+      )}
+      <p className="text-[12px] text-chrome-muted">{t('chat.disclaimer')}</p>
+    </div>
   )
 }
 

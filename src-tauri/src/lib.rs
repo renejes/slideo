@@ -2,6 +2,7 @@
 // Makro-Rekursionsgrenze (128) reicht dafür nicht mehr.
 #![recursion_limit = "512"]
 
+mod chat;
 mod commands;
 mod components;
 mod errcode;
@@ -34,6 +35,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .manage(chat::ChatState::default())
         // Custom-Protocol: streamt Asset-Bytes aus dem AppState (z.B. für Video/Audio),
         // damit große Medien nicht als base64-Data-URI ins HTML inline müssen.
         // URL: slideoasset://localhost/<name>  (Windows: http://slideoasset.localhost/<name>)
@@ -137,10 +139,24 @@ pub fn run() {
             license::license_recheck,
             license::license_deactivate,
             license::license_open_checkout,
+            chat::chat_status,
+            chat::chat_login,
+            chat::chat_logout,
+            chat::chat_set_model,
+            chat::chat_models,
+            chat::chat_history,
+            chat::chat_sessions,
+            chat::chat_new,
+            chat::chat_switch,
+            chat::chat_close_tab,
+            chat::chat_delete,
+            chat::chat_cancel,
+            chat::chat_bind,
+            chat::chat_send,
         ])
         .build(tauri::generate_context!())
         .expect("Fehler beim Starten der Slideo-App")
-        .run(|_app, event| {
+        .run(|app, event| {
             // Discovery-Datei beim Beenden aufraeumen (Review 2026-08, Befund S32).
             // Sie ueberlebte den App-Exit mit einem toten Port; ein danach gestarteter
             // `slideo mcp` verband sich gegen ins Leere (oder gegen einen inzwischen
@@ -149,6 +165,8 @@ pub fn run() {
             // gesetzt) wurde daraus ein Haenger statt eines Fehlers.
             if let tauri::RunEvent::Exit = event {
                 ipc::cleanup_discovery();
+                let chat = app.state::<chat::ChatState>();
+                tauri::async_runtime::block_on(chat::shutdown(&chat));
             }
         });
 }

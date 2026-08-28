@@ -7,6 +7,7 @@ import { presentation } from './en/presentation'
 import { store } from './en/store'
 import { lib } from './en/lib'
 import { components } from './en/components'
+import { chat } from './en/chat'
 
 import type { I18nKey } from './index'
 
@@ -27,4 +28,5 @@ export const en: Record<I18nKey, string> = {
   ...store,
   ...lib,
   ...components,
+  ...chat,
 }

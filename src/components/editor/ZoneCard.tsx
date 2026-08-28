@@ -212,6 +212,7 @@ function ZoneCardBase({ zone, index }: ZoneCardProps) {
               </Suspense>
             ) : (
               <TiptapEditor
+                zoneId={zone.id}
                 initialMarkdown={zone.markdown}
                 onChange={(value) => updateZoneMarkdown(zone.id, value)}
                 onFocus={() => setActiveZone(zone.id)}

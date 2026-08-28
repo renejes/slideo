@@ -11,7 +11,9 @@ Wir arbeiten gemeinsam an **Slideo**. Dein Auftrag in dieser Session ist der **R
 **Projektverzeichnis:** `/Users/renejesser/Desktop/Programming - Projekte/slideo`
 **Branch:** `stage-1-2-foundation` (nicht `main` — dort liegen alle Änderungen des August-Reviews, noch nicht gemerged).
 
-**Was Slideo ist:** Lokale, offline laufende Desktop-App für Präsentationen (Tauri 2 + React/TS + Vite). **Kein AI-Layer in der App** — der KI-Client des Nutzers (jeder MCP-fähige) baut das Deck über einen mitgelieferten lokalen MCP-Server mit **38 Tools**, der Mensch editiert direkt in der Live-Vorschau drüber. Eine Präsentation ist eine HTML-Page aus „Zones" (Slides), `.slideo` = ZIP aus `presentation.json` + `assets/`.
+**Was Slideo ist:** Lokale, offline laufende Desktop-App für Präsentationen (Tauri 2 + React/TS + Vite). KI-Anbindung über den mitgelieferten lokalen MCP-Server (**37 Tools**) — externer Client (Claude Desktop, Codex, …) **oder** In-App-Chat (Cursor-Konto, Node-Sidecar, Spec §27). Der Mensch editiert in der Live-Vorschau. Eine Präsentation ist eine HTML-Page aus „Zones" (Slides), `.slideo` = ZIP aus `presentation.json` + `assets/`.
+
+**Zuletzt auf `main` (2026-08-28):** In-App-Cursor-Chat — Record [docs/done/cursor-sdk-chat.md](done/cursor-sdk-chat.md). GUI-Turn (`tauri:dev`) noch nicht vom Menschen bestätigt.
 
 ### Dein Auftrag: Rest von Block 3
 
@@ -61,7 +63,7 @@ Wir arbeiten gemeinsam an **Slideo**. Dein Auftrag in dieser Session ist der **R
 
 ### Verifikation
 ```bash
-npm run build                      # tsc + vitest (92) + vite build
+npm run build                      # tsc + vitest (103) + vite build
 node scripts/check-i18n.mjs        # muss 0 Fundstellen melden
 cd src-tauri && cargo test         # 54 Tests (+1 ignoriert: Release-Gate)
 cd src-tauri && cargo check

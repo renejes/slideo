@@ -31,6 +31,7 @@ export const ui: Record<Keys, string> = {
   'ui.topbar.helpHint': 'Help — how Slideo works with your AI agent',
   'ui.topbar.settings': 'Settings',
   'ui.topbar.present': 'Present',
+  'ui.topbar.chat': 'Chat',
 
   // --- MCP target cards -----------------------------------------------------
   'ui.mcp.hint.desktop': 'claude_desktop_config.json',
@@ -104,6 +105,7 @@ export const ui: Record<Keys, string> = {
   'ui.shell.collapse': 'Collapse {name}',
   'ui.shell.expand': 'Show {name}',
   'ui.shell.resizePreview': 'Resize preview',
+  'ui.shell.resizeChat': 'Resize chat',
 
   // --- Close guard ----------------------------------------------------------
   'ui.closeGuard.body':

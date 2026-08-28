@@ -5,6 +5,7 @@ import { Icon } from './Icon'
 import { Splitter } from './Splitter'
 import { EditorCanvas } from '@/components/editor/EditorCanvas'
 import { PreviewPane } from '@/components/preview/PreviewPane'
+import { ChatPanel } from '@/components/chat/ChatPanel'
 
 const SPLIT_W = 6 // Splitter-Breite (w-1.5) + Spielraum
 const RAIL_W = 36 // eingeklappte Spalte (w-9)
@@ -22,7 +23,10 @@ export function EditorShell() {
   const previewWidth = useLayoutStore((s) => s.previewWidth)
   const editorCollapsed = useLayoutStore((s) => s.editorCollapsed)
   const previewCollapsed = useLayoutStore((s) => s.previewCollapsed)
+  const showChat = useLayoutStore((s) => s.showChat)
+  const chatHeight = useLayoutStore((s) => s.chatHeight)
   const nudge = useLayoutStore((s) => s.nudge)
+  const nudgeChat = useLayoutStore((s) => s.nudgeChat)
   const toggleEditor = useLayoutStore((s) => s.toggleEditor)
   const togglePreview = useLayoutStore((s) => s.togglePreview)
 
@@ -80,6 +84,20 @@ export function EditorShell() {
           </div>
           <div className="min-h-0 flex-1">
             <EditorCanvas />
+          </div>
+          {/* Chat bleibt gemountet (Draft/Stream überleben das Einklappen), wie in Penwright. */}
+          {showChat && (
+            <Splitter
+              orientation="horizontal"
+              onDelta={(dy) => nudgeChat(dy)}
+              ariaLabel={t('ui.shell.resizeChat')}
+            />
+          )}
+          <div
+            className={showChat ? 'min-h-0 shrink-0 overflow-hidden border-t border-chrome-border' : 'hidden'}
+            style={showChat ? { height: chatHeight } : undefined}
+          >
+            <ChatPanel />
           </div>
         </div>
       ) : (

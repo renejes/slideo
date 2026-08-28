@@ -9,7 +9,8 @@ auto_awesome
 bar_chart
 bolt
 bookmark_add
-campaign
+chat
+attach_file
 cancel_presentation
 check_circle
 chevron_left

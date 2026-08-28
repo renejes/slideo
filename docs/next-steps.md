@@ -8,12 +8,13 @@
 > es fehlt nur die **Polar-Config** (`organization_id` + Checkout-Link in [license.rs](../src-tauri/src/license.rs)).
 > Parallel/sekundär: voller GUI-Test (Abschnitt A) + optionaler `catch_unwind`-Hardening-Punkt.
 >
-> **Erledigt (alles auf `main`, committet + gepusht, headless grün — `cargo test` 42, typecheck, vite build):**
+> **Erledigt (headless grün — `cargo test` 54, Vitest 103, typecheck, vite build):**
 > Security-Härtung S1–S9 · Performance P1/P3/P4/P5/P7/P8/P9/P10/P13 · **P2/P6 Vorschau-In-Place-Patch (§25)** ·
 > **§26 teilbares Folien-Fenster (Ein-Monitor-Remote) + gestapelte SpeakerView + WebKit-robuste Folien-Vorschauen** ·
 > **Workflow-Optimierung (§24:** Onboarding, Asset-Verwaltung, Komponenten 11→17, KI-Layout-Check, **37 MCP-Tools**) ·
 > **Editor-Cleanup** (2-spaltige Shell, Sidebar raus, Brand-Kit-Overlay) · **Markdown-Direktmanipulation** (§20) ·
-> §21 feste 16:9-Bühne · §23 Zonen-Links. Records → [done/](done/). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
+> §21 feste 16:9-Bühne · §23 Zonen-Links · **§27 In-App-Cursor-Chat** ([done/cursor-sdk-chat.md](done/cursor-sdk-chat.md);
+> GUI-Turn in `tauri:dev` offen). Records → [done/](done/). **Maßgeblich für den Ist-Stand: [../CLAUDE.md](../CLAUDE.md).**
 >
 > **Session 2026-07-15:** Pre-Release Bug-Review (13 Spuren, adversarial verifiziert → **10 Fixes, 0 Critical** —
 > [bug-review-2026-07.md](done/bug-review-2026-07.md)) · **MCP-Texte auf Englisch lokalisiert** (server_instructions,
@@ -137,6 +138,14 @@ Vorbereitung: `npm run tauri:dev` **frisch** starten. Nach jeder Backend-Änderu
 - [ ] Prüfen, ob Claude **Markdown-first** baut (Tokens/Layouts statt Inline-HTML) und HTML nur token-basiert nutzt.
 - [ ] MCP-Prompt `slideo_guide` in Claude Desktop aufrufbar?
 - [ ] `set_zone_css` / `set_zone_style(custom_css)` funktionieren und erscheinen live.
+
+### A4b. In-App-Cursor-Chat (§27)
+- [ ] `npm run tauri:dev` (Node ≥ 22.13 auf PATH). Chat-Fenster unter dem Editor bzw. Cmd/Ctrl+J.
+- [ ] Einstellungen → Cursor: Anmelden (Browser-Login), Status/Ablauf, Abmelden.
+- [ ] Präsentation offen: „Mach die Titelfolie kürzer" → Folie ändert sich **live** (MCP, nicht Datei-Write).
+- [ ] @-Mention einer Folie; Rechtsklick auf markierten Text → Chip im Composer.
+- [ ] Agent/Plan, Modell-Dropdown, Stopp während eines Turns.
+- [ ] Browser-`npm run dev`: nur der Desktop-Hinweis, kein Host-Crash.
 
 ### A5. Assets (Bild / Video / Audio)
 - [ ] Bild via Zone-Button einfügen → in Vorschau sichtbar; nach Speichern/Öffnen persistent (liegt im ZIP unter `assets/`).

@@ -5,9 +5,12 @@ import { baseExtensions } from '@/lib/tiptap-extensions'
 import { editorToMarkdown } from '@/lib/tiptap-markdown'
 import { useLicenseStore } from '@/store/license'
 import { t } from '@/i18n'
+import { insertSelectionIntoChat } from '@/lib/chat/insertAnchor'
 import { ImageToolbar } from './ImageToolbar'
 
 interface TiptapEditorProps {
+  /** Zone-ID — für „In Chat einfügen“ (Composer-Chip mit Folien-UUID). */
+  zoneId: string
   /** Initialer Inhalt als Markdown (wird nur beim Mount gesetzt). */
   initialMarkdown: string
   /** Wird bei jeder Änderung mit dem aktuellen Markdown aufgerufen. */
@@ -18,7 +21,7 @@ interface TiptapEditorProps {
 
 // Eine Tiptap-Instanz pro Zone. Der Editor ist die Quelle der Wahrheit fürs
 // Tippen; bei jeder Änderung liefert er Markdown zurück, das im Store landet.
-export function TiptapEditor({ initialMarkdown, onChange, onFocus }: TiptapEditorProps) {
+export function TiptapEditor({ zoneId, initialMarkdown, onChange, onFocus }: TiptapEditorProps) {
   // onChange als Ref halten, damit der Editor nicht bei jedem Render neu konfiguriert wird.
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -77,7 +80,24 @@ export function TiptapEditor({ initialMarkdown, onChange, onFocus }: TiptapEdito
   return (
     <>
       <ImageToolbar editor={editor} />
-      <EditorContent editor={editor} />
+      <div
+        onContextMenu={(e) => {
+          if (!editor) return
+          const { from, to } = editor.state.selection
+          if (from === to) return
+          const selectionText = editor.state.doc.textBetween(from, to, '\n')
+          if (!selectionText.trim()) return
+          e.preventDefault()
+          insertSelectionIntoChat({
+            file: zoneId,
+            selectionText,
+            prefix: editor.state.doc.textBetween(0, from, '\n'),
+            nodeType: editor.state.selection.$from.parent.type.name,
+          })
+        }}
+      >
+        <EditorContent editor={editor} />
+      </div>
     </>
   )
 }

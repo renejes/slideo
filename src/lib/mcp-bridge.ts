@@ -12,6 +12,12 @@ import type { Presentation } from '@/types'
 // Außerhalb von Tauri (reiner Browser-`dev`) ist das ein No-op.
 
 let started = false
+let flushFn: (() => void) | null = null
+
+/** Spiegelt den Store sofort nach Rust (vor einem Chat-Turn, damit MCP den frischen Stand sieht). */
+export function flushMcpSync(): void {
+  flushFn?.()
+}
 
 export async function startMcpBridge(): Promise<() => void> {
   if (!isTauri() || started) return () => {}
@@ -69,6 +75,7 @@ export async function startMcpBridge(): Promise<() => void> {
       presentation: store.getState().presentation,
     }).then(notifyDeckChanged)
   }
+  flushFn = flush
 
   // Der MCP-Server bittet vor jeder Mutation um den frischen Stand (Befund B7).
   // Ohne diese Antwort mutiert er eine bis zu 400 ms alte Kopie und schickt sie als
@@ -108,5 +115,6 @@ export async function startMcpBridge(): Promise<() => void> {
     if (timer) clearTimeout(timer)
     if (deadline) clearTimeout(deadline)
     started = false
+    flushFn = null
   }
 }

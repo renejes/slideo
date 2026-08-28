@@ -13,7 +13,7 @@ Eine Präsentation ist technisch eine einzige HTML-Page, unterteilt in **Zones**
 
 ## Voraussetzungen
 
-- Node ≥ 20, npm
+- Node ≥ 20 für die App; **Node ≥ 22.13** auf dem PATH für den In-App-Chat (`@cursor/sdk`)
 - Rust (stable) + Plattform-Toolchain für Tauri 2
   (macOS: Xcode CLT · Linux: webkit2gtk etc. · Windows: WebView2 + MSVC)
 
@@ -25,11 +25,11 @@ npm install
 # Reiner Browser-Modus (schnellster UI-Loop, ohne Datei-I/O):
 npm run dev            # http://localhost:1420
 
-# Vollständige Desktop-App (mit Rust-Backend & Datei-Dialogen):
+# Vollständige Desktop-App (mit Rust-Backend, Datei-Dialogen, In-App-Chat):
 npm run tauri:dev
 ```
 
-> Im reinen Browser-Modus sind „Öffnen"/„Speichern" deaktiviert (brauchen das Tauri-Backend).
+> Im reinen Browser-Modus sind „Öffnen"/„Speichern" deaktiviert (brauchen das Tauri-Backend). Der In-App-Chat zeigt dort nur den Desktop-Hinweis.
 
 ## Build & Checks
 
@@ -44,7 +44,7 @@ cd src-tauri && cargo test        # u.a. .slideo Round-Trip-Test
 
 ## MCP-Server (KI-Anbindung)
 
-Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
+Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä. **Zusätzlich** gibt es einen In-App-Chat (Cursor-Konto), der **denselben** MCP-Server inline nutzt — siehe [docs/done/cursor-sdk-chat.md](docs/done/cursor-sdk-chat.md) und Spec §27.
 
 - **Eine Binary, zwei Modi:** `slideo` startet die App; `slideo mcp` den MCP-stdio-Server.
 - **Live über lokalen Socket:** Die laufende App öffnet einen TCP-Socket (127.0.0.1) und
@@ -89,6 +89,7 @@ Slideo exponiert alle App-Funktionen als MCP-Tools für Claude Desktop o.ä.
 
 ### Shortcuts
 `Cmd/Ctrl+S` speichern · `Cmd/Ctrl+N` neu · `Cmd/Ctrl+Z` rückgängig · `Cmd/Ctrl+F` Suchen & Ersetzen ·
+`Cmd/Ctrl+J` Chat ein-/ausblenden ·
 Präsentation: `←/→/Leertaste` navigieren (Builds Schritt für Schritt) · `s` Speaker-Ansicht · `Esc` verlassen
 
 ### Weiter umgesetzt (§19.1–§19.9 + §20–§26)
@@ -97,6 +98,7 @@ Präsentation: `←/→/Leertaste` navigieren (Builds Schritt für Schritt) · `
 - ✅ **Auto-Animate/Morph** (§19.1) · **Daten-Diagramme** (§19.2) · **PPTX-Export** (§19.5) · **Versionshistorie** (§19.9)
 - ✅ **Medien** (§19.8): Drag&Drop-Bildimport, Crop · **Komponenten-Palette** im Editor (Aufnahme/Narration bewusst out-of-scope)
 - ✅ **Direktmanipulation in der Vorschau** (§20) · **feste 16:9-Bühne** (§21) · **Security-Härtung** (§22) · **Zonen-Links** (§23) · **Workflow-Optimierung** (§24) · **Vorschau-In-Place-Patch** (§25)
+- ✅ **In-App-Cursor-Chat** (§27): Chat-Fenster in der Desktop-App, Schreiben weiter nur über MCP
 
 ### Offen (Release-Ready)
 

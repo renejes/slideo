@@ -7,6 +7,7 @@ import { presentation } from './de/presentation'
 import { store } from './de/store'
 import { lib } from './de/lib'
 import { components } from './de/components'
+import { chat } from './de/chat'
 
 // Deutscher Gesamtkatalog — die QUELLE. `I18nKey` wird hieraus abgeleitet, jede
 // andere Sprache misst sich daran.
@@ -25,4 +26,5 @@ export const de = {
   ...store,
   ...lib,
   ...components,
+  ...chat,
 }

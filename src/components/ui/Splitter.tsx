@@ -1,29 +1,30 @@
 import { useRef } from 'react'
 
 /**
- * Vertikaler Drag-Griff zwischen zwei Spalten (Pointer-Events — WKWebView-sicher,
- * kein HTML5-DnD). Meldet inkrementelle Maus-Deltas (dx seit dem letzten Event);
- * der Aufrufer wendet sie auf die jeweilige Spaltenbreite an.
+ * Drag-Griff zwischen zwei Bereichen (Pointer-Events — WKWebView-sicher,
+ * kein HTML5-DnD). Meldet inkrementelle Maus-Deltas seit dem letzten Event;
+ * der Aufrufer wendet sie auf Breite (vertical) bzw. Höhe (horizontal) an.
  */
 export function Splitter({
   onDelta,
   ariaLabel,
+  orientation = 'vertical',
 }: {
-  onDelta: (dx: number) => void
+  onDelta: (d: number) => void
   ariaLabel: string
+  orientation?: 'vertical' | 'horizontal'
 }) {
-  const lastX = useRef(0)
+  const last = useRef(0)
+  const horizontal = orientation === 'horizontal'
 
   function onPointerDown(e: React.PointerEvent) {
     e.preventDefault()
-    lastX.current = e.clientX
+    last.current = horizontal ? e.clientY : e.clientX
     const move = (ev: PointerEvent) => {
-      onDelta(ev.clientX - lastX.current)
-      lastX.current = ev.clientX
+      const now = horizontal ? ev.clientY : ev.clientX
+      onDelta(now - last.current)
+      last.current = now
     }
-    // Ein cleanup für pointerup, pointercancel UND window-blur — sonst bleiben bei
-    // einem Release außerhalb des Fensters/Touch-Abbruch die Listener + der
-    // col-resize-Cursor/userSelect:none hängen (Muster wie in renderer.ts).
     const cleanup = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', cleanup)
@@ -36,20 +37,22 @@ export function Splitter({
     window.addEventListener('pointerup', cleanup)
     window.addEventListener('pointercancel', cleanup)
     window.addEventListener('blur', cleanup)
-    document.body.style.cursor = 'col-resize'
+    document.body.style.cursor = horizontal ? 'row-resize' : 'col-resize'
     document.body.style.userSelect = 'none'
   }
 
   return (
     <div
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={orientation}
       aria-label={ariaLabel}
       onPointerDown={onPointerDown}
-      className="group relative z-10 w-1.5 shrink-0 cursor-col-resize touch-none bg-chrome-border/0 transition-colors hover:bg-chrome-accent/30"
+      className={
+        'group relative z-10 shrink-0 touch-none bg-chrome-border/0 transition-colors hover:bg-chrome-accent/30 ' +
+        (horizontal ? 'h-1.5 w-full cursor-row-resize' : 'w-1.5 cursor-col-resize')
+      }
     >
-      {/* breitere, unsichtbare Trefferzone */}
-      <span className="absolute inset-y-0 -left-1 -right-1" />
+      <span className={horizontal ? 'absolute inset-x-0 -top-1 -bottom-1' : 'absolute inset-y-0 -left-1 -right-1'} />
     </div>
   )
 }

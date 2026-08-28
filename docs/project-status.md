@@ -4,12 +4,14 @@
 > Begleitdokumente: [slideo-spec.md](slideo-spec.md) (maßgebliche Spec), [next-steps.md](next-steps.md) (To-dos), [handover.md](handover.md) (Übergabe an neuen Chat).
 > Version: 0.1.0
 
-> **Aktueller Stand: funktional komplett & im Prinzip release-reif** (Branch `main`, alles committet + gepusht).
+> **Aktueller Stand: funktional komplett & im Prinzip release-reif** (Branch `main`).
 > MVP + Roadmap **§18/§19** umgesetzt (Charts, A11y, Builds + Auto-Animate, Vorlagen/Marke, Suchen&Ersetzen +
 > Versionshistorie, Presenter-Tools inkl. echtem Zweitfenster, Medien, PPTX, Komponenten-Palette; **§19.8 Aufnahme/
 > Narration + Video-Export bewusst weggelassen**). **§20 Direktmanipulation** (HTML *und* Markdown-Blöcke) **+ §21 feste
 > 16:9-Bühne** **+ §22 Security-Härtung** (S1–S9) **+ §23 Zonen-Links + §24 Workflow-Optimierung + §25 Vorschau-In-Place-
-> Patch + §26 teilbares Folien-Fenster (Ein-Monitor-Remote) + gestapelte SpeakerView**. **MCP: 37 Tools · 17 Komponenten.**
+> Patch + §26 teilbares Folien-Fenster (Ein-Monitor-Remote) + gestapelte SpeakerView** **+ §27 In-App-Cursor-Chat**
+> (Node-Sidecar, Record [done/cursor-sdk-chat.md](done/cursor-sdk-chat.md); GUI-Turn ausstehend).
+> **MCP: 37 Tools · 17 Komponenten.**
 >
 > **Seit diesem Stand-Dokument zusätzlich (maßgeblich: [../CLAUDE.md](../CLAUDE.md), Records in [done/](done/)):**
 > **Security-Härtung S1–S9** (IPC-Token, CSP, ZIP-Caps …); **Performance** P1–P13 (Font-Subset, Bilder in-app über
@@ -18,18 +20,18 @@
 > Overlay**, **Outline-Modus entfernt**); **Markdown-Direktmanipulation** (§20); **§23 Zonen-Links** (`data-slideo-goto` +
 > `toc`); **§24 Workflow-Optimierung** (Onboarding, Asset-Verwaltung, **Komponenten 11→17**, KI-Layout-Check → **37 MCP-
 > Tools**); **§26** teilbares **Folien-Fenster** für Ein-Monitor-Remote (Zoom/Meet) + **gestapelte SpeakerView** + WebKit-
-> robuste Folien-Vorschauen (gemeinsame `SlidePreview`). **Automatisiert grün** (cargo test **42**, typecheck, vite build);
-> jeder größere Schritt adversarial multi-agent-reviewt; die zuletzt gebauten Features **GUI-bestätigt**.
+> robuste Folien-Vorschauen (gemeinsame `SlidePreview`); **§27 In-App-Chat** (`@cursor/sdk` im Sidecar, Schreiben nur MCP).
+> **Automatisiert grün** (cargo test **54**, Vitest **103**, typecheck, vite build).
 >
 > **Nächster Fokus (siehe [next-steps.md](next-steps.md)/[handover.md](handover.md)):** **Release-Ready** —
-> **Distribution/Notarization** (Signing, notarisierte/Cross-Platform-Builds) + voller **GUI-Test A1–A7** + optionaler
-> `catch_unwind`-Hardening-Punkt.
+> **Distribution/Notarization** (Signing, notarisierte/Cross-Platform-Builds) + voller **GUI-Test A1–A7** (inkl. Chat-Turn)
+> + optionaler `catch_unwind`-Hardening-Punkt.
 
 ---
 
 ## 1. Was Slideo ist
 
-Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präsentation ist technisch *eine* HTML-Page, unterteilt in **Zones** (= Slides). Im Editor scrollt man durch alle Zones, im Präsentationsmodus springt die App von Zone zu Zone. Kein AI-Layer in der App selbst — die KI-Anbindung läuft ausschließlich über einen mitgelieferten **MCP-Server** (Claude Desktop o.ä.). Läuft vollständig lokal (DSGVO-konform).
+Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präsentation ist technisch *eine* HTML-Page, unterteilt in **Zones** (= Slides). Im Editor scrollt man durch alle Zones, im Präsentationsmodus springt die App von Zone zu Zone. KI-Anbindung: mitgelieferter **MCP-Server** (Claude Desktop, Codex, …) **und** optional der **In-App-Chat** (Cursor-Konto, Spec §27) — Schreiben ans Deck in beiden Fällen nur über MCP. Läuft lokal (Deck-Dateien bleiben auf der Platte; Inferenz des In-App-Agenten geht über Cursor-hosted Models).
 
 ## 2. Tech Stack
 
@@ -37,6 +39,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - **Tiptap 2** (Markdown-WYSIWYG) · **CodeMirror 6** (HTML- & CSS-Editor) · **Tailwind 3** (App-Chrome)
 - **Material Symbols** (selbst-gehostet, offline) · **Zustand** (State) · **markdown-it** (Render-Pipeline)
 - Dateiformat **`.slideo`** = ZIP mit `presentation.json` + `assets/`
+- **In-App-Chat:** `@cursor/sdk` in einem Node-Sidecar (esbuild `src-agent/` → `agent-host/host.mjs`)
 
 ## 3. Architektur (Kurzform)
 
@@ -74,6 +77,11 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 - **10 token-bewusste Komponenten** (`insert_component`): stat_cards, bar_chart, **line_chart**, **donut_chart**, progress, quote, timeline, comparison, callout, **icon** (Inline-SVG, §19.8).
 - **KI-Steuerung:** `instructions` im `initialize` (Markdown-first, Presets/Komponenten/Charts, token-bewusstes HTML, Bild-Positionierung, Builds) + MCP-Prompt **`slideo_guide`** (aufrufbarer Leitfaden mit `thema`-Argument).
 - Auto-Registrierung in Claude Desktop.
+
+### In-App-Cursor-Chat (§27)
+- Chat-Fenster unter dem Editor ([ChatPanel.tsx](../src/components/chat/ChatPanel.tsx)), Cmd/Ctrl+J, Settings → Cursor.
+- Node-Sidecar + Rust-Proxy ([chat.rs](../src-tauri/src/chat.rs)); Agent-Allowlist MCP+Lesen. Record: [done/cursor-sdk-chat.md](done/cursor-sdk-chat.md).
+- Rechtsklick auf markierten Text → „In Chat einfügen“. Browser-Dev zeigt nur den Desktop-Hinweis.
 
 ### Roadmap §18 (umgesetzt in dieser Session)
 - **Speaker-Notes** (§18.2): Notizen-Panel pro Zone + `set_zone_notes`.
@@ -117,6 +125,7 @@ Lokale, code-freie, **MCP-native** Desktop-App für Präsentationen. Eine Präse
 src-tauri/src/
   main.rs           # Modus-Branch: App vs. `mcp`
   lib.rs            # Tauri-Setup, Socket-Start, Claude-Config, slideoasset:// Protocol, Commands
+  chat.rs           # Node-Sidecar für In-App-Chat (JSON-RPC → @cursor/sdk)
   commands.rs       # load/save_presentation, sync_presentation, sync_assets, set_file_path
   ipc.rs            # lokaler TCP-Socket-Server + Discovery + Event-Emit + Client (für mcp-Modus)
   mcp.rs            # MCP stdio JSON-RPC (initialize/tools/prompts/...), leitet an Socket weiter
@@ -128,13 +137,17 @@ src-tauri/src/
   file/             # reader.rs, writer.rs (ZIP + Assets), mod.rs (Asset-Typ, guess_mime inkl. Fonts, Tests)
   commands.rs       # …, export_html, open_print_view (PDF im Browser), export_pptx (base64→Bytes)
 
+src-agent/          # Cursor-SDK-Host (esbuild → src-tauri/agent-host/host.mjs, gitignored)
+
 src/
-  App.tsx           # Root: Editor | Präsentation, Shortcuts (inkl. Cmd+F), Modals, CloseGuard
-  store/            # presentation.ts (Hauptstore), ui.ts (Modals), settings.ts (persist), toast.ts
+  App.tsx           # Root: Editor | Präsentation, Shortcuts (inkl. Cmd+F, Cmd+J), Modals, CloseGuard
+  store/            # presentation.ts (Hauptstore), ui.ts (Modals), settings.ts (persist), toast.ts, layout.ts, chat.ts
   lib/              # renderer.ts, tokens.ts, markdown-tiptap.ts (+ splitMarkdownBlocks, setBlockImageWidth),
                     # tiptap-markdown.ts, tiptap-extensions.ts, tiptap-image.ts (SlideoImage), asset-resolver.ts,
-                    # assets.ts, tauri.ts, dialog.ts, mcp-bridge.ts, presets.ts, templates.ts, contrast.ts, print.ts
+                    # assets.ts, tauri.ts, dialog.ts, mcp-bridge.ts, presets.ts, templates.ts, contrast.ts, print.ts,
+                    # chat/ (Types, Stream, Allowlist, Sessions — kein SDK-Import)
   components/
+    chat/           # ChatPanel (In-App-Cursor-Chat)
     editor/         # EditorCanvas, ZoneCard, ZoneToolbar, TiptapEditor, HtmlEditor, CssEditor, ImageToolbar
     presentation/   # PresentationMode (parent-autoritativ), SpeakerView
     preview/        # PreviewPane (editable: Drag/Resize)
@@ -170,7 +183,7 @@ src/
 
 1. **Spec ist die Wahrheit** ([slideo-spec.md](slideo-spec.md)); bei Widersprüchen Entwickler fragen.
 2. **Markdown ist primäres Content-Format.** HTML-Zonen nur für Interaktives; dann **mit Token-CSS-Variablen** stylen, damit der Mensch global themen kann.
-3. **Kein AI-Layer in der App** — nur der MCP-Server.
+3. **Kein Provider-SDK im Frontend — Schreiben nur über MCP.** Optionaler In-App-Chat (§27) im Node-Sidecar; Allowlist MCP+Lesen.
 4. **State lebt im Zustand-Store** (kein lokaler React-State für Präsentationsdaten).
 5. **Nach JEDER Backend-Änderung an Tools/Instructions: `tauri:dev`/`cargo build` neu UND Claude Desktop neu starten** — sonst läuft Claude Desktop gegen das alte MCP-Binary (häufige Fehlerquelle!).
 6. **Bewusste Spec-Abweichung:** MCP ist hand-gerolltes JSON-RPC statt `rmcp` (Spec §10) — rmcp ist 0.1→0.16 stark gewandert; unser stdio-Teil ist nur ein dünner Weiterleiter.
@@ -186,9 +199,10 @@ src/
 ## 8. Build- & Run-Befehle
 
 ```bash
-npm install                         # Deps
-npm run dev                         # Browser-only UI-Loop (kein Datei-I/O, kein MCP)
-npm run tauri:dev                   # volle Desktop-App
+npm install                         # Deps (inkl. @cursor/sdk; Node ≥ 22.13 für den In-App-Chat)
+npm run agent:build                 # Sidecar host.mjs (läuft auch vor tauri:dev/build)
+npm run dev                         # Browser-only UI-Loop (kein Datei-I/O, Chat nur Hinweis)
+npm run tauri:dev                   # volle Desktop-App inkl. Chat-Host
 npm run typecheck && npm run build  # TS-Check + Vite-Build
 cd src-tauri && cargo check         # Rust kompilieren
 cd src-tauri && cargo test          # Rust-Tests

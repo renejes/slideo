@@ -26,6 +26,7 @@ import { ExportModal } from '@/components/modals/ExportModal'
 import { LicenseBar } from '@/components/ui/LicenseBar'
 import { useLicenseStore } from '@/store/license'
 import { useSettingsStore } from '@/store/settings'
+import { useLayoutStore } from '@/store/layout'
 import { PresentationMode } from '@/components/presentation/PresentationMode'
 import { t, tp, localeTag } from '@/i18n'
 import { T } from '@/i18n/T'
@@ -114,6 +115,10 @@ export default function App() {
         // ausprobieren wollte, musste raus zum Finder.
         if (e.shiftKey) void usePresentationStore.getState().savePresentationAsDialog()
         else void save()
+      } else if (key === 'j') {
+        if (usePresentationStore.getState().mode === 'presentation') return
+        e.preventDefault()
+        useLayoutStore.getState().toggleChat()
       } else if (key === 'n') {
         e.preventDefault()
         openNew()

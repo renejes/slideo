@@ -55,4 +55,12 @@ export const common: Record<Keys, string> = {
   'error.present.noWindow': 'No slide window open',
   'error.present.noMonitor': 'No monitor found for the slide window',
   'error.cmd.openFailed': 'Could not open: {detail}',
+  'error.chat.noConfigDir': 'No config directory found.',
+  'error.chat.nodeMissing':
+    'Node.js was not found. In-app chat needs Node ≥ 22 (on the PATH of tauri:dev).',
+  'error.chat.hostMissing':
+    'Chat host missing. Run “npm run agent:build” once and restart the app.',
+  'error.chat.spawnFailed': 'Could not start the chat host: {detail}',
+  'error.chat.rpc': 'Chat host is not responding.',
+  'error.chat.rpcTimeout': 'Chat host timed out.',
 }

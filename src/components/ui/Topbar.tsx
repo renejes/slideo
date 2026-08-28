@@ -1,5 +1,6 @@
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
+import { useLayoutStore } from '@/store/layout'
 import { isTauri } from '@/lib/tauri'
 import { t } from '@/i18n'
 import { Icon } from './Icon'
@@ -27,6 +28,7 @@ export function Topbar() {
   const saveAs = usePresentationStore((s) => s.savePresentationAsDialog)
   const setTitle = usePresentationStore((s) => s.setPresentationTitle)
   const setMode = usePresentationStore((s) => s.setMode)
+  const showChat = useLayoutStore((s) => s.showChat)
   const openModal = useUiStore((s) => s.openModal)
   const openAssets = useUiStore((s) => s.openAssets)
 
@@ -165,6 +167,16 @@ export function Topbar() {
           aria-label={t('ui.topbar.help')}
         >
           <Icon name="help" size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => useLayoutStore.getState().toggleChat()}
+          className={ghost + ' !px-2' + (showChat ? ' bg-chrome-surface-2 text-chrome-text' : '')}
+          title={t('chat.toggle')}
+          aria-label={t('ui.topbar.chat')}
+          aria-pressed={showChat}
+        >
+          <Icon name="chat" size={18} />
         </button>
         <button
           onClick={() => openModal('settings')}

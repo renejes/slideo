@@ -65,4 +65,12 @@ export const common = {
   'error.present.noWindow': 'Kein Folien-Fenster offen',
   'error.present.noMonitor': 'Kein Monitor für das Folien-Fenster gefunden',
   'error.cmd.openFailed': 'Öffnen fehlgeschlagen: {detail}',
+  'error.chat.noConfigDir': 'Kein Config-Verzeichnis gefunden.',
+  'error.chat.nodeMissing':
+    'Node.js wurde nicht gefunden. Der In-App-Chat braucht Node ≥ 22 (in der PATH-Umgebung von tauri:dev).',
+  'error.chat.hostMissing':
+    'Chat-Host fehlt. Bitte einmal „npm run agent:build“ ausführen und die App neu starten.',
+  'error.chat.spawnFailed': 'Chat-Host konnte nicht gestartet werden: {detail}',
+  'error.chat.rpc': 'Chat-Host antwortet nicht.',
+  'error.chat.rpcTimeout': 'Chat-Host hat nicht rechtzeitig geantwortet.',
 } as const

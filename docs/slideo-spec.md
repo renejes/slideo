@@ -789,7 +789,7 @@ Wenn du (die KI) an diesem Projekt arbeitest, halte dich an folgende Regeln:
 
 2. **Markdown ist das primäre Content-Format.** Schreibe niemals direkt Tiptap-JSON wenn du Slide-Inhalt erstellst. Immer Markdown → `tiptap-markdown` konvertiert.
 
-3. **Kein AI-Layer in der App.** Die App hat keine Anthropic API, keinen OpenAI Client, keine Ollama-HTTP-Calls. Die einzige AI-Schnittstelle ist der MCP Server.
+3. **Kein Provider-SDK im Frontend, Schreiben nur über MCP.** Die App hat keine Anthropic-/OpenAI-/Ollama-Calls. Deck-Mutationen laufen ausschließlich über den MCP-Server. **Ausnahme (2026-08, §27):** der optionale In-App-Chat nutzt `@cursor/sdk` in einem **Node-Sidecar** (nicht im WebView). Der Agent darf nur MCP + Lesen (`read`/`grep`/`glob`/`ls`), nicht `shell`/`edit`/`write`. Abrechnung über das Cursor-Konto der nutzenden Person.
 
 4. **State lebt im Zustand Store.** Kein lokaler React-State für Präsentations-Daten. Alles durch den Store.
 
@@ -1377,3 +1377,13 @@ Box mit nur absolut positionierten Kindern** bekommt in WebKit **keine Höhe** �
 FE-State/UX) clean. **GUI-bestätigt** (Fenster-Teilen in Zoom/Meet listet „Slideo — Präsentation", nur Folie sichtbar,
 Navigation vom Cockpit, Schließen/Erneut-Öffnen; **Vollbild-Toggle auf zweitem Monitor + zurück** auf echter Multi-Display-
 Hardware; gestapelte SpeakerView + Übersicht-Thumbnails rendern).
+
+---
+
+## 27. In-App-Cursor-Chat (optionaler zweiter Einstieg)
+
+**Produkt:** Dieselbe Authoring-Schleife wie über Claude Desktop / Codex, aber **in der App**. Chat-Fenster unter dem Editor (Cmd/Ctrl+J), Anmeldung unter Einstellungen → Cursor. Der Agent schreibt nicht an `.slideo` vorbei — nur MCP-Tools; die UI folgt über `mcp:presentation` wie bei jedem anderen Client.
+
+**Technik:** `@cursor/sdk` ist Node-only → Sidecar (`src-agent/` → `npm run agent:build` → `host.mjs`), Rust proxyt JSON-RPC ([chat.rs](../src-tauri/src/chat.rs)). Details: [done/cursor-sdk-chat.md](done/cursor-sdk-chat.md).
+
+**Nicht betroffen:** Dateiformat (`version` bleibt "1.0"), MCP-Tool-Satz (37), externe Client-Registrierung.

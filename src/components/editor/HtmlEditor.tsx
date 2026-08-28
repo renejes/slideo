@@ -12,6 +12,7 @@ import { Compartment, EditorState, StateField, StateEffect } from '@codemirror/s
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { html } from '@codemirror/lang-html'
 import { useUiStore } from '@/store/ui'
+import { insertSelectionIntoChat } from '@/lib/chat/insertAnchor'
 
 // Dezentes Light-Theme, passend zum App-Chrome (Penwright-nah).
 const lightTheme = EditorView.theme(
@@ -99,6 +100,22 @@ export function HtmlEditor({ zoneId, initialHtml, onChange, onFocus }: HtmlEdito
           revealField,
           lightTheme,
           EditorView.lineWrapping,
+          EditorView.domEventHandlers({
+            contextmenu(event, view) {
+              const sel = view.state.selection.main
+              if (sel.empty) return false
+              const selectionText = view.state.sliceDoc(sel.from, sel.to)
+              if (!selectionText.trim()) return false
+              event.preventDefault()
+              insertSelectionIntoChat({
+                file: zoneId,
+                selectionText,
+                prefix: view.state.sliceDoc(0, sel.from),
+                nodeType: 'html',
+              })
+              return true
+            },
+          }),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) {
               onChangeRef.current(update.state.doc.toString())

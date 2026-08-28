@@ -7,7 +7,7 @@ Arbeitsanweisungen für KI an diesem Projekt. **Maßgeblich ist [docs/slideo-spe
 1. Spec-Doc ist die Wahrheit.
 2. **Markdown ist primäres Content-Format.** Nie direkt Tiptap-JSON für Inhalte schreiben.
    Ausnahme: Zonen mit `content_type: 'html'` (Spec §14) — dann rohes HTML in `zone.html`.
-3. **Kein AI-Layer in der App** (keine Anthropic/OpenAI/Ollama-Calls). Einzige AI-Schnittstelle ist der MCP-Server.
+3. **Kein Provider-SDK im Frontend, Schreiben nur über MCP** (keine Anthropic/OpenAI/Ollama-Calls). Deck-Mutationen laufen über den MCP-Server. **Ausnahme:** optionaler In-App-Chat via `@cursor/sdk` im Node-Sidecar ([docs/done/cursor-sdk-chat.md](docs/done/cursor-sdk-chat.md)) — Allowlist MCP+Lesen, kein `shell`/`edit`/`write`.
 4. **State lebt im Zustand-Store** ([src/store/presentation.ts](src/store/presentation.ts)), kein lokaler React-State für Präsentationsdaten.
 5. **Rust für I/O, React für UI.**
 6. UUIDs für Zone-IDs (`crypto.randomUUID()` / `uuid::new_v4()`).
@@ -15,6 +15,7 @@ Arbeitsanweisungen für KI an diesem Projekt. **Maßgeblich ist [docs/slideo-spe
 
 ## Architektur-Entscheidungen (dieser Session)
 
+- **In-App-Cursor-Chat (2026-08, umgesetzt):** Chat-Fenster in der Desktop-App (Cmd/Ctrl+J), Login über das Cursor-Konto. `@cursor/sdk` lebt in einem **Node-Sidecar** ([src-agent/](src-agent/), Spawn in [chat.rs](src-tauri/src/chat.rs)) — nicht im WebView, nicht in Rust. MCP **inline** auf dasselbe Binary (`slideo mcp`); Tools `mcp`/`read`/`grep`/`glob`/`ls`, `disallowedTools: shell/task`. Vor jedem Send `flushMcpSync()`. Record: [docs/done/cursor-sdk-chat.md](docs/done/cursor-sdk-chat.md). GUI-Turn (`tauri:dev`) ausstehend.
 - **MCP-Sync (Phase 4, umgesetzt):** **Live über lokalen Socket**. Eine Binary, zwei Modi
   (`slideo` = App, `slideo mcp` = stdio-Server). Die App ([ipc.rs](src-tauri/src/ipc.rs))
   öffnet einen TCP-Socket (127.0.0.1, Port in `<config>/slideo/ipc.json`), hält den
@@ -527,10 +528,11 @@ off-thesis; Medien-Bedarf via Einbettung gedeckt; siehe [[scope-mcp-authoring-th
 Direktmanipulation in der Vorschau — Phase 0–3 umgesetzt** (Klick→Quelle, Auswählen/Löschen/Duplizieren,
 Inline-Text, Verschieben; s.o.) **+ §21 feste 16:9-Folien-Bühne + Scale-to-fit** (ersetzt responsive 100vh-Zonen;
 behebt Out-of-bounds beim Resize) **+ §23 Zonen-Links / nicht-lineare Navigation** (`data-slideo-goto` + `toc`-Komponente,
-Inhaltsverzeichnis→Sprung→Rücksprung; s.o.). GUI-Check aller drei steht aus.
+Inhaltsverzeichnis→Sprung→Rücksprung; s.o.) **+ §27 In-App-Cursor-Chat** (Node-Sidecar, GUI-Turn ausstehend;
+[docs/done/cursor-sdk-chat.md](docs/done/cursor-sdk-chat.md)).
 
 Offen (kein neues Feature, sondern „verifizieren & ausliefern"): **GUI-Verifikation** aller §18/§19-Features
-durch den Menschen (Checklisten next-steps.md A1–A7, inkl. Zweitfenster auf echter Multi-Display-Hardware) und
+durch den Menschen (Checklisten next-steps.md A1–A7 **inkl. A4b Chat**, inkl. Zweitfenster auf echter Multi-Display-Hardware) und
 **Distribution & Notarization** (next-steps.md Abschnitt C: Signing, notarisierte/Cross-Platform-Builds).
 Optionaler Polish (geparkt): bild-basierter PPTX-Export (Browser-Offload), Komponenten-Set erweitern,
 Asset-Positionierung „Large", Font-Subset, Laser/Stift aufs Zweitfenster spiegeln, flackerfreies Projector-Update.

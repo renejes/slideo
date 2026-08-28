@@ -34,6 +34,7 @@ export const ui = {
   // title= und aria-label= sind hier woertlich gleich → EIN Schluessel.
   'ui.topbar.settings': 'Einstellungen',
   'ui.topbar.present': 'Präsentieren',
+  'ui.topbar.chat': 'Chat',
 
   // --- MCP-Ziel-Karten ------------------------------------------------------
   // Die Ziel-NAMEN (Claude Desktop, Meta-MCP, Claude Code) sind Eigennamen und
@@ -113,6 +114,7 @@ export const ui = {
   'ui.shell.collapse': '{name} einklappen',
   'ui.shell.expand': '{name} einblenden',
   'ui.shell.resizePreview': 'Vorschau skalieren',
+  'ui.shell.resizeChat': 'Chat skalieren',
 
   // --- Schliessen-Schutz ----------------------------------------------------
   'ui.closeGuard.body':
