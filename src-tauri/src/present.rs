@@ -34,7 +34,8 @@ pub fn open_share_window(app: AppHandle) -> Result<(), String> {
         let _ = win.set_fullscreen(false);
         let _ = win.set_decorations(true);
         let _ = win.set_resizable(true);
-        win.set_size(LogicalSize::new(WIN_W, WIN_H)).map_err(|e| e.to_string())?;
+        win.set_size(LogicalSize::new(WIN_W, WIN_H))
+            .map_err(|e| e.to_string())?;
         let _ = win.center();
         let _ = win.set_focus();
         return Ok(());
@@ -87,13 +88,16 @@ pub fn set_projector_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), 
         let size = *mon.size();
         let _ = win.set_decorations(false);
         let _ = win.set_resizable(false);
-        win.set_position(PhysicalPosition::new(pos.x, pos.y)).map_err(|e| e.to_string())?;
-        win.set_size(PhysicalSize::new(size.width, size.height)).map_err(|e| e.to_string())?;
+        win.set_position(PhysicalPosition::new(pos.x, pos.y))
+            .map_err(|e| e.to_string())?;
+        win.set_size(PhysicalSize::new(size.width, size.height))
+            .map_err(|e| e.to_string())?;
         let _ = win.set_focus();
     } else {
         let _ = win.set_decorations(true);
         let _ = win.set_resizable(true);
-        win.set_size(LogicalSize::new(WIN_W, WIN_H)).map_err(|e| e.to_string())?;
+        win.set_size(LogicalSize::new(WIN_W, WIN_H))
+            .map_err(|e| e.to_string())?;
         let _ = win.center();
         let _ = win.set_focus();
     }

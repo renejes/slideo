@@ -42,6 +42,8 @@ setEmitSink((event) => {
   write({ jsonrpc: '2.0', method: 'event', params: event })
 })
 
+write({ jsonrpc: '2.0', method: 'ready' })
+
 async function dispatch(method: string, params: Record<string, unknown>): Promise<unknown> {
   switch (method) {
     case 'status':

@@ -115,6 +115,10 @@ export default function App() {
         // ausprobieren wollte, musste raus zum Finder.
         if (e.shiftKey) void usePresentationStore.getState().savePresentationAsDialog()
         else void save()
+      } else if (key === 'e') {
+        if (usePresentationStore.getState().mode === 'presentation') return
+        e.preventDefault()
+        useLayoutStore.getState().toggleInspector()
       } else if (key === 'j') {
         if (usePresentationStore.getState().mode === 'presentation') return
         e.preventDefault()

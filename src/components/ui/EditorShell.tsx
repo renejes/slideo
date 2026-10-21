@@ -1,38 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLayoutStore, EDITOR_MIN, PREVIEW_MIN } from '@/store/layout'
+import {
+  useLayoutStore,
+  CANVAS_MIN,
+  INSPECTOR_MIN,
+  CHAT_MIN,
+} from '@/store/layout'
+import { usePresentationStore } from '@/store/presentation'
+import { useUiStore } from '@/store/ui'
 import { t } from '@/i18n'
 import { Icon } from './Icon'
 import { Splitter } from './Splitter'
-import { EditorCanvas } from '@/components/editor/EditorCanvas'
+import { SourceInspector } from '@/components/editor/SourceInspector'
+import { SlideFilmstrip } from '@/components/editor/SlideFilmstrip'
+import { ZoneToolbar } from '@/components/editor/ZoneToolbar'
 import { PreviewPane } from '@/components/preview/PreviewPane'
 import { ChatPanel } from '@/components/chat/ChatPanel'
 
-const SPLIT_W = 6 // Splitter-Breite (w-1.5) + Spielraum
-const RAIL_W = 36 // eingeklappte Spalte (w-9)
+const SPLIT_W = 6
+const RAIL_W = 36
 
 /**
- * Editor-Arbeitsfläche: zwei frei skalierbare, EINZELN einklappbare Spalten
- * (Editor · Vorschau). Der Editor ist elastisch (füllt den Rest), solange er offen
- * ist — sonst die Vorschau. Die Vorschau hat eine gemerkte Breite + Splitter. Bei zu
- * schmalem Fenster weicht die Vorschau zurück, damit dem elastischen Bereich seine
- * Mindestbreite bleibt (statt Überlauf). Mindestens ein Bereich bleibt immer offen
- * (Store-Guard). Die frühere linke Folienliste/Sidebar ist entfallen — Umsortieren
- * + Überblick laufen über die Editor-Karten selbst (Editor-Cleanup).
+ * Canvas-first-Arbeitsfläche: Bühne (eine Folie) · Chat rechts · Filmstrip unten.
+ * Quellen-Inspector optional links der Bühne. Folien-Tools gelten nur für die
+ * offene Folie; Brand Kit bleibt deck-weit in der Topbar.
  */
 export function EditorShell() {
-  const previewWidth = useLayoutStore((s) => s.previewWidth)
-  const editorCollapsed = useLayoutStore((s) => s.editorCollapsed)
-  const previewCollapsed = useLayoutStore((s) => s.previewCollapsed)
+  const showInspector = useLayoutStore((s) => s.showInspector)
+  const inspectorWidth = useLayoutStore((s) => s.inspectorWidth)
   const showChat = useLayoutStore((s) => s.showChat)
-  const chatHeight = useLayoutStore((s) => s.chatHeight)
-  const nudge = useLayoutStore((s) => s.nudge)
+  const chatWidth = useLayoutStore((s) => s.chatWidth)
+  const nudgeInspector = useLayoutStore((s) => s.nudgeInspector)
   const nudgeChat = useLayoutStore((s) => s.nudgeChat)
-  const toggleEditor = useLayoutStore((s) => s.toggleEditor)
-  const togglePreview = useLayoutStore((s) => s.togglePreview)
+  const toggleChat = useLayoutStore((s) => s.toggleChat)
+  const toggleInspector = useLayoutStore((s) => s.toggleInspector)
+
+  const presentation = usePresentationStore((s) => s.presentation)
+  const activeZoneId = usePresentationStore((s) => s.activeZoneId)
+  const previewEdit = useUiStore((s) => s.previewEdit)
+  const togglePreviewEdit = useUiStore((s) => s.togglePreviewEdit)
 
   const ref = useRef<HTMLDivElement>(null)
-  // Sinnvoller Startwert bis der ResizeObserver feuert (vermeidet einen ersten Frame
-  // mit zu wenig Kapp-Druck auf schmalen Bildschirmen).
   const [avail, setAvail] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1200,
   )
@@ -47,87 +54,108 @@ export function EditorShell() {
     return () => ro.disconnect()
   }, [])
 
-  const editorOpen = !editorCollapsed
-  const previewOpen = !previewCollapsed
-
-  // Feste Vorschau-Breite nur, wenn der Editor offen ist (sonst füllt die Vorschau).
-  let pFixed = previewOpen && editorOpen ? previewWidth : 0
-
-  // Dem elastischen Bereich (Editor, sonst Vorschau) seine Mindestbreite sichern:
-  // die feste Vorschau zurücknehmen, nie unter ihre eigene Mindestbreite.
-  const elasticMin = editorOpen ? EDITOR_MIN : PREVIEW_MIN
-  const rails = (editorOpen ? 0 : RAIL_W) + (previewOpen ? 0 : RAIL_W)
-  const splitters = pFixed > 0 ? SPLIT_W : 0
-  const over = pFixed + rails + splitters + elasticMin - avail
-  if (over > 0 && pFixed > 0) {
-    pFixed -= Math.min(over, Math.max(0, pFixed - PREVIEW_MIN))
+  let iFixed = showInspector ? inspectorWidth : 0
+  let cFixed = showChat ? chatWidth : 0
+  const rails = showChat ? 0 : RAIL_W
+  const splits = (iFixed > 0 ? SPLIT_W : 0) + (cFixed > 0 ? SPLIT_W : 0)
+  let over = iFixed + cFixed + rails + splits + CANVAS_MIN - avail
+  if (over > 0 && cFixed > 0) {
+    const cut = Math.min(over, Math.max(0, cFixed - CHAT_MIN))
+    cFixed -= cut
+    over -= cut
   }
+  if (over > 0 && iFixed > 0) {
+    iFixed -= Math.min(over, Math.max(0, iFixed - INSPECTOR_MIN))
+  }
+
+  const zone =
+    presentation &&
+    (presentation.zones.find((z) => z.id === activeZoneId) ??
+      [...presentation.zones].sort((a, b) => a.order - b.order)[0])
 
   return (
     <div ref={ref} className="flex min-h-0 flex-1 overflow-hidden">
-      {/* Editor (flussbasiert) */}
-      {editorOpen ? (
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-chrome-border px-3.5 text-chrome-muted">
-            <Icon name="edit" size={15} weight={400} />
-            <span className="text-[11px] font-semibold uppercase tracking-wider">
-              {t('ui.shell.editor')}
-            </span>
-            <button
-              onClick={toggleEditor}
-              title={t('ui.shell.collapse', { name: t('ui.shell.editor') })}
-              aria-label={t('ui.shell.collapse', { name: t('ui.shell.editor') })}
-              className="ml-auto flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-            >
-              <Icon name="chevron_left" size={18} />
-            </button>
-          </div>
-          <div className="min-h-0 flex-1">
-            <EditorCanvas />
-          </div>
-          {/* Chat bleibt gemountet (Draft/Stream überleben das Einklappen), wie in Penwright. */}
-          {showChat && (
-            <Splitter
-              orientation="horizontal"
-              onDelta={(dy) => nudgeChat(dy)}
-              ariaLabel={t('ui.shell.resizeChat')}
-            />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {showInspector && (
+            <>
+              <div className="min-h-0 shrink-0" style={{ width: iFixed }}>
+                <SourceInspector />
+              </div>
+              <Splitter
+                onDelta={(dx) => nudgeInspector(dx)}
+                ariaLabel={t('ui.shell.resizeInspector')}
+              />
+            </>
           )}
-          <div
-            className={showChat ? 'min-h-0 shrink-0 overflow-hidden border-t border-chrome-border' : 'hidden'}
-            style={showChat ? { height: chatHeight } : undefined}
-          >
-            <ChatPanel />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {zone && (
+              <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 border-b border-chrome-border bg-chrome-surface px-2.5 py-1">
+                <ZoneToolbar zone={zone} />
+                <button
+                  type="button"
+                  onClick={togglePreviewEdit}
+                  aria-pressed={previewEdit}
+                  title={t('present.preview.directEditHint')}
+                  className={
+                    'flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
+                    (previewEdit
+                      ? 'bg-chrome-accent-soft text-chrome-accent-600'
+                      : 'text-chrome-muted hover:bg-chrome-surface-2 hover:text-chrome-text')
+                  }
+                >
+                  <Icon name="arrow_selector_tool" size={15} weight={400} />
+                  {t('present.preview.directEdit')}
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleInspector}
+                  aria-pressed={showInspector}
+                  title={t('ui.shell.sourceHint')}
+                  className={
+                    'flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40 ' +
+                    (showInspector
+                      ? 'bg-chrome-accent-soft text-chrome-accent-600'
+                      : 'text-chrome-muted hover:bg-chrome-surface-2 hover:text-chrome-text')
+                  }
+                >
+                  <Icon name="code" size={15} weight={400} />
+                  {t('ui.shell.source')}
+                </button>
+              </div>
+            )}
+            <div className="min-h-0 min-w-0 flex-1">
+              <PreviewPane />
+            </div>
           </div>
         </div>
-      ) : (
-        <CollapsedRail side="left" icon="edit" label={t('ui.shell.editor')} onExpand={toggleEditor} />
-      )}
-      {pFixed > 0 && (
-        <Splitter onDelta={(dx) => nudge(-dx)} ariaLabel={t('ui.shell.resizePreview')} />
-      )}
+        <SlideFilmstrip />
+      </div>
 
-      {/* Vorschau */}
-      {previewOpen ? (
-        <div
-          style={editorOpen ? { width: pFixed } : undefined}
-          className={'min-w-0 ' + (editorOpen ? 'shrink-0' : 'flex-1')}
-        >
-          <PreviewPane onCollapse={togglePreview} />
-        </div>
-      ) : (
+      {showChat && (
+        <Splitter onDelta={(dx) => nudgeChat(-dx)} ariaLabel={t('ui.shell.resizeChat')} />
+      )}
+      <div
+        className={
+          'min-h-0 shrink-0 border-l border-chrome-border' + (showChat ? '' : ' hidden')
+        }
+        style={showChat ? { width: cFixed } : undefined}
+        aria-hidden={!showChat}
+      >
+        <ChatPanel onCollapse={toggleChat} />
+      </div>
+      {!showChat && (
         <CollapsedRail
           side="right"
-          icon="chevron_left"
-          label={t('ui.shell.preview')}
-          onExpand={togglePreview}
+          icon="chat"
+          label={t('chat.title')}
+          onExpand={toggleChat}
         />
       )}
     </div>
   )
 }
 
-/** Schmale Leiste, die eine eingeklappte Spalte vertritt (Klick = wieder ausklappen). */
 function CollapsedRail({
   side,
   icon,

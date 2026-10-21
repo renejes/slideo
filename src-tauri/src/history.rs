@@ -28,7 +28,9 @@ fn index_lock() -> MutexGuard<'static, ()> {
 fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 80
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// Metadaten eines Snapshots (in `index.json`, an das Frontend gereicht).
@@ -62,13 +64,20 @@ fn deck_key(file_path: &str) -> String {
         .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
         .take(40)
         .collect();
-    let safe = if safe.is_empty() { "deck".to_string() } else { safe };
+    let safe = if safe.is_empty() {
+        "deck".to_string()
+    } else {
+        safe
+    };
     format!("{safe}-{hash:016x}")
 }
 
 fn history_dir(file_path: &str) -> Result<PathBuf> {
     let base = dirs::config_dir().context("Kein Config-Verzeichnis gefunden")?;
-    Ok(base.join("slideo").join("history").join(deck_key(file_path)))
+    Ok(base
+        .join("slideo")
+        .join("history")
+        .join(deck_key(file_path)))
 }
 
 fn index_path(dir: &Path) -> PathBuf {
@@ -93,7 +102,8 @@ fn write_index(dir: &Path, idx: &[SnapshotMeta]) -> Result<()> {
     // Schreiben nicht eine truncatete index.json hinterlässt (read_index würde sie still
     // zu einer LEEREN Historie degradieren → alle <id>.slideo-Snapshots unerreichbar).
     let tmp = dir.join(format!(".index-{}.tmp", uuid::Uuid::new_v4().simple()));
-    std::fs::write(&tmp, json.as_bytes()).context("Index (temp) konnte nicht geschrieben werden")?;
+    std::fs::write(&tmp, json.as_bytes())
+        .context("Index (temp) konnte nicht geschrieben werden")?;
     std::fs::rename(&tmp, index_path(dir))
         .map_err(|e| {
             let _ = std::fs::remove_file(&tmp);
@@ -217,7 +227,10 @@ pub fn delete(file_path: &str, id: &str) -> Result<()> {
     let _guard = index_lock();
     let dir = history_dir(file_path)?;
     let _ = std::fs::remove_file(snapshot_path(&dir, id));
-    let idx: Vec<SnapshotMeta> = read_index(&dir).into_iter().filter(|m| m.id != id).collect();
+    let idx: Vec<SnapshotMeta> = read_index(&dir)
+        .into_iter()
+        .filter(|m| m.id != id)
+        .collect();
     write_index(&dir, &idx)?;
     Ok(())
 }
@@ -254,9 +267,17 @@ mod tests {
         let fp = unique_path("roundtrip");
         cleanup(&fp);
         let p = deck("Doku", 3);
-        let m = create(&fp, &p, &[], "Erster", false, "2026-06-23T10:00:00Z", "id-1")
-            .unwrap()
-            .expect("Snapshot erwartet");
+        let m = create(
+            &fp,
+            &p,
+            &[],
+            "Erster",
+            false,
+            "2026-06-23T10:00:00Z",
+            "id-1",
+        )
+        .unwrap()
+        .expect("Snapshot erwartet");
         assert_eq!(m.slide_count, 3);
         assert_eq!(m.title, "Doku");
         assert!(!m.auto);
@@ -275,12 +296,26 @@ mod tests {
         let fp = unique_path("dedupe");
         cleanup(&fp);
         let p = deck("Gleich", 1);
-        assert!(create(&fp, &p, &[], "", true, "2026-06-23T10:00:00Z", "a").unwrap().is_some());
+        assert!(create(&fp, &p, &[], "", true, "2026-06-23T10:00:00Z", "a")
+            .unwrap()
+            .is_some());
         // identischer Inhalt → kein neuer Snapshot
-        assert!(create(&fp, &p, &[], "", true, "2026-06-23T10:01:00Z", "b").unwrap().is_none());
+        assert!(create(&fp, &p, &[], "", true, "2026-06-23T10:01:00Z", "b")
+            .unwrap()
+            .is_none());
         assert_eq!(list(&fp).len(), 1);
         // geänderter Inhalt → neuer Snapshot
-        assert!(create(&fp, &deck("Gleich", 2), &[], "", true, "2026-06-23T10:02:00Z", "c").unwrap().is_some());
+        assert!(create(
+            &fp,
+            &deck("Gleich", 2),
+            &[],
+            "",
+            true,
+            "2026-06-23T10:02:00Z",
+            "c"
+        )
+        .unwrap()
+        .is_some());
         assert_eq!(list(&fp).len(), 2);
         cleanup(&fp);
     }
@@ -293,11 +328,23 @@ mod tests {
         for i in 0..(CAP + 5) {
             let auto = i != 0; // der erste (älteste) ist manuell
             let label = if auto { "" } else { "WICHTIG" };
-            create(&fp, &deck("D", i + 1), &[], label, auto, &format!("2026-06-23T10:{:02}:00Z", i), &format!("id{i}")).unwrap();
+            create(
+                &fp,
+                &deck("D", i + 1),
+                &[],
+                label,
+                auto,
+                &format!("2026-06-23T10:{:02}:00Z", i),
+                &format!("id{i}"),
+            )
+            .unwrap();
         }
         let l = list(&fp);
         assert_eq!(l.len(), CAP);
-        assert!(l.iter().any(|m| m.label == "WICHTIG"), "manueller Snapshot wurde fälschlich gekürzt");
+        assert!(
+            l.iter().any(|m| m.label == "WICHTIG"),
+            "manueller Snapshot wurde fälschlich gekürzt"
+        );
         cleanup(&fp);
     }
 
@@ -308,17 +355,37 @@ mod tests {
         let fp = unique_path("prune-new");
         cleanup(&fp);
         for i in 0..CAP {
-            create(&fp, &deck("M", i + 1), &[], "manuell", false, &format!("2026-06-23T09:{:02}:00Z", i), &format!("m{i}")).unwrap();
+            create(
+                &fp,
+                &deck("M", i + 1),
+                &[],
+                "manuell",
+                false,
+                &format!("2026-06-23T09:{:02}:00Z", i),
+                &format!("m{i}"),
+            )
+            .unwrap();
         }
         assert_eq!(list(&fp).len(), CAP);
         // Ein neuer Auto-Snapshot mit anderem Inhalt:
-        let m = create(&fp, &deck("AUTO-NEU", 1), &[], "", true, "2026-06-23T10:00:00Z", "auto-new")
-            .unwrap()
-            .expect("Snapshot erwartet");
+        let m = create(
+            &fp,
+            &deck("AUTO-NEU", 1),
+            &[],
+            "",
+            true,
+            "2026-06-23T10:00:00Z",
+            "auto-new",
+        )
+        .unwrap()
+        .expect("Snapshot erwartet");
         assert_eq!(m.id, "auto-new");
         let l = list(&fp);
         assert_eq!(l.len(), CAP);
-        assert!(l.iter().any(|s| s.id == "auto-new"), "neuer Auto-Snapshot wurde fälschlich gekürzt");
+        assert!(
+            l.iter().any(|s| s.id == "auto-new"),
+            "neuer Auto-Snapshot wurde fälschlich gekürzt"
+        );
         // … und die Datei existiert auch wirklich (kein Geist-Eintrag).
         assert!(restore(&fp, "auto-new").is_ok());
         cleanup(&fp);
@@ -328,7 +395,16 @@ mod tests {
     fn rejects_unsafe_ids() {
         let fp = unique_path("unsafe");
         cleanup(&fp);
-        assert!(create(&fp, &deck("D", 1), &[], "", false, "2026-06-23T10:00:00Z", "../escape").is_err());
+        assert!(create(
+            &fp,
+            &deck("D", 1),
+            &[],
+            "",
+            false,
+            "2026-06-23T10:00:00Z",
+            "../escape"
+        )
+        .is_err());
         assert!(restore(&fp, "../../etc/passwd").is_err());
         assert!(delete(&fp, "a/b").is_err());
         assert!(valid_id("550e8400-e29b-41d4-a716-446655440000"));
@@ -339,7 +415,16 @@ mod tests {
     fn delete_removes_entry_and_file() {
         let fp = unique_path("delete");
         cleanup(&fp);
-        create(&fp, &deck("D", 1), &[], "", false, "2026-06-23T10:00:00Z", "x").unwrap();
+        create(
+            &fp,
+            &deck("D", 1),
+            &[],
+            "",
+            false,
+            "2026-06-23T10:00:00Z",
+            "x",
+        )
+        .unwrap();
         assert_eq!(list(&fp).len(), 1);
         delete(&fp, "x").unwrap();
         assert_eq!(list(&fp).len(), 0);

@@ -1,33 +1,28 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-// Editor-Shell-Layout: zwei frei skalierbare + einzeln einklappbare Spalten
-// (Editor · Vorschau). Breite der Vorschau + Einklapp-Zustand werden persistiert
-// (localStorage). Die frühere linke Folienliste/Sidebar ist entfallen (Editor-Cleanup):
-// Umsortieren + Folien-Überblick laufen über die Editor-Karten selbst.
+// Canvas-first-Shell: Bühne (elastisch) · optionaler Quellen-Inspector · Chat rechts.
+// Filmstrip ist immer sichtbar (Folien-Sequenz). Breiten + Sichtbarkeit persistieren.
 
-export const PREVIEW_MIN = 280
-export const PREVIEW_MAX = 820
-export const PREVIEW_DEFAULT = 460
-/** Mindestbreite, die dem Editor in der Mitte erhalten bleiben soll. */
-export const EDITOR_MIN = 320
-export const CHAT_MIN = 160
+export const CANVAS_MIN = 360
+export const INSPECTOR_MIN = 280
+export const INSPECTOR_MAX = 560
+export const INSPECTOR_DEFAULT = 380
+export const CHAT_MIN = 240
 export const CHAT_MAX = 520
-export const CHAT_DEFAULT = 280
+export const CHAT_DEFAULT = 340
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 interface LayoutState {
-  previewWidth: number
-  editorCollapsed: boolean
-  previewCollapsed: boolean
+  showInspector: boolean
+  inspectorWidth: number
   showChat: boolean
-  chatHeight: number
-  /** Inkrementelles Skalieren der Vorschau über den Splitter (dx in px). */
-  nudge: (dx: number) => void
-  nudgeChat: (dy: number) => void
-  toggleEditor: () => void
-  togglePreview: () => void
+  chatWidth: number
+  nudgeInspector: (dx: number) => void
+  nudgeChat: (dx: number) => void
+  toggleInspector: () => void
+  openInspector: () => void
   toggleChat: () => void
   openChat: () => void
 }
@@ -35,62 +30,59 @@ interface LayoutState {
 export const useLayoutStore = create<LayoutState>()(
   persist(
     (set) => ({
-      previewWidth: PREVIEW_DEFAULT,
-      editorCollapsed: false,
-      previewCollapsed: false,
+      showInspector: false,
+      inspectorWidth: INSPECTOR_DEFAULT,
       showChat: true,
-      chatHeight: CHAT_DEFAULT,
-      nudge: (dx) =>
-        set((s) => ({ previewWidth: clamp(s.previewWidth + dx, PREVIEW_MIN, PREVIEW_MAX) })),
-      nudgeChat: (dy) =>
-        set((s) => ({ chatHeight: clamp(s.chatHeight - dy, CHAT_MIN, CHAT_MAX) })),
-      // Mindestens ein Bereich bleibt offen — das Einklappen des letzten offenen
-      // Bereichs wird ignoriert (sonst gäbe es eine leere Arbeitsfläche).
-      toggleEditor: () =>
-        set((s) => (!s.editorCollapsed && s.previewCollapsed ? s : { editorCollapsed: !s.editorCollapsed })),
-      togglePreview: () =>
-        set((s) => (!s.previewCollapsed && s.editorCollapsed ? s : { previewCollapsed: !s.previewCollapsed })),
-      toggleChat: () =>
-        set((s) => ({
-          showChat: !s.showChat,
-          editorCollapsed: !s.showChat ? false : s.editorCollapsed,
-        })),
-      openChat: () => set({ showChat: true, editorCollapsed: false }),
+      chatWidth: CHAT_DEFAULT,
+      nudgeInspector: (dx) =>
+        set((s) => ({ inspectorWidth: clamp(s.inspectorWidth + dx, INSPECTOR_MIN, INSPECTOR_MAX) })),
+      nudgeChat: (dx) =>
+        set((s) => ({ chatWidth: clamp(s.chatWidth + dx, CHAT_MIN, CHAT_MAX) })),
+      toggleInspector: () => set((s) => ({ showInspector: !s.showInspector })),
+      openInspector: () => set({ showInspector: true }),
+      toggleChat: () => set((s) => ({ showChat: !s.showChat })),
+      openChat: () => set({ showChat: true }),
     }),
     {
       name: 'slideo-layout',
-      version: 3,
-      // v1 → v2: Sidebar entfiel. v2 → v3: In-App-Chat (Höhe + Sichtbarkeit).
+      version: 4,
+      // v1 → v2: Sidebar entfiel. v2 → v3: In-App-Chat (Höhe). v3 → v4: Canvas-first
+      // (Chat wird zur rechten Spalte, Editor zur optionalen Quelle, Vorschau = Bühne).
       migrate: (persisted) => {
         const p = (persisted ?? {}) as Record<string, unknown>
+        const chatWidth =
+          typeof p.chatWidth === 'number'
+            ? p.chatWidth
+            : typeof p.chatHeight === 'number'
+              ? p.chatHeight
+              : CHAT_DEFAULT
         return {
-          previewWidth: p.previewWidth,
-          editorCollapsed: p.editorCollapsed,
-          previewCollapsed: p.previewCollapsed,
+          showInspector: false,
+          inspectorWidth:
+            typeof p.inspectorWidth === 'number' ? p.inspectorWidth : INSPECTOR_DEFAULT,
           showChat: typeof p.showChat === 'boolean' ? p.showChat : true,
-          chatHeight: typeof p.chatHeight === 'number' ? p.chatHeight : CHAT_DEFAULT,
+          chatWidth,
         }
       },
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<LayoutState>
-        let editorCollapsed = p.editorCollapsed ?? current.editorCollapsed
-        let previewCollapsed = p.previewCollapsed ?? current.previewCollapsed
-        if (editorCollapsed && previewCollapsed) editorCollapsed = false
         return {
           ...current,
-          previewWidth: clamp(p.previewWidth ?? current.previewWidth, PREVIEW_MIN, PREVIEW_MAX),
-          editorCollapsed,
-          previewCollapsed,
+          showInspector: p.showInspector ?? current.showInspector,
+          inspectorWidth: clamp(
+            p.inspectorWidth ?? current.inspectorWidth,
+            INSPECTOR_MIN,
+            INSPECTOR_MAX,
+          ),
           showChat: p.showChat ?? current.showChat,
-          chatHeight: clamp(p.chatHeight ?? current.chatHeight, CHAT_MIN, CHAT_MAX),
+          chatWidth: clamp(p.chatWidth ?? current.chatWidth, CHAT_MIN, CHAT_MAX),
         }
       },
       partialize: (s) => ({
-        previewWidth: s.previewWidth,
-        editorCollapsed: s.editorCollapsed,
-        previewCollapsed: s.previewCollapsed,
+        showInspector: s.showInspector,
+        inspectorWidth: s.inspectorWidth,
         showChat: s.showChat,
-        chatHeight: s.chatHeight,
+        chatWidth: s.chatWidth,
       }),
     },
   ),

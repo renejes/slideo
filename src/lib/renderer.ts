@@ -395,10 +395,12 @@ function navScript(
   durationMs: number,
   kind: TransitionKind,
   scaleFit: 'width' | 'both',
+  stage = false,
 ): string {
   return `
 (function () {
   var DECK = ${deck ? 'true' : 'false'};
+  var STAGE = ${stage ? 'true' : 'false'};
   var AUTO = ${kind === 'auto' ? 'true' : 'false'};
   var STANDALONE = ${standalone ? 'true' : 'false'};
   var DURATION = ${Math.max(0, Math.round(durationMs))};
@@ -547,7 +549,13 @@ function navScript(
   function go(i, smooth) {
     var prev = current;
     current = clamp(i);
-    if (DECK) {
+    if (STAGE && !DECK) {
+      // Canvas-first: genau eine Folie sichtbar (is-active), hart ohne Morph.
+      for (var sk = 0; sk < slides.length; sk++) {
+        slides[sk].classList.toggle('is-active', sk === current);
+        slides[sk].classList.remove('is-prev');
+      }
+    } else if (DECK) {
       // Auto-Animate nur bei animierter, benachbarter Navigation (smooth). Initiales
       // Laden / View-Wechsel (smooth=false), nicht-benachbarte Sprünge und reduzierte
       // Bewegung schalten hart um. Hängende Inline-Styles eines vorherigen Morphs lösen.
@@ -676,7 +684,7 @@ function navScript(
     // Elemente in noch nicht eingeblendeten Builds überspringt (kein Aufblitzen).
     else if (d.type === 'slideo:show') { applyFragments(d.index, d.step | 0); go(d.index, d.smooth !== false); }
   });
-  if (DECK) go(0, false); // Folie 0 initial aktivieren
+  if (DECK || STAGE) go(0, false); // Folie 0 initial aktivieren (Deck + Canvas-Bühne)
   parent.postMessage({ type: 'slideo:ready', count: slides.length }, '*');
 })();
 `.trim()
@@ -1799,6 +1807,12 @@ export interface RenderOptions {
   editable?: boolean
   /** directEdit = Direktmanipulation (Spec §20): Auswahl-Layer für HTML-Zonen. */
   directEdit?: boolean
+  /**
+   * Canvas-first-Bühne (In-App-Editor): eine Folie füllt das Iframe (fit-both),
+   * die übrigen bleiben im DOM (Patch/Overflow/Goto) aber unsichtbar. Unvereinbar
+   * mit `present` (Präsentation hat ihr eigenes Deck-/Snap-Modell).
+   */
+  stage?: boolean
 }
 
 /**
@@ -1836,7 +1850,10 @@ export function renderFullPage(presentation: Presentation, options: RenderOption
     standalone = false,
     editable = false,
     directEdit = false,
+    stage: stageOpt = false,
   } = options
+  // Canvas-Bühne nur in der In-App-Vorschau — Präsentation/Export behalten Snap/Deck.
+  const stage = stageOpt && !present
   // Builds (Fragmente) nur in der In-App-Präsentation (parent-gesteuert), nicht im
   // Standalone-Export (zeigt v1 alles) und nicht in der Vorschau.
   const fragments = present && !standalone
@@ -1863,19 +1880,31 @@ export function renderFullPage(presentation: Presentation, options: RenderOption
   // NACH SLIDE_CSS steht, gewinnt es per Quell-Reihenfolge. Nur im Präsentationsmodus (die
   // Vorschau behält ihren Gutter).
   const presentGutterReset = '.slideo-frame + .slideo-frame { margin-top: 0; }\n'
-  const snapCss = !present
-    ? ''
-    : deck
-      ? presentGutterReset + transitionCss(kind, duration)
-      : presentGutterReset +
-        `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+  const stageCss =
+    presentGutterReset +
+    `html, body { height: 100%; overflow: hidden; background: #0c0c0c; }
+.slideo-frame {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  aspect-ratio: auto; margin: 0; pointer-events: none; z-index: 0;
+}
+.slideo-frame:first-child { z-index: 1; pointer-events: auto; }
+.slideo-frame.is-active { z-index: 2; pointer-events: auto; }`
+  const snapCss = stage
+    ? stageCss
+    : !present
+      ? ''
+      : deck
+        ? presentGutterReset + transitionCss(kind, duration)
+        : presentGutterReset +
+          `html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
 .slideo-frame { width: 100%; height: 100vh; aspect-ratio: auto; margin: 0; scroll-snap-align: start; scroll-snap-stop: always; }
 html, body { height: 100%; overflow-x: hidden; }`
 
   // Script immer einbinden (goto/show + Skalierung); eigene Tastatur nur im Standalone.
   // Im Editier-Modus zusätzlich das Drag-Reorder-/Direktmanipulations-Script.
+  const scaleFit = present || stage ? 'both' : 'width'
   const script =
-    `<script>${navScript(standalone, deck, duration, kind, present ? 'both' : 'width')}</script>` +
+    `<script>${navScript(standalone, deck, duration, kind, scaleFit, stage)}</script>` +
     (editable
       ? `<script>${editScript(directEdit)}</script>` + `<script>${patchScript()}</script>`
       : '')

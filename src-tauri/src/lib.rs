@@ -40,11 +40,7 @@ pub fn run() {
         // damit große Medien nicht als base64-Data-URI ins HTML inline müssen.
         // URL: slideoasset://localhost/<name>  (Windows: http://slideoasset.localhost/<name>)
         .register_uri_scheme_protocol("slideoasset", |ctx, request| {
-            let name = request
-                .uri()
-                .path()
-                .trim_start_matches('/')
-                .to_string();
+            let name = request.uri().path().trim_start_matches('/').to_string();
             let state = ctx.app_handle().state::<AppState>();
             // Decode-Cache (Audit P7): erst nachschlagen — vermeidet das base64-Dekodieren
             // pro Request (großer Hebel beim wiederholten Anfragen desselben Videos). Cache

@@ -26,8 +26,9 @@ pub fn write_presentation(path: &Path, presentation: &Value, assets: &[Asset]) -
 
     // In einer Closure kapseln, damit die Temp-Datei bei JEDEM Fehler aufgeräumt wird.
     let write_tmp = || -> Result<()> {
-        let file = File::create(&tmp)
-            .with_context(|| format!("Temp-Datei konnte nicht erstellt werden: {}", tmp.display()))?;
+        let file = File::create(&tmp).with_context(|| {
+            format!("Temp-Datei konnte nicht erstellt werden: {}", tmp.display())
+        })?;
         let mut zip = ZipWriter::new(file);
         // presentation.json ist Text → Deflate lohnt (kleinere, lesbare Git-Diffs sind eh JSON).
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -46,11 +47,14 @@ pub fn write_presentation(path: &Path, presentation: &Value, assets: &[Asset]) -
                 .decode(asset.data.as_bytes())
                 .with_context(|| format!("Asset '{}' ist kein gültiges base64", asset.name))?;
             zip.start_file(format!("assets/{}", asset.name), stored)
-                .with_context(|| format!("Asset '{}' konnte nicht geschrieben werden", asset.name))?;
+                .with_context(|| {
+                    format!("Asset '{}' konnte nicht geschrieben werden", asset.name)
+                })?;
             zip.write_all(&bytes)?;
         }
 
-        zip.finish().context("ZIP konnte nicht finalisiert werden")?;
+        zip.finish()
+            .context("ZIP konnte nicht finalisiert werden")?;
         Ok(())
     };
 
@@ -61,7 +65,10 @@ pub fn write_presentation(path: &Path, presentation: &Value, assets: &[Asset]) -
 
     std::fs::rename(&tmp, path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
-        anyhow::anyhow!("Datei konnte nicht ersetzt werden ({}): {e}", path.display())
+        anyhow::anyhow!(
+            "Datei konnte nicht ersetzt werden ({}): {e}",
+            path.display()
+        )
     })?;
     Ok(())
 }

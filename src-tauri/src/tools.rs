@@ -46,12 +46,24 @@ pub struct ToolOutcome {
 }
 
 fn ok(result: Value, effect: Effect) -> Result<ToolOutcome, String> {
-    Ok(ToolOutcome { result, effect, zone_ids: Vec::new() })
+    Ok(ToolOutcome {
+        result,
+        effect,
+        zone_ids: Vec::new(),
+    })
 }
 
 /// Wie `ok`, aber mit der angefassten Zone.
-fn ok_zone(result: Value, effect: Effect, zone_id: impl Into<String>) -> Result<ToolOutcome, String> {
-    Ok(ToolOutcome { result, effect, zone_ids: vec![zone_id.into()] })
+fn ok_zone(
+    result: Value,
+    effect: Effect,
+    zone_id: impl Into<String>,
+) -> Result<ToolOutcome, String> {
+    Ok(ToolOutcome {
+        result,
+        effect,
+        zone_ids: vec![zone_id.into()],
+    })
 }
 
 fn now_iso() -> String {
@@ -117,11 +129,14 @@ fn req_str(params: &Value, key: &str) -> Result<String, String> {
 }
 
 fn opt_str(params: &Value, key: &str) -> Option<String> {
-    p_param(params, key).and_then(|v| v.as_str()).map(|s| s.to_string())
+    p_param(params, key)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 fn pres_mut<'a>(pres: &'a mut Option<Value>) -> Result<&'a mut Value, String> {
-    pres.as_mut().ok_or_else(|| "No presentation open".to_string())
+    pres.as_mut()
+        .ok_or_else(|| "No presentation open".to_string())
 }
 
 fn zones_mut<'a>(p: &'a mut Value) -> Result<&'a mut Vec<Value>, String> {
@@ -195,7 +210,10 @@ pub fn handle(
             // sonst zeigt es das neue Deck, speichert aber in die alte Datei.
             ok(
                 json!({ "title": title }),
-                Effect::Opened { path: None, assets: Vec::new() },
+                Effect::Opened {
+                    path: None,
+                    assets: Vec::new(),
+                },
             )
         }
         "open_presentation" => {
@@ -212,7 +230,10 @@ pub fn handle(
             *file_path = Some(pb.clone());
             ok(
                 json!({ "path": path, "assets": loaded.len() }),
-                Effect::Opened { path: Some(pb), assets: loaded },
+                Effect::Opened {
+                    path: Some(pb),
+                    assets: loaded,
+                },
             )
         }
         "save_presentation" => {
@@ -233,7 +254,11 @@ pub fn handle(
         }
         "get_presentation_meta" => {
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zone_count = p.get("zones").and_then(|z| z.as_array()).map(|a| a.len()).unwrap_or(0);
+            let zone_count = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
             ok(
                 json!({
                     "title": p.get("meta").and_then(|m| m.get("title")),
@@ -282,7 +307,11 @@ pub fn handle(
             zones.insert(idx + 1, copy);
             renumber(zones);
             touch_modified(p);
-            ok_zone(json!({ "id": new_id }), Effect::Presentation, new_id.clone())
+            ok_zone(
+                json!({ "id": new_id }),
+                Effect::Presentation,
+                new_id.clone(),
+            )
         }
         "delete_zone" => {
             let id = req_str(params, "id")?;
@@ -330,7 +359,10 @@ pub fn handle(
         "get_zone" => {
             let id = req_str(params, "id")?;
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
+            let zones = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             ok(zones[idx].clone(), Effect::None)
         }
@@ -338,14 +370,20 @@ pub fn handle(
         "check_zone_overflow" => {
             let id = req_str(params, "id")?;
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
+            let zones = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
             ok(crate::overflow::analyze(&zones[idx], &tokens), Effect::None)
         }
         "validate_deck" => {
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
+            let zones = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .ok_or("No 'zones' array")?;
             let tokens = p.get("tokens").cloned().unwrap_or_else(|| json!({}));
             // Auf IRGENDEIN Issue filtern, nicht nur auf hartes Clipping (Review 2026-08,
             // Befund H5b). Vorher filterte dieses Tool auf `fits` und verschwieg damit
@@ -449,7 +487,11 @@ pub fn handle(
             let zone = &mut zones[idx];
             let is_html = zone.get("content_type").and_then(|v| v.as_str()) == Some("html");
             let field = if is_html { "html" } else { "markdown" };
-            let existing = zone.get(field).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let existing = zone
+                .get(field)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let count = existing.matches(&search).count();
             zone[field] = json!(existing.replace(&search, &replace));
             touch_modified(p);
@@ -458,7 +500,10 @@ pub fn handle(
         "get_zone_content" => {
             let id = req_str(params, "id")?;
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
+            let zones = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
             let zone = &zones[idx];
             let is_html = zone.get("content_type").and_then(|v| v.as_str()) == Some("html");
@@ -482,7 +527,10 @@ pub fn handle(
             let key = req_str(params, "key")?;
             let value = req_str(params, "value")?;
             let p = pres_mut(pres)?;
-            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("No 'tokens' object")?;
+            let tokens = p
+                .get_mut("tokens")
+                .and_then(|t| t.as_object_mut())
+                .ok_or("No 'tokens' object")?;
             tokens.insert(key, json!(value));
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
@@ -493,7 +541,10 @@ pub fn handle(
                 .ok_or("Required field 'tokens' (object) is missing")?
                 .clone();
             let p = pres_mut(pres)?;
-            let tokens = p.get_mut("tokens").and_then(|t| t.as_object_mut()).ok_or("No 'tokens' object")?;
+            let tokens = p
+                .get_mut("tokens")
+                .and_then(|t| t.as_object_mut())
+                .ok_or("No 'tokens' object")?;
             for (k, v) in incoming {
                 tokens.insert(k, v);
             }
@@ -511,8 +562,8 @@ pub fn handle(
         "list_presets" => ok(json!({ "presets": crate::presets::list() }), Effect::None),
         "apply_preset" => {
             let name = req_str(params, "name")?;
-            let preset = crate::presets::tokens(&name)
-                .ok_or_else(|| format!("Theme '{name}' not found"))?;
+            let preset =
+                crate::presets::tokens(&name).ok_or_else(|| format!("Theme '{name}' not found"))?;
             let p = pres_mut(pres)?;
             let tokens = p
                 .get_mut("tokens")
@@ -531,7 +582,9 @@ pub fn handle(
         "set_zone_style" => {
             let id = req_str(params, "id")?;
             // style ist optional; custom_css kann hier ODER via set_zone_css gesetzt werden.
-            let style = p_param(params, "style").and_then(|v| v.as_object()).cloned();
+            let style = p_param(params, "style")
+                .and_then(|v| v.as_object())
+                .cloned();
             let custom_css = opt_str(params, "custom_css");
             if style.is_none() && custom_css.is_none() {
                 return Err("Provide at least 'style' or 'custom_css'".into());
@@ -557,9 +610,15 @@ pub fn handle(
         "get_zone_style" => {
             let id = req_str(params, "id")?;
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let zones = p.get("zones").and_then(|z| z.as_array()).ok_or("No 'zones' array")?;
+            let zones = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .ok_or("No 'zones' array")?;
             let idx = zone_index(zones, &id)?;
-            ok(zones[idx].get("style").cloned().unwrap_or(json!({})), Effect::None)
+            ok(
+                zones[idx].get("style").cloned().unwrap_or(json!({})),
+                Effect::None,
+            )
         }
         "set_zone_css" => {
             let id = req_str(params, "id")?;
@@ -609,7 +668,10 @@ pub fn handle(
         }
 
         // ----- Komponenten (Spec §18.7) -----
-        "list_components" => ok(json!({ "components": crate::components::list() }), Effect::None),
+        "list_components" => ok(
+            json!({ "components": crate::components::list() }),
+            Effect::None,
+        ),
         "insert_component" => {
             let zone_id = req_str(params, "zone_id")?;
             let kind = req_str(params, "type")?;
@@ -646,7 +708,11 @@ pub fn handle(
         // ----- Presentation Mode -----
         "get_slide_count" => {
             let p = pres.as_ref().ok_or("No presentation open")?;
-            let count = p.get("zones").and_then(|z| z.as_array()).map(|a| a.len()).unwrap_or(0);
+            let count = p
+                .get("zones")
+                .and_then(|z| z.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0);
             ok(json!({ "count": count }), Effect::None)
         }
         "set_active_slide" => {
@@ -695,16 +761,24 @@ pub fn handle(
             if !assets.iter().any(|a| a.name == asset) {
                 return Err(format!("Asset '{asset}' not found (see list_assets)"));
             }
-            let position = opt_str(params, "position").unwrap_or_else(|| "bottom-right".to_string());
-            if !["top-left", "top-right", "bottom-left", "bottom-right"].contains(&position.as_str()) {
-                return Err("position must be top-left, top-right, bottom-left or bottom-right".into());
+            let position =
+                opt_str(params, "position").unwrap_or_else(|| "bottom-right".to_string());
+            if !["top-left", "top-right", "bottom-left", "bottom-right"]
+                .contains(&position.as_str())
+            {
+                return Err(
+                    "position must be top-left, top-right, bottom-left or bottom-right".into(),
+                );
             }
             let p = pres_mut(pres)?;
             let meta = p
                 .get_mut("meta")
                 .and_then(|m| m.as_object_mut())
                 .ok_or("No 'meta' object")?;
-            meta.insert("logo".to_string(), json!({ "asset": asset, "position": position }));
+            meta.insert(
+                "logo".to_string(),
+                json!({ "asset": asset, "position": position }),
+            );
             touch_modified(p);
             ok(json!({ "ok": true }), Effect::Presentation)
         }
@@ -832,7 +906,8 @@ pub fn prompt_definitions() -> Value {
 
 /// Vollständiger Leitfaden-Text (Inhalt des "slideo_guide"-Prompts).
 pub fn build_guide(topic: Option<&str>) -> String {
-    let intro = "You are building a presentation in Slideo via the MCP server. Slideo presentations \
+    let intro =
+        "You are building a presentation in Slideo via the MCP server. Slideo presentations \
 consist of 'Zones' (slides). Goal: a beautiful presentation that stays editable and globally \
 restyleable for the human AFTERWARDS.\n\n";
 
@@ -1153,7 +1228,12 @@ pub fn tool_schemas() -> Value {
 mod tests {
     use super::*;
 
-    fn call(method: &str, params: Value, pres: &mut Option<Value>, fp: &mut Option<PathBuf>) -> Value {
+    fn call(
+        method: &str,
+        params: Value,
+        pres: &mut Option<Value>,
+        fp: &mut Option<PathBuf>,
+    ) -> Value {
         handle(method, &params, pres, fp, &[]).expect(method).result
     }
 
@@ -1173,7 +1253,13 @@ mod tests {
     #[test]
     fn create_presentation_meldet_deckwechsel_statt_nur_aenderung() {
         let (mut pres, mut fp) = (None, Some(PathBuf::from("/tmp/alt.slideo")));
-        let out = call_out("create_presentation", json!({ "title": "Neu" }), &mut pres, &mut fp, &[]);
+        let out = call_out(
+            "create_presentation",
+            json!({ "title": "Neu" }),
+            &mut pres,
+            &mut fp,
+            &[],
+        );
         // Ohne Effect::Opened erfuhr das Frontend nie, dass der Pfad jetzt None ist —
         // das naechste Cmd+S schrieb das neue Deck in /tmp/alt.slideo.
         match out.effect {
@@ -1206,7 +1292,10 @@ mod tests {
         file::write_presentation(&path, &deck, std::slice::from_ref(&asset)).expect("write");
 
         // ... und ueber MCP oeffnen, waehrend ein ANDERES Deck offen ist.
-        let (mut pres, mut fp) = (Some(json!({"zones": []})), Some(PathBuf::from("/tmp/anderes.slideo")));
+        let (mut pres, mut fp) = (
+            Some(json!({"zones": []})),
+            Some(PathBuf::from("/tmp/anderes.slideo")),
+        );
         let out = call_out(
             "open_presentation",
             json!({ "path": path.to_string_lossy() }),
@@ -1230,7 +1319,12 @@ mod tests {
     #[test]
     fn save_presentation_meldet_den_pfad_zurueck() {
         let (mut pres, mut fp) = (None, None);
-        call("create_presentation", json!({ "title": "S" }), &mut pres, &mut fp);
+        call(
+            "create_presentation",
+            json!({ "title": "S" }),
+            &mut pres,
+            &mut fp,
+        );
         let mut path = std::env::temp_dir();
         path.push("slideo_effect_save_test.slideo");
         let out = call_out(
@@ -1251,7 +1345,12 @@ mod tests {
     #[test]
     fn zonen_tools_melden_die_angefasste_zone() {
         let (mut pres, mut fp) = (None, None);
-        call("create_presentation", json!({ "title": "Z" }), &mut pres, &mut fp);
+        call(
+            "create_presentation",
+            json!({ "title": "Z" }),
+            &mut pres,
+            &mut fp,
+        );
         let zones = call("get_all_zones", json!({}), &mut pres, &mut fp);
         let id = zones[0]["id"].as_str().unwrap().to_string();
 
@@ -1265,7 +1364,13 @@ mod tests {
         assert_eq!(out.zone_ids, vec![id.clone()]);
 
         // Deckweite Tools tragen bewusst keine Zonen-ID.
-        let out2 = call_out("set_token", json!({ "key": "color-bg", "value": "#fff" }), &mut pres, &mut fp, &[]);
+        let out2 = call_out(
+            "set_token",
+            json!({ "key": "color-bg", "value": "#fff" }),
+            &mut pres,
+            &mut fp,
+            &[],
+        );
         assert!(out2.zone_ids.is_empty());
     }
 
@@ -1273,7 +1378,12 @@ mod tests {
     fn full_build_flow() {
         let (mut pres, mut fp) = (None, None);
 
-        call("create_presentation", json!({ "title": "Demo" }), &mut pres, &mut fp);
+        call(
+            "create_presentation",
+            json!({ "title": "Demo" }),
+            &mut pres,
+            &mut fp,
+        );
         assert!(pres.is_some());
 
         let zones = call("get_all_zones", json!({}), &mut pres, &mut fp);
@@ -1294,12 +1404,22 @@ mod tests {
             &mut pres,
             &mut fp,
         );
-        let content = call("get_zone_content", json!({ "id": new_id }), &mut pres, &mut fp);
+        let content = call(
+            "get_zone_content",
+            json!({ "id": new_id }),
+            &mut pres,
+            &mut fp,
+        );
         assert_eq!(content["content_type"], "html");
         assert_eq!(content["content"], "<b>hi</b><script>1</script>");
 
         // Custom CSS bleibt am Zone-Objekt erhalten (dediziertes Tool)
-        call("set_zone_css", json!({ "id": new_id, "css": "h1 { color: red }" }), &mut pres, &mut fp);
+        call(
+            "set_zone_css",
+            json!({ "id": new_id, "css": "h1 { color: red }" }),
+            &mut pres,
+            &mut fp,
+        );
         let zone = call("get_zone", json!({ "id": new_id }), &mut pres, &mut fp);
         assert_eq!(zone["custom_css"], "h1 { color: red }");
 
@@ -1314,20 +1434,45 @@ mod tests {
         assert_eq!(zone["custom_css"], "p { font-weight: 600 }");
 
         // Speaker Notes
-        call("set_zone_notes", json!({ "id": new_id, "notes": "Hier langsam sprechen." }), &mut pres, &mut fp);
+        call(
+            "set_zone_notes",
+            json!({ "id": new_id, "notes": "Hier langsam sprechen." }),
+            &mut pres,
+            &mut fp,
+        );
         let zone = call("get_zone", json!({ "id": new_id }), &mut pres, &mut fp);
         assert_eq!(zone["notes"], "Hier langsam sprechen.");
 
         // Transition (deck-weit, in meta)
-        call("set_transition", json!({ "kind": "fade", "duration_ms": 400 }), &mut pres, &mut fp);
+        call(
+            "set_transition",
+            json!({ "kind": "fade", "duration_ms": 400 }),
+            &mut pres,
+            &mut fp,
+        );
         let meta = call("get_presentation_meta", json!({}), &mut pres, &mut fp);
         assert_eq!(pres.as_ref().unwrap()["meta"]["transition"]["kind"], "fade");
-        assert_eq!(pres.as_ref().unwrap()["meta"]["transition"]["duration_ms"], 400);
+        assert_eq!(
+            pres.as_ref().unwrap()["meta"]["transition"]["duration_ms"],
+            400
+        );
         let _ = meta;
-        assert!(handle("set_transition", &json!({ "kind": "spin" }), &mut pres, &mut fp, &[]).is_err());
+        assert!(handle(
+            "set_transition",
+            &json!({ "kind": "spin" }),
+            &mut pres,
+            &mut fp,
+            &[]
+        )
+        .is_err());
 
         // Tokens
-        call("set_token", json!({ "key": "color-primary", "value": "#ffffff" }), &mut pres, &mut fp);
+        call(
+            "set_token",
+            json!({ "key": "color-primary", "value": "#ffffff" }),
+            &mut pres,
+            &mut fp,
+        );
         let tokens = call("get_tokens", json!({}), &mut pres, &mut fp);
         assert_eq!(tokens["color-primary"], "#ffffff");
 
@@ -1340,11 +1485,26 @@ mod tests {
         );
         let zone = call("get_zone", json!({ "id": first_id }), &mut pres, &mut fp);
         assert_eq!(zone["content_type"], "html");
-        assert!(zone["html"].as_str().unwrap().contains("var(--color-primary)"));
-        assert!(handle("insert_component", &json!({ "zone_id": first_id, "type": "nope" }), &mut pres, &mut fp, &[]).is_err());
+        assert!(zone["html"]
+            .as_str()
+            .unwrap()
+            .contains("var(--color-primary)"));
+        assert!(handle(
+            "insert_component",
+            &json!({ "zone_id": first_id, "type": "nope" }),
+            &mut pres,
+            &mut fp,
+            &[]
+        )
+        .is_err());
 
         // Reorder: neue Zone nach vorn
-        call("reorder_zones", json!({ "ordered_ids": [new_id, first_id] }), &mut pres, &mut fp);
+        call(
+            "reorder_zones",
+            json!({ "ordered_ids": [new_id, first_id] }),
+            &mut pres,
+            &mut fp,
+        );
         let reordered = call("get_all_zones", json!({}), &mut pres, &mut fp);
         assert_eq!(reordered[0]["id"], json!(new_id));
         assert_eq!(reordered[0]["order"], json!(0));
@@ -1365,9 +1525,21 @@ mod tests {
     fn apply_preset_sets_tokens() {
         let (mut pres, mut fp) = (Some(new_presentation("x")), None);
         // Unbekanntes Preset → Fehler.
-        assert!(handle("apply_preset", &json!({ "name": "gibts-nicht" }), &mut pres, &mut fp, &[]).is_err());
+        assert!(handle(
+            "apply_preset",
+            &json!({ "name": "gibts-nicht" }),
+            &mut pres,
+            &mut fp,
+            &[]
+        )
+        .is_err());
         // Bekanntes Preset → Tokens werden übernommen.
-        call("apply_preset", json!({ "name": "dark-tech" }), &mut pres, &mut fp);
+        call(
+            "apply_preset",
+            json!({ "name": "dark-tech" }),
+            &mut pres,
+            &mut fp,
+        );
         let tokens = call("get_tokens", json!({}), &mut pres, &mut fp);
         assert_eq!(tokens["color-accent"], "#22d3ee");
         assert_eq!(tokens["color-bg"], "#0b0f17");
@@ -1380,38 +1552,111 @@ mod tests {
     fn marke_meta_and_font_tools() {
         // MCP-Parität (Spec §19.4): Logo, Schriften, Titel, Folien-Label.
         let assets = vec![
-            Asset { name: "logo.png".into(), mime: "image/png".into(), data: String::new() },
-            Asset { name: "f.woff2".into(), mime: "font/woff2".into(), data: String::new() },
+            Asset {
+                name: "logo.png".into(),
+                mime: "image/png".into(),
+                data: String::new(),
+            },
+            Asset {
+                name: "f.woff2".into(),
+                mime: "font/woff2".into(),
+                data: String::new(),
+            },
         ];
         let (mut pres, mut fp) = (Some(new_presentation("Alt")), None);
 
         // Titel umbenennen.
-        handle("set_presentation_title", &json!({ "title": "Neu" }), &mut pres, &mut fp, &assets).unwrap();
+        handle(
+            "set_presentation_title",
+            &json!({ "title": "Neu" }),
+            &mut pres,
+            &mut fp,
+            &assets,
+        )
+        .unwrap();
         assert_eq!(pres.as_ref().unwrap()["meta"]["title"], "Neu");
 
         // Logo: fehlendes Asset → Fehler; vorhandenes → meta.logo; ungültige Position → Fehler.
-        assert!(handle("set_logo", &json!({ "asset": "missing.png" }), &mut pres, &mut fp, &assets).is_err());
-        handle("set_logo", &json!({ "asset": "logo.png", "position": "top-left" }), &mut pres, &mut fp, &assets).unwrap();
+        assert!(handle(
+            "set_logo",
+            &json!({ "asset": "missing.png" }),
+            &mut pres,
+            &mut fp,
+            &assets
+        )
+        .is_err());
+        handle(
+            "set_logo",
+            &json!({ "asset": "logo.png", "position": "top-left" }),
+            &mut pres,
+            &mut fp,
+            &assets,
+        )
+        .unwrap();
         assert_eq!(pres.as_ref().unwrap()["meta"]["logo"]["asset"], "logo.png");
-        assert_eq!(pres.as_ref().unwrap()["meta"]["logo"]["position"], "top-left");
-        assert!(handle("set_logo", &json!({ "asset": "logo.png", "position": "middle" }), &mut pres, &mut fp, &assets).is_err());
+        assert_eq!(
+            pres.as_ref().unwrap()["meta"]["logo"]["position"],
+            "top-left"
+        );
+        assert!(handle(
+            "set_logo",
+            &json!({ "asset": "logo.png", "position": "middle" }),
+            &mut pres,
+            &mut fp,
+            &assets
+        )
+        .is_err());
 
         // Logo entfernen.
         handle("clear_logo", &json!({}), &mut pres, &mut fp, &assets).unwrap();
         assert!(pres.as_ref().unwrap()["meta"].get("logo").is_none());
 
         // Font registrieren: fehlendes Asset → Fehler; Dedup nach Familie.
-        assert!(handle("register_font", &json!({ "family": "Cal Sans", "asset": "nope.woff2" }), &mut pres, &mut fp, &assets).is_err());
-        handle("register_font", &json!({ "family": "Cal Sans", "asset": "f.woff2" }), &mut pres, &mut fp, &assets).unwrap();
-        handle("register_font", &json!({ "family": "Cal Sans", "asset": "f.woff2" }), &mut pres, &mut fp, &assets).unwrap();
+        assert!(handle(
+            "register_font",
+            &json!({ "family": "Cal Sans", "asset": "nope.woff2" }),
+            &mut pres,
+            &mut fp,
+            &assets
+        )
+        .is_err());
+        handle(
+            "register_font",
+            &json!({ "family": "Cal Sans", "asset": "f.woff2" }),
+            &mut pres,
+            &mut fp,
+            &assets,
+        )
+        .unwrap();
+        handle(
+            "register_font",
+            &json!({ "family": "Cal Sans", "asset": "f.woff2" }),
+            &mut pres,
+            &mut fp,
+            &assets,
+        )
+        .unwrap();
         let fonts = pres.as_ref().unwrap()["fonts"].as_array().unwrap();
-        assert_eq!(fonts.len(), 1, "register_font dedupliziert nach Familienname");
+        assert_eq!(
+            fonts.len(),
+            1,
+            "register_font dedupliziert nach Familienname"
+        );
         assert_eq!(fonts[0]["family"], "Cal Sans");
 
         // Folien-Label.
-        let zid = pres.as_ref().unwrap()["zones"][0]["id"].as_str().unwrap().to_string();
-        handle("set_zone_label", &json!({ "id": zid, "label": "Intro" }), &mut pres, &mut fp, &assets).unwrap();
+        let zid = pres.as_ref().unwrap()["zones"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        handle(
+            "set_zone_label",
+            &json!({ "id": zid, "label": "Intro" }),
+            &mut pres,
+            &mut fp,
+            &assets,
+        )
+        .unwrap();
         assert_eq!(pres.as_ref().unwrap()["zones"][0]["label"], "Intro");
     }
 }
-

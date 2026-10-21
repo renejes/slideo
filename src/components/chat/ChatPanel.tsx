@@ -112,7 +112,7 @@ function renderInline(line: string): ReactNode[] {
   return parts
 }
 
-export function ChatPanel() {
+export function ChatPanel({ onCollapse }: { onCollapse?: () => void }) {
   const presentation = usePresentationStore((s) => s.presentation)
   const filePath = usePresentationStore((s) => s.filePath)
   const openModal = useUiStore((s) => s.openModal)
@@ -201,13 +201,25 @@ export function ChatPanel() {
 
   useEffect(() => {
     if (!tauri || !hasDeck) return
-    void chatBind(filePath).then(() => {
-      void refreshStatus().then(() => void refreshModels())
-      if (!useChatStore.getState().streaming) {
-        void refreshHistory()
-        void refreshSessions()
+    let cancelled = false
+    void (async () => {
+      try {
+        await chatBind(filePath)
+        if (cancelled) return
+        await refreshStatus()
+        if (cancelled) return
+        await refreshModels()
+        if (!useChatStore.getState().streaming) {
+          await refreshHistory()
+          await refreshSessions()
+        }
+      } catch (e) {
+        if (!cancelled) useChatStore.getState().setLastError(displayChatError(e))
       }
-    })
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [tauri, hasDeck, filePath, refreshStatus, refreshModels, refreshHistory, refreshSessions])
 
   useEffect(() => {
@@ -548,10 +560,11 @@ export function ChatPanel() {
 
   return (
     <aside className="flex h-full min-h-0 flex-col bg-chrome-bg text-[13px] text-chrome-text" aria-label={t('chat.title')}>
-      <header className="relative flex h-9 shrink-0 items-center justify-between gap-2 border-b border-chrome-border px-3">
+      <header className="relative flex h-9 shrink-0 items-center gap-2 border-b border-chrome-border px-3">
         <strong className="text-[11px] font-semibold uppercase tracking-wider text-chrome-muted">
           {t('chat.title')}
         </strong>
+        <div className="ml-auto flex items-center gap-0.5">
         {loggedIn && presentation && !expired && (
           <div className="relative flex gap-0.5" ref={historyRoot}>
             <button
@@ -608,6 +621,18 @@ export function ChatPanel() {
             )}
           </div>
         )}
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title={t('ui.shell.collapse', { name: t('chat.title') })}
+            aria-label={t('ui.shell.collapse', { name: t('chat.title') })}
+            className={btn}
+          >
+            <Icon name="chevron_right" size={18} />
+          </button>
+        )}
+        </div>
       </header>
 
       {!tauri ? (

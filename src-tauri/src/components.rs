@@ -16,7 +16,10 @@ fn esc(s: &str) -> String {
 }
 
 fn str_field(item: &Value, key: &str, default: &str) -> String {
-    item.get(key).and_then(|v| v.as_str()).unwrap_or(default).to_string()
+    item.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or(default)
+        .to_string()
 }
 
 fn num_field(item: &Value, key: &str, default: f64) -> f64 {
@@ -94,7 +97,9 @@ fn bar_chart(params: &Value) -> String {
             )
         })
         .collect::<String>();
-    format!("<div style=\"max-width:46rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>")
+    format!(
+        "<div style=\"max-width:46rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>"
+    )
 }
 
 fn progress(params: &Value) -> String {
@@ -117,7 +122,9 @@ fn progress(params: &Value) -> String {
             )
         })
         .collect::<String>();
-    format!("<div style=\"max-width:40rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>")
+    format!(
+        "<div style=\"max-width:40rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>"
+    )
 }
 
 fn quote(params: &Value) -> String {
@@ -151,7 +158,9 @@ fn timeline(params: &Value) -> String {
             )
         })
         .collect::<String>();
-    format!("<div style=\"max-width:42rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>")
+    format!(
+        "<div style=\"max-width:42rem;margin:0 auto;font-family:var(--font-body)\">{rows}</div>"
+    )
 }
 
 fn column(side: &Value, fallback_title: &str) -> String {
@@ -213,7 +222,11 @@ fn line_chart(params: &Value) -> String {
     // Plotfläche im 640×340-viewBox.
     let (x0, x1, y0, y1) = (44.0_f64, 612.0_f64, 24.0_f64, 280.0_f64);
     let n = data.len().max(1);
-    let step = if n > 1 { (x1 - x0) / (n as f64 - 1.0) } else { 0.0 };
+    let step = if n > 1 {
+        (x1 - x0) / (n as f64 - 1.0)
+    } else {
+        0.0
+    };
     let px = |i: usize| x0 + step * i as f64;
     let py = |v: f64| y1 - (v / max) * (y1 - y0);
 
@@ -230,7 +243,9 @@ fn line_chart(params: &Value) -> String {
     let area = format!("{x0:.1},{y1:.1} {line} {x1:.1},{y1:.1}");
     let dots = pts
         .iter()
-        .map(|(x, y)| format!("<circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"var(--color-accent)\"/>"))
+        .map(|(x, y)| {
+            format!("<circle cx=\"{x:.1}\" cy=\"{y:.1}\" r=\"4\" fill=\"var(--color-accent)\"/>")
+        })
         .collect::<String>();
     let labels = data
         .iter()
@@ -324,7 +339,8 @@ fn donut_chart(params: &Value) -> String {
 fn safe_color(c: &str) -> String {
     let ok = c.len() <= 64
         && c.chars().all(|ch| {
-            ch.is_ascii_alphanumeric() || matches!(ch, ' ' | '(' | ')' | ',' | '.' | '#' | '%' | '-')
+            ch.is_ascii_alphanumeric()
+                || matches!(ch, ' ' | '(' | ')' | ',' | '.' | '#' | '%' | '-')
         });
     if ok && !c.is_empty() {
         c.to_string()
@@ -443,7 +459,11 @@ fn data_table(params: &Value) -> String {
     let cols: Vec<String> = params
         .get("columns")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
         .filter(|v: &Vec<String>| !v.is_empty())
         .unwrap_or_else(|| vec!["Feature".into(), "Variant A".into(), "Variant B".into()]);
     let rows: Vec<Vec<String>> = params
@@ -453,7 +473,11 @@ fn data_table(params: &Value) -> String {
             a.iter()
                 .map(|r| {
                     r.as_array()
-                        .map(|rr| rr.iter().map(|c| c.as_str().unwrap_or("").to_string()).collect())
+                        .map(|rr| {
+                            rr.iter()
+                                .map(|c| c.as_str().unwrap_or("").to_string())
+                                .collect()
+                        })
                         .unwrap_or_default()
                 })
                 .collect()
@@ -761,8 +785,7 @@ pub fn with_data_id(html: &str, data_id: &str) -> String {
         let after = lt + 1;
         if bytes.get(after).is_some_and(|b| b.is_ascii_alphabetic()) {
             let mut j = after;
-            while j < bytes.len()
-                && !matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r' | b'/' | b'>')
+            while j < bytes.len() && !matches!(bytes[j], b' ' | b'\t' | b'\n' | b'\r' | b'/' | b'>')
             {
                 j += 1;
             }
@@ -793,7 +816,11 @@ pub fn render(kind: &str, params: &Value) -> Result<String, String> {
         "process_steps" => process_steps(params),
         "pricing" => pricing(params),
         "gallery" => gallery(params),
-        other => return Err(format!("Unknown component: '{other}' (see list_components)")),
+        other => {
+            return Err(format!(
+                "Unknown component: '{other}' (see list_components)"
+            ))
+        }
     };
     Ok(html)
 }
@@ -810,8 +837,14 @@ mod tests {
     #[test]
     fn new_components_render_token_aware_and_escape() {
         // data_table: token-bewusst, escaped, kappt auf 8 Zeilen.
-        let rows: Vec<Value> = (0..12).map(|i| json!([format!("Z{i}"), "<b>x</b>", "y"])).collect();
-        let table = render("data_table", &json!({ "columns": ["A", "B", "C"], "rows": rows })).unwrap();
+        let rows: Vec<Value> = (0..12)
+            .map(|i| json!([format!("Z{i}"), "<b>x</b>", "y"]))
+            .collect();
+        let table = render(
+            "data_table",
+            &json!({ "columns": ["A", "B", "C"], "rows": rows }),
+        )
+        .unwrap();
         assert!(table.contains("var(--color-accent)"));
         assert!(table.contains("&lt;b&gt;x&lt;/b&gt;")); // escaped
         assert_eq!(table.matches("<tr style").count(), 8); // Body auf 8 Zeilen gekappt
@@ -826,7 +859,11 @@ mod tests {
         }
 
         // gallery: sanitisiert Asset-Namen (kein Attribut-Ausbruch), Default = Platzhalter.
-        let g = render("gallery", &json!({ "images": ["a.png", "../x\"><script>.png"] })).unwrap();
+        let g = render(
+            "gallery",
+            &json!({ "images": ["a.png", "../x\"><script>.png"] }),
+        )
+        .unwrap();
         assert!(g.contains("assets/a.png"));
         assert!(!g.contains("<script>"));
         assert!(render("gallery", &json!({})).unwrap().contains("Image")); // Platzhalter
@@ -850,12 +887,20 @@ mod tests {
         assert!(html.contains("Fertig"));
 
         // Unsichere Farbe (Attribut-Ausbruch) → Akzent-Default.
-        let bad = render("icon", &json!({ "name": "star", "color": "red\"></svg><script>x" })).unwrap();
+        let bad = render(
+            "icon",
+            &json!({ "name": "star", "color": "red\"></svg><script>x" }),
+        )
+        .unwrap();
         assert!(!bad.contains("<script>"));
         assert!(bad.contains("color:var(--color-accent)"));
 
         // Gültige Token-Farbe wird übernommen.
-        let ok = render("icon", &json!({ "name": "bolt", "color": "var(--color-primary)" })).unwrap();
+        let ok = render(
+            "icon",
+            &json!({ "name": "bolt", "color": "var(--color-primary)" }),
+        )
+        .unwrap();
         assert!(ok.contains("color:var(--color-primary)"));
 
         // Unbekannter Icon-Name ist ein Fehler (kein stilles Ersetzen durch einen Kreis).
@@ -916,8 +961,11 @@ mod tests {
         assert!(html.contains("var(--color-accent)")); // token-bewusst
 
         // Attribut-Ausbruch im Ziel wird gefiltert (Anführungszeichen/Klammern raus).
-        let bad =
-            render("toc", &json!({ "items": [{ "label": "x", "target": "1\"><script>" }]})).unwrap();
+        let bad = render(
+            "toc",
+            &json!({ "items": [{ "label": "x", "target": "1\"><script>" }]}),
+        )
+        .unwrap();
         assert!(!bad.contains("<script>"));
         assert!(bad.contains("data-slideo-goto=\"1script\""));
     }
@@ -925,7 +973,10 @@ mod tests {
     #[test]
     fn with_data_id_injects_and_sanitizes() {
         // data-id wird ins erste Tag injiziert (kein Wrapper) — Attribute bleiben erhalten.
-        assert_eq!(with_data_id("<p>x</p>", "hero-1"), "<p data-id=\"hero-1\">x</p>");
+        assert_eq!(
+            with_data_id("<p>x</p>", "hero-1"),
+            "<p data-id=\"hero-1\">x</p>"
+        );
         assert_eq!(
             with_data_id("<div style=\"color:red\">x</div>", "k"),
             "<div data-id=\"k\" style=\"color:red\">x</div>"
@@ -938,12 +989,19 @@ mod tests {
         assert_eq!(with_data_id("<p>x</p>", ""), "<p>x</p>");
         assert_eq!(with_data_id("<p>x</p>", "<>\"'"), "<p>x</p>");
         // Kein Element-Tag (Fallback): Wrapper.
-        assert_eq!(with_data_id("nur text", "k"), "<div data-id=\"k\">nur text</div>");
+        assert_eq!(
+            with_data_id("nur text", "k"),
+            "<div data-id=\"k\">nur text</div>"
+        );
     }
 
     #[test]
     fn bar_chart_scales_to_max() {
-        let html = render("bar_chart", &json!({ "items": [{ "label": "x", "value": 50 }], "max": 100 })).unwrap();
+        let html = render(
+            "bar_chart",
+            &json!({ "items": [{ "label": "x", "value": 50 }], "max": 100 }),
+        )
+        .unwrap();
         assert!(html.contains("width:50.0%"));
     }
 }

@@ -262,7 +262,9 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
     let outcome = match outcome {
         Ok(r) => r,
         Err(_) => {
-            eprintln!("[slideo] PANIC in tools::handle('{method}') — abgefangen, Server läuft weiter");
+            eprintln!(
+                "[slideo] PANIC in tools::handle('{method}') — abgefangen, Server läuft weiter"
+            );
             return json!({
                 "error": format!("Internal error while handling '{method}'. The tool call was aborted; the presentation is unchanged or partially updated — verify with get_all_zones.")
             });
@@ -291,7 +293,10 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
                 // Deckwechsel: Presentation + Pfad + Assets in EINEM Event, damit das
                 // Frontend nicht in einen Zustand geraten kann, in dem es Deck B zeigt,
                 // aber auf Datei A verweist (Befund B3).
-                Effect::Opened { path, assets: loaded } => {
+                Effect::Opened {
+                    path,
+                    assets: loaded,
+                } => {
                     // Auch den Backend-Spiegel nachziehen (Befund B3d): `tools::handle`
                     // bekommt die Assets nur geliehen und kann sie nicht selbst setzen.
                     // Ohne das läse ein direkt folgendes `list_assets`/`save_presentation`
@@ -331,8 +336,9 @@ fn process_request(line: &str, app: &AppHandle) -> Value {
 /// Sendet einen Request an die laufende App und gibt deren Antwort zurück.
 /// Blockierend (std::net), da der MCP-stdio-Modus ohnehin synchron läuft.
 pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
-    let (port, token) = read_discovery()
-        .ok_or("Slideo is not running (no IPC discovery file found). Please start the Slideo app.")?;
+    let (port, token) = read_discovery().ok_or(
+        "Slideo is not running (no IPC discovery file found). Please start the Slideo app.",
+    )?;
 
     // Timeouts setzen (Review 2026-08, Befund M14): `client_request` hatte weder
     // Connect- noch Read-/Write-Timeout, obwohl der Meta-MCP-Helfer derselben
@@ -340,8 +346,11 @@ pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
     // aufgeraeumten `ipc.json` (recycelter Port) wurde aus „App laeuft nicht" ein
     // unbegrenzter Haenger statt eines Fehlers.
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    let stream = std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(1500))
-        .map_err(|e| format!("Connection to the Slideo app failed: {e}. Is the app running?"))?;
+    let stream =
+        std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(1500))
+            .map_err(|e| {
+                format!("Connection to the Slideo app failed: {e}. Is the app running?")
+            })?;
     // Grosszuegig: ein Tool-Call kann ein ganzes Deck schreiben (ZIP + Assets).
     let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
     let _ = stream.set_write_timeout(Some(std::time::Duration::from_secs(30)));
@@ -361,7 +370,9 @@ pub fn client_request(method: &str, params: &Value) -> Result<Value, String> {
     let mut payload = request.to_string();
     payload.push('\n');
     let mut writer = stream.try_clone().map_err(|e| e.to_string())?;
-    writer.write_all(payload.as_bytes()).map_err(|e| e.to_string())?;
+    writer
+        .write_all(payload.as_bytes())
+        .map_err(|e| e.to_string())?;
     writer.flush().map_err(|e| e.to_string())?;
 
     let mut reader = StdBufReader::new(stream);

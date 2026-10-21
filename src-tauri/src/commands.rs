@@ -26,7 +26,10 @@ pub fn load_presentation(path: String, state: State<'_, AppState>) -> Result<Loa
     *crate::state::lock_recover(&state.file_path) = Some(pb);
     state.set_assets(assets.clone()); // + Decode-Cache invalidieren (P7)
 
-    Ok(LoadResult { presentation, assets })
+    Ok(LoadResult {
+        presentation,
+        assets,
+    })
 }
 
 /// Schreibt die übergebene Presentation + Assets als `.slideo`-Datei an `path`.
@@ -163,8 +166,16 @@ pub fn create_snapshot(
     created: String,
     id: String,
 ) -> Result<Option<history::SnapshotMeta>, String> {
-    history::create(&file_path, &presentation, &assets, &label, auto, &created, &id)
-        .map_err(|e| format!("{e:#}"))
+    history::create(
+        &file_path,
+        &presentation,
+        &assets,
+        &label,
+        auto,
+        &created,
+        &id,
+    )
+    .map_err(|e| format!("{e:#}"))
 }
 
 /// Liest einen Snapshot zur Wiederherstellung (Presentation + Assets).
@@ -172,7 +183,10 @@ pub fn create_snapshot(
 #[tauri::command]
 pub fn restore_snapshot(file_path: String, id: String) -> Result<LoadResult, String> {
     history::restore(&file_path, &id)
-        .map(|(presentation, assets)| LoadResult { presentation, assets })
+        .map(|(presentation, assets)| LoadResult {
+            presentation,
+            assets,
+        })
         .map_err(|e| format!("{e:#}"))
 }
 

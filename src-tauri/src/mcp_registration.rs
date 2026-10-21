@@ -71,8 +71,12 @@ fn meta_http(method: &str, path: &str, body: Option<&str>) -> Result<(u16, Strin
         .map_err(|e| format!("{e}"))?;
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(700))
         .map_err(|e| format!("localhost:{META_PORT} nicht erreichbar: {e}"))?;
-    stream.set_read_timeout(Some(Duration::from_millis(2000))).ok();
-    stream.set_write_timeout(Some(Duration::from_millis(2000))).ok();
+    stream
+        .set_read_timeout(Some(Duration::from_millis(2000)))
+        .ok();
+    stream
+        .set_write_timeout(Some(Duration::from_millis(2000)))
+        .ok();
 
     let body = body.unwrap_or("");
     let request = format!(
@@ -245,7 +249,9 @@ fn desktop_available() -> bool {
 }
 
 fn desktop_registered() -> bool {
-    desktop_config_path().map(|p| mcp_server_registered(&p)).unwrap_or(false)
+    desktop_config_path()
+        .map(|p| mcp_server_registered(&p))
+        .unwrap_or(false)
 }
 
 fn desktop_register(exe: &str) -> Result<(), String> {
@@ -281,7 +287,9 @@ fn claude_available() -> bool {
 }
 
 fn claude_registered() -> bool {
-    claude_config_path().map(|p| mcp_server_registered(&p)).unwrap_or(false)
+    claude_config_path()
+        .map(|p| mcp_server_registered(&p))
+        .unwrap_or(false)
 }
 
 fn claude_register(exe: &str) -> Result<(), String> {
@@ -419,7 +427,10 @@ fn reconcile(target: Target) -> Result<(), String> {
             continue;
         }
         if let Err(e) = unregister(other) {
-            eprintln!("[slideo] Deregistrierung von {} fehlgeschlagen: {e}", other.key());
+            eprintln!(
+                "[slideo] Deregistrierung von {} fehlgeschlagen: {e}",
+                other.key()
+            );
         }
     }
     Ok(())
@@ -496,7 +507,10 @@ pub fn reconcile_on_startup() {
         }
         Err(e) => {
             set_last_error(Some(e.clone()));
-            eprintln!("[slideo] MCP-Registrierung ({}) fehlgeschlagen: {e}", target.key());
+            eprintln!(
+                "[slideo] MCP-Registrierung ({}) fehlgeschlagen: {e}",
+                target.key()
+            );
         }
     }
 }
@@ -580,13 +594,19 @@ mod tests {
         let cfg = read_json(&path).unwrap();
         assert_eq!(cfg["mcpServers"]["slideo"]["command"], "/bin/slideo");
         assert_eq!(cfg["mcpServers"]["slideo"]["args"][0], "mcp");
-        assert!(cfg["mcpServers"]["other"].is_object(), "Fremdeintrag bleibt");
+        assert!(
+            cfg["mcpServers"]["other"].is_object(),
+            "Fremdeintrag bleibt"
+        );
         assert!(mcp_server_registered(&path));
 
         remove_mcp_server(&path).unwrap();
         let cfg = read_json(&path).unwrap();
         assert!(cfg["mcpServers"].get("slideo").is_none());
-        assert!(cfg["mcpServers"]["other"].is_object(), "Fremdeintrag bleibt");
+        assert!(
+            cfg["mcpServers"]["other"].is_object(),
+            "Fremdeintrag bleibt"
+        );
         assert!(!mcp_server_registered(&path));
 
         std::fs::remove_dir_all(&dir).ok();
@@ -606,7 +626,10 @@ mod tests {
         write_json(&path, &json!({ "a": 1 })).unwrap();
 
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600, "Zieldatei-Rechte bleiben 0600 (Audit-Review M2)");
+        assert_eq!(
+            mode, 0o600,
+            "Zieldatei-Rechte bleiben 0600 (Audit-Review M2)"
+        );
         // Keine Temp-Datei zurückgelassen.
         let tmp_left = std::fs::read_dir(&dir)
             .unwrap()

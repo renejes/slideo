@@ -23,7 +23,7 @@ export const chat = {
   'chat.noProjectBody':
     'Lege eine Präsentation an oder öffne eine. Der Agent arbeitet an diesem Deck — er legt selbst keine Dateien an.',
 
-  'chat.composerPlaceholder': 'Frag etwas…  Mit @ eine Folie nennen',
+  'chat.composerPlaceholder': 'Was für eine Präsentation brauchst du?  Mit @ eine Folie nennen',
   'chat.send': 'Senden',
   'chat.cancel': 'Stopp',
   'chat.sending': 'Arbeitet…',
@@ -39,7 +39,7 @@ export const chat = {
   'chat.contextUsed': 'Kontext: {n}',
   'chat.removeChip': 'Entfernen',
   'chat.thinking': 'Denkt nach',
-  'chat.emptyHint': 'Beschreib, was du brauchst. Mit @ zeigst du auf eine Folie.',
+  'chat.emptyHint': 'Beschreib, was für eine Präsentation du brauchst. Mit @ zeigst du auf eine Folie.',
   'chat.mentionEmpty': 'Keine passenden Folien',
   'chat.errorPrefix': 'Senden fehlgeschlagen',
   'chat.loginFailed': 'Anmeldung nicht abgeschlossen.',

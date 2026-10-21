@@ -63,7 +63,7 @@ export const ui: Record<Keys, string> = {
   // --- Onboarding nudge -----------------------------------------------------
   'ui.nudge.headline': 'Your AI agent builds your slides.',
   'ui.nudge.body':
-    'Open your MCP client (e.g. Claude Desktop, Codex CLI) and describe your topic — or grab a ready-made prompt.',
+    'Describe in the chat (Cmd/Ctrl+J) what kind of presentation you need — or grab a ready-made prompt for another MCP client.',
   'ui.nudge.copy': 'Copy prompt',
   'ui.nudge.copied': 'Prompt copied — paste it into your AI agent.',
   'ui.nudge.copyFailed': 'Copying failed.',
@@ -99,12 +99,15 @@ export const ui: Record<Keys, string> = {
   'ui.license.buyFailedUnconfigured':
     'Could not open the purchase page (licensing is not configured yet): {error}',
 
-  // --- Editor shell (columns) ----------------------------------------------
-  'ui.shell.editor': 'Editor',
-  'ui.shell.preview': 'Preview',
+  // --- Editor shell (canvas-first) -----------------------------------------
+  'ui.shell.editor': 'Source',
+  'ui.shell.preview': 'Slide',
+  'ui.shell.source': 'Source',
+  'ui.shell.sourceHint': 'Show or hide this slide’s source (Cmd/Ctrl+E)',
+  'ui.shell.filmstrip': 'Slides',
   'ui.shell.collapse': 'Collapse {name}',
   'ui.shell.expand': 'Show {name}',
-  'ui.shell.resizePreview': 'Resize preview',
+  'ui.shell.resizeInspector': 'Resize source',
   'ui.shell.resizeChat': 'Resize chat',
 
   // --- Close guard ----------------------------------------------------------

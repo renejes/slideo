@@ -79,6 +79,7 @@ function extractScripts(html: string): string[] {
 const VARIANTS: { name: string; render: () => string }[] = [
   { name: 'Vorschau (editable+directEdit)', render: () => renderFullPage(deck(), { editable: true, directEdit: true }) },
   { name: 'Vorschau (editable, ohne directEdit)', render: () => renderFullPage(deck(), { editable: true, directEdit: false }) },
+  { name: 'Bühne (stage+editable+directEdit)', render: () => renderFullPage(deck(), { editable: true, directEdit: true, stage: true }) },
   { name: 'Präsentation (present)', render: () => renderFullPage(deck(), { present: true }) },
   { name: 'Anzeige (nicht editierbar)', render: () => renderFullPage(deck(), {}) },
   { name: 'Standalone-Export', render: () => renderStandalonePage(deck(), {}) },
@@ -90,7 +91,7 @@ const VARIANTS: { name: string; render: () => string }[] = [
 // §20-Mini-Toolbar und der Tooltip des Drag-Griffs kommen aus dem Katalog. Ein
 // Apostroph im englischen Text („Don't") würde in einem einfach gequoteten
 // Attribut das Markup zerlegen — auf Deutsch bliebe die Suite grün. Also beide
-// Sprachen durch dieselben sieben Render-Pfade.
+// Sprachen durch dieselben acht Render-Pfade.
 for (const locale of ['de', 'en'] as const) {
   describe(`injizierte Iframe-Skripte: Syntax (${locale})`, () => {
     beforeEach(() => applyLocale(locale))
@@ -140,6 +141,15 @@ describe('Renderer-Grundinvarianten', () => {
   it('jede Zone bekommt eine adressierbare Section (Grundlage §23 + Patch-Ziel §25)', () => {
     const html = renderFullPage(deck(), {})
     for (const z of deck().zones) expect(html).toContain(`id="zone-${z.id}"`)
+  })
+
+  it('Canvas-Bühne (stage) stapelt Folien unsichtbar und passt fit-both ein', () => {
+    const html = renderFullPage(deck(), { stage: true, editable: true })
+    expect(html).toContain('var STAGE = true')
+    expect(html).toContain('.slideo-frame.is-active')
+    expect(html).toContain('.slideo-frame:first-child')
+    expect(html).toContain("SCALE_FIT = 'both'")
+    expect(html).not.toContain('scroll-snap-type')
   })
 })
 

@@ -180,6 +180,15 @@ Markdown-Editor — der zeigt das Folien-Design nicht. Slideo bleibt flussbasier
   entfernt** (jede ZoneCard hat ihn). **Bild-„Größe"-Presets** (S/M/L/Voll) aus [ImageToolbar.tsx](src/components/editor/ImageToolbar.tsx)
   entfernt (Breite nur noch per stufenlosem Vorschau-Resize) + toter `IMAGE_SIZES`-Export weg. Reine UI-/Store-Änderung,
   `version` "1.0". Adversarial reviewt (4 Dimensionen, 0 bestätigte Findings); typecheck + vite build grün. **GUI-Check ausstehend.**
+- **Canvas-first-Shell (2026-09):** [EditorShell.tsx](src/components/ui/EditorShell.tsx) ist **Bühne + Chat + Filmstrip**.
+  Die aktive Folie füllt die Vorschau (`renderFullPage({ stage: true })` = eine Folie, fit-both, Rest im DOM für
+  Patch/Overflow/Goto). Chat sitzt **rechts** (volle Höhe, Cmd/J). Sequenz + Reorder laufen über den
+  **Filmstrip** unten ([SlideFilmstrip.tsx](src/components/editor/SlideFilmstrip.tsx)). Folien-Tools
+  (Bild/Komponente/Layout/Duplizieren/Löschen) gelten nur für die **offene Folie**; Brand Kit bleibt deck-weit
+  (Topbar „Design"). Markdown/HTML-Quelle ist ein optionaler Inspector ([SourceInspector.tsx](src/components/editor/SourceInspector.tsx),
+  Toggle „Quelle" / Cmd+E; „Klick → Quelle" öffnet ihn). Direktbearbeiten default **an**. Layout-Store
+  persist `version` 3→4 (`showInspector`/`inspectorWidth`/`chatWidth`; alte `previewWidth`/`editorCollapsed`
+  verworfen). Kein Schema-Eingriff, Flussmodell unangetastet.
 - **Design-System als „Brand Kit" (Produktrichtung, umgesetzt):** Web-Recherche bestätigt — „KI baut Deck → Mensch editiert
   drüber" ist realer Markttrend (Gamma: $100M ARR / $2,1 Mrd. Bewertung, ganz auf dem „blank page problem" gebaut; +
   CHI-2024/HBS-BCG-Studien: Editieren über KI-Drafts ist häufig **und** nötig). Konsequenz: das **globale** Design-System

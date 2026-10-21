@@ -28,7 +28,9 @@ fn session_path(session: &str) -> Result<PathBuf, String> {
     // Pfad-Traversal ausschließen (dieselbe Härtung wie history::valid_id).
     if session.is_empty()
         || session.len() > 64
-        || !session.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        || !session
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
     {
         return Err("Ungültige Sitzungs-ID".into());
     }
@@ -145,7 +147,10 @@ pub fn recovery_take(session: String) -> Result<crate::commands::LoadResult, Str
         meta.remove("_recovery_original_path");
     }
     let _ = std::fs::remove_file(&path);
-    Ok(crate::commands::LoadResult { presentation, assets })
+    Ok(crate::commands::LoadResult {
+        presentation,
+        assets,
+    })
 }
 
 /// Verwirft eine gefundene Sicherung, ohne sie zu laden.

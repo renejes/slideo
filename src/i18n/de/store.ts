@@ -84,7 +84,7 @@ export const store = {
   'app.empty.intro': 'Erstelle eine neue Präsentation oder öffne eine bestehende {0}-Datei.',
   'app.empty.agent': 'ein KI-Agent',
   'app.empty.ai':
-    'Die Folien baut {0} über MCP (z.B. Claude Desktop, Codex CLI) — du verfeinerst sie hier.',
+    'Die Folien baut {0} — im Chat oder über MCP (Claude Desktop, Codex CLI). Du verfeinerst sie direkt auf der Folie.',
   'app.empty.how': "Wie funktioniert's?",
   'app.empty.new': 'Neue Präsentation',
   'app.empty.open': 'Öffnen',

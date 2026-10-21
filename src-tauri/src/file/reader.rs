@@ -126,7 +126,8 @@ mod tests {
         let path = dir.join("toomany.slideo");
         {
             let mut zip = zip::ZipWriter::new(File::create(&path).unwrap());
-            let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            let opts =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
             for i in 0..(MAX_ENTRIES + 1) {
                 zip.start_file(format!("assets/a{i}"), opts).unwrap();
             }
@@ -145,7 +146,8 @@ mod tests {
         let path = dir.join("ok.slideo");
         {
             let mut zip = zip::ZipWriter::new(File::create(&path).unwrap());
-            let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+            let opts =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
             zip.start_file("assets/a.txt", opts).unwrap();
             zip.write_all(b"hallo").unwrap();
             zip.finish().unwrap();

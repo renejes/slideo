@@ -73,6 +73,8 @@ export const editor: Record<Keys, string> = {
   // --- TiptapEditor / EditorCanvas ---
   'editor.tiptap.placeholder': 'Write your slide content here …',
   'editor.canvas.addSlide': 'Add slide',
+  'editor.inspector.empty': 'No slide selected.',
+  'editor.inspector.heading': 'Source for this slide',
 
   // --- TokenEditor (the brand kit inside the design overlay) ---
   'editor.tokens.themes': 'Themes',

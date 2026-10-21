@@ -73,7 +73,10 @@ fn handle_message(method: &str, params: &Value, id: &Option<Value>) -> Option<Va
         "notifications/initialized" | "notifications/cancelled" => None,
         "tools/list" => Some(result(id, json!({ "tools": tools::tool_schemas() }))),
         "tools/call" => Some(handle_tool_call(params, id)),
-        "prompts/list" => Some(result(id, json!({ "prompts": tools::prompt_definitions() }))),
+        "prompts/list" => Some(result(
+            id,
+            json!({ "prompts": tools::prompt_definitions() }),
+        )),
         "prompts/get" => Some(handle_prompt_get(params, id)),
         "ping" => Some(result(id, json!({}))),
         _ => {
@@ -134,8 +137,12 @@ mod tests {
 
     #[test]
     fn initialize_handshake() {
-        let resp = handle_message("initialize", &json!({ "protocolVersion": "2025-06-18" }), &Some(json!(1)))
-            .expect("initialize hat eine Antwort");
+        let resp = handle_message(
+            "initialize",
+            &json!({ "protocolVersion": "2025-06-18" }),
+            &Some(json!(1)),
+        )
+        .expect("initialize hat eine Antwort");
         assert_eq!(resp["result"]["serverInfo"]["name"], "slideo");
         assert_eq!(resp["result"]["protocolVersion"], "2025-06-18");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
@@ -179,7 +186,10 @@ mod tests {
     fn initialize_advertises_prompts() {
         let resp = handle_message("initialize", &json!({}), &Some(json!(1))).unwrap();
         assert!(resp["result"]["capabilities"]["prompts"].is_object());
-        assert!(resp["result"]["instructions"].as_str().unwrap().contains("Markdown"));
+        assert!(resp["result"]["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("Markdown"));
     }
 
     #[test]
@@ -193,7 +203,9 @@ mod tests {
             &Some(json!(3)),
         )
         .unwrap();
-        let text = got["result"]["messages"][0]["content"]["text"].as_str().unwrap();
+        let text = got["result"]["messages"][0]["content"]["text"]
+            .as_str()
+            .unwrap();
         assert!(text.contains("AI trends 2026"));
         assert!(text.contains("set_tokens_bulk"));
     }

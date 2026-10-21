@@ -79,6 +79,8 @@ export const editor = {
   // --- TiptapEditor / EditorCanvas ---
   'editor.tiptap.placeholder': 'Schreib hier deinen Folien-Inhalt …',
   'editor.canvas.addSlide': 'Folie hinzufügen',
+  'editor.inspector.empty': 'Keine Folie ausgewählt.',
+  'editor.inspector.heading': 'Quelle dieser Folie',
 
   // --- TokenEditor („Brand Kit" im Design-Overlay) ---
   'editor.tokens.themes': 'Themes',

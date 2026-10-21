@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AssetMap, Presentation } from '@/types'
 import { usePresentationStore } from '@/store/presentation'
 import { useUiStore } from '@/store/ui'
+import { useLayoutStore } from '@/store/layout'
 import { logoHtml, renderFullPage, renderZoneSection } from '@/lib/renderer'
 import { classifyPreviewChange } from '@/lib/preview-diff'
 import { findSourceRange } from '@/lib/dom-edit'
@@ -9,13 +10,13 @@ import { htmlBlockToMarkdown } from '@/lib/tiptap-markdown'
 import { isTauri, assetUrlBase } from '@/lib/tauri'
 import { t } from '@/i18n'
 import { Icon } from '@/components/ui/Icon'
+import { dropMediaOnZone } from '@/components/editor/ZoneCard'
 
 const ASSET_BASE = isTauri() ? assetUrlBase() : undefined
 
-// Live-Vorschau der gesamten Präsentation neben dem Editor.
-// Re-rendert debounced in ein isoliertes Iframe (sandbox) und scrollt zur
-// aktiven Zone.
-export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
+// Live-Bühne der aktiven Folie (Canvas-first). Re-rendert debounced in ein
+// isoliertes Iframe (sandbox); Stage-Modus zeigt genau eine Folie (fit-both).
+export function PreviewPane() {
   const presentation = usePresentationStore((s) => s.presentation)
   const assets = usePresentationStore((s) => s.assets)
   const activeZoneId = usePresentationStore((s) => s.activeZoneId)
@@ -28,7 +29,6 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   const duplicateZoneBlock = usePresentationStore((s) => s.duplicateZoneBlock)
   const editZoneBlock = usePresentationStore((s) => s.editZoneBlock)
   const previewEdit = useUiStore((s) => s.previewEdit)
-  const togglePreviewEdit = useUiStore((s) => s.togglePreviewEdit)
   const setHtmlReveal = useUiStore((s) => s.setHtmlReveal)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [html, setHtml] = useState('')
@@ -111,6 +111,7 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         assetUrlBase: ASSET_BASE,
         editable: true,
         directEdit: edit,
+        stage: true,
       }).replace('</head>', `<!--sld:${reloadSeq.current}--></head>`)
       readyRef.current = false
       setHtml(full)
@@ -198,7 +199,10 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
       const zone = usePresentationStore.getState().presentation?.zones.find((z) => z.id === zoneId)
       if (!zone || zone.content_type !== 'html') return
       const range = findSourceRange(zone.html ?? '', path)
-      if (range) setHtmlReveal({ zoneId, from: range.from, to: range.to, focusEditor: false })
+      if (range) {
+        setHtmlReveal({ zoneId, from: range.from, to: range.to, focusEditor: false })
+        useLayoutStore.getState().openInspector()
+      }
     }
     // lastSel (HTML-Element) und lastSelBlock (Markdown-Block) sind gegenseitig EXKLUSIV:
     // jede Auswahl-Zuweisung löscht die andere. Sonst kann eine veraltete Block-Auswahl den
@@ -345,13 +349,28 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
         usePresentationStore.getState().redo()
       } else if (d.type === 'slideo:goto-request' && typeof d.index === 'number') {
         // Zonen-Link in der Vorschau (Nicht-Edit-Modus) angeklickt → zur Zielzone
-        // scrollen (Spec §23). activeZone treibt den Vorschau-Scroll.
+        // wechseln (Spec §23). activeZone treibt die Bühnen-Folie.
         const pres = usePresentationStore.getState().presentation
         if (pres) {
           const sorted = [...pres.zones].sort((a, b) => a.order - b.order)
           const z = sorted[d.index | 0]
           if (z) setActiveZone(z.id)
         }
+      } else if (d.type === 'slideo:key' && typeof d.key === 'string') {
+        if (d.metaKey || d.ctrlKey || d.altKey) return
+        const pres = usePresentationStore.getState().presentation
+        if (!pres) return
+        const sorted = [...pres.zones].sort((a, b) => a.order - b.order)
+        const cur = sorted.findIndex((z) => z.id === usePresentationStore.getState().activeZoneId)
+        const i = cur < 0 ? 0 : cur
+        let next = i
+        if (d.key === 'ArrowRight' || d.key === 'PageDown') next = Math.min(sorted.length - 1, i + 1)
+        else if (d.key === 'ArrowLeft' || d.key === 'PageUp') next = Math.max(0, i - 1)
+        else if (d.key === 'Home') next = 0
+        else if (d.key === 'End') next = sorted.length - 1
+        else return
+        const z = sorted[next]
+        if (z) setActiveZone(z.id)
       } else if (d.type === 'slideo:request-link' && typeof d.zoneId === 'string' && Array.isArray(d.path)) {
         // „Mit Folie verknüpfen" aus der §20-Toolbar → Folien-Auswahl-Popover öffnen.
         setLinkPicker({
@@ -444,44 +463,22 @@ export function PreviewPane({ onCollapse }: { onCollapse?: () => void }) {
   )
 
   return (
-    <section className="relative flex h-full w-full flex-col border-l border-chrome-border bg-chrome-bg">
-      <div className="flex h-9 shrink-0 items-center gap-1.5 px-3.5 text-chrome-muted">
-        <Icon name="visibility" size={15} weight={400} />
-        <span className="text-[11px] font-semibold uppercase tracking-wider">
-          {t('present.preview.heading')}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            onClick={togglePreviewEdit}
-            aria-pressed={previewEdit}
-            title={t('present.preview.directEditHint')}
-            className={
-              'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium transition-colors ' +
-              (previewEdit
-                ? 'bg-chrome-accent-soft text-chrome-accent-600'
-                : 'text-chrome-muted hover:text-chrome-text')
-            }
-          >
-            <Icon name="arrow_selector_tool" size={15} weight={400} />
-            {/* „Direktbearbeiten" statt „Bearbeiten" (Review 2026-08, Befund M28):
-                deckungsgleich mit dem eigenen Tooltip und ehrlich gegenüber dem,
-                was der Toggle NICHT abschaltet — Block-Drag und Bild-Resize sind
-                Hover-Werkzeuge der Vorschau und laufen unabhängig davon. */}
-            {t('present.preview.directEdit')}
-          </button>
-          {onCollapse && (
-            <button
-              onClick={onCollapse}
-              title={t('present.preview.collapse')}
-              aria-label={t('present.preview.collapse')}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-chrome-muted transition-colors hover:bg-chrome-surface-2 hover:text-chrome-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chrome-accent/40"
-            >
-              <Icon name="chevron_right" size={18} />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 p-3.5 pt-0">
+    <section
+      className="relative flex h-full w-full flex-col bg-chrome-bg"
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer.types).includes('Files')) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+        }
+      }}
+      onDrop={(e) => {
+        if (!Array.from(e.dataTransfer.types).includes('Files')) return
+        e.preventDefault()
+        const id = usePresentationStore.getState().activeZoneId
+        if (id) void dropMediaOnZone(id, e.dataTransfer.files)
+      }}
+    >
+      <div className="min-h-0 flex-1 p-3.5">
         <iframe
           ref={iframeRef}
           srcDoc={html}

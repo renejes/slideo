@@ -54,7 +54,7 @@ export const useUiStore = create<UiState>((set) => ({
   assetMode: 'manage',
   assetPickZoneId: null,
   openAssets: (mode, zoneId) => set({ modal: 'assets', assetMode: mode, assetPickZoneId: zoneId ?? null }),
-  previewEdit: false,
+  previewEdit: true,
   overflowZones: {},
   setOverflowZones: (overflowZones) =>
     // Identität stabil halten, wenn sich nichts geändert hat — sonst rendert jede

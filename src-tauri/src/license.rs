@@ -89,7 +89,9 @@ fn now() -> DateTime<Utc> {
     Utc::now()
 }
 fn parse(s: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&Utc))
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|d| d.with_timezone(&Utc))
 }
 fn iso(d: DateTime<Utc>) -> String {
     d.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
@@ -292,7 +294,9 @@ async fn http_activate(c: &Client, key: &str, fp: &str, label: &str) -> Result<S
         "meta": { "fp": fp }
     });
     let resp = c
-        .post(format!("{POLAR_API_BASE}/customer-portal/license-keys/activate"))
+        .post(format!(
+            "{POLAR_API_BASE}/customer-portal/license-keys/activate"
+        ))
         .json(&body)
         .send()
         .await
@@ -317,7 +321,11 @@ async fn http_activate(c: &Client, key: &str, fp: &str, label: &str) -> Result<S
         .ok_or_else(|| crate::errcode::code("license.activationIdMissing"))
 }
 
-async fn http_validate(c: &Client, key: &str, activation_id: Option<&str>) -> Result<Value, String> {
+async fn http_validate(
+    c: &Client,
+    key: &str,
+    activation_id: Option<&str>,
+) -> Result<Value, String> {
     let mut body = json!({
         "key": key,
         "organization_id": POLAR_ORG_ID
@@ -326,7 +334,9 @@ async fn http_validate(c: &Client, key: &str, activation_id: Option<&str>) -> Re
         body["activation_id"] = json!(a);
     }
     let resp = c
-        .post(format!("{POLAR_API_BASE}/customer-portal/license-keys/validate"))
+        .post(format!(
+            "{POLAR_API_BASE}/customer-portal/license-keys/validate"
+        ))
         .json(&body)
         .send()
         .await
@@ -350,7 +360,9 @@ async fn http_deactivate(c: &Client, key: &str, activation_id: &str) -> Result<(
         "activation_id": activation_id
     });
     let resp = c
-        .post(format!("{POLAR_API_BASE}/customer-portal/license-keys/deactivate"))
+        .post(format!(
+            "{POLAR_API_BASE}/customer-portal/license-keys/deactivate"
+        ))
         .json(&body)
         .send()
         .await
@@ -382,20 +394,30 @@ pub async fn activate(key: String) -> Result<LicenseStatus, String> {
     if pre_status != "granted" {
         return Err(crate::errcode::code_with("license.notGranted", pre_status));
     }
-    let benefit_id = pre.get("benefit_id").and_then(|x| x.as_str()).map(String::from);
+    let benefit_id = pre
+        .get("benefit_id")
+        .and_then(|x| x.as_str())
+        .map(String::from);
     if !benefit_entitled(benefit_id.as_deref()) {
         return Err(crate::errcode::code("license.wrongVersion"));
     }
     // 2) Gerät aktivieren (bindet einen Slot) + final mit activation_id bestätigen.
     let activation_id = http_activate(&c, &key, &fp, &device_label()).await?;
     let v = http_validate(&c, &key, Some(&activation_id)).await?;
-    let status = v.get("status").and_then(|x| x.as_str()).unwrap_or("").to_string();
+    let status = v
+        .get("status")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string();
     if status != "granted" {
         return Err(crate::errcode::code_with("license.notGranted", status));
     }
     let mut s = crate::state::lock_recover(cell()).clone();
     s.key = Some(key);
-    s.key_display = v.get("display_key").and_then(|x| x.as_str()).map(String::from);
+    s.key_display = v
+        .get("display_key")
+        .and_then(|x| x.as_str())
+        .map(String::from);
     s.activation_id = Some(activation_id);
     s.status = Some(status);
     s.benefit_id = v
@@ -403,7 +425,10 @@ pub async fn activate(key: String) -> Result<LicenseStatus, String> {
         .and_then(|x| x.as_str())
         .map(String::from)
         .or(benefit_id);
-    s.expires_at = v.get("expires_at").and_then(|x| x.as_str()).map(String::from);
+    s.expires_at = v
+        .get("expires_at")
+        .and_then(|x| x.as_str())
+        .map(String::from);
     s.last_validated_at = Some(iso(now()));
     s.fp = Some(fp);
     save(s.clone())?;
@@ -432,7 +457,10 @@ pub async fn recheck() -> Result<LicenseStatus, String> {
                 .and_then(|x| x.as_str())
                 .map(String::from)
                 .or(s.benefit_id.clone());
-            s.expires_at = v.get("expires_at").and_then(|x| x.as_str()).map(String::from);
+            s.expires_at = v
+                .get("expires_at")
+                .and_then(|x| x.as_str())
+                .map(String::from);
             s.last_validated_at = Some(iso(now()));
             save(s.clone())?;
             Ok(compute(&s))
@@ -486,8 +514,8 @@ pub async fn license_deactivate() -> Result<LicenseStatus, String> {
 /// Öffnet die Polar-Checkout-Seite im Standardbrowser.
 #[tauri::command]
 pub fn license_open_checkout() -> Result<(), String> {
-    let url = checkout_url()
-        .ok_or_else(|| crate::errcode::code("license.checkoutNotConfigured"))?;
+    let url =
+        checkout_url().ok_or_else(|| crate::errcode::code("license.checkoutNotConfigured"))?;
     crate::commands::open_in_default_app(std::path::Path::new(url))
 }
 
@@ -513,7 +541,10 @@ mod tests {
         }
         let out = compute(&store_expired_trial());
         assert_eq!(out.state, "unconfigured");
-        assert!(out.editing_allowed, "unkonfiguriert darf NIE schreibschützen");
+        assert!(
+            out.editing_allowed,
+            "unkonfiguriert darf NIE schreibschützen"
+        );
         assert!(!out.configured);
     }
 

@@ -105,13 +105,13 @@ export const modals: Record<Keys, string> = {
     'Pick a template or start blank. Slideo is editor and player — the slides come from the AI.',
   'modal.help.step2.title': '2 · Connect your AI agent',
   'modal.help.step2.body':
-    'In Slideo itself: the chat pane at the bottom (Cmd/Ctrl+J) with your Cursor account. Or open an MCP client (Claude Desktop, Codex CLI, …) — Settings → AI connection (MCP).',
+    'In Slideo itself: the chat on the right (Cmd/Ctrl+J) with your Cursor account. Or open an MCP client (Claude Desktop, Codex CLI, …) — Settings → AI connection (MCP).',
   'modal.help.step3.title': '3 · Describe your topic',
   'modal.help.step3.body':
     'In the chat or your AI agent, say something like: “Create 6 slides about [topic] in Slideo.” It will reach for Slideo’s slide tools.',
   'modal.help.step4.title': '4 · Refine live',
   'modal.help.step4.body':
-    'The slides show up instantly. You edit right in the preview: text, images, moving, linking.',
+    'The slides appear on the canvas. Click text to type, drag elements, and insert images into the open slide. Source stays behind “Source”.',
   'modal.help.copyPrompt': 'Copy example prompt',
   'modal.help.promptCopied': 'Example prompt copied — paste it into your AI agent.',
 

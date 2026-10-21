@@ -111,13 +111,13 @@ export const modals = {
     'Vorlage wählen oder leer starten. Slideo ist Editor & Player — die Folien baut die KI.',
   'modal.help.step2.title': '2 · KI-Agent verbinden',
   'modal.help.step2.body':
-    'Direkt in Slideo: Chat-Fenster unten (Cmd/Strg+J) mit deinem Cursor-Konto. Oder einen MCP-Client öffnen (Claude Desktop, Codex CLI, …) — Einstellungen → KI-Verbindung (MCP).',
+    'Direkt in Slideo: Chat rechts (Cmd/Strg+J) mit deinem Cursor-Konto. Oder einen MCP-Client öffnen (Claude Desktop, Codex CLI, …) — Einstellungen → KI-Verbindung (MCP).',
   'modal.help.step3.title': '3 · Thema beschreiben',
   'modal.help.step3.body':
     'Im Chat oder im KI-Agent z.B.: „Erstelle 6 Folien über [Thema] in Slideo.“ Er nutzt dafür Slideos Folien-Werkzeuge.',
   'modal.help.step4.title': '4 · Live verfeinern',
   'modal.help.step4.body':
-    'Die Folien erscheinen sofort. Du editierst direkt in der Vorschau: Text, Bilder, Verschieben, Verlinken.',
+    'Die Folien erscheinen auf der Bühne. Du klickst Text an, schreibst, ziehst Elemente und fügst Bilder in die offene Folie ein. Der Quelltext bleibt hinter „Quelle“.',
   'modal.help.copyPrompt': 'Beispiel-Prompt kopieren',
   'modal.help.promptCopied': 'Beispiel-Prompt kopiert — in deinen KI-Agent einfügen.',
 

@@ -38,7 +38,10 @@ mod tests {
     #[test]
     fn wire_format_is_stable() {
         assert_eq!(code("license.notFound"), "slideo:license.notFound");
-        assert_eq!(code_with("license.rejected", 403), "slideo:license.rejected|403");
+        assert_eq!(
+            code_with("license.rejected", 403),
+            "slideo:license.rejected|403"
+        );
     }
 
     #[test]

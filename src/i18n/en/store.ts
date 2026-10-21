@@ -82,7 +82,7 @@ export const store: Record<Keys, string> = {
   'app.empty.intro': 'Create a new presentation, or open an existing {0} file.',
   'app.empty.agent': 'an AI agent',
   'app.empty.ai':
-    'The slides are built by {0} over MCP (Claude Desktop, Codex CLI and others) — you refine them here.',
+    'The slides are built by {0} — in the chat, or over MCP (Claude Desktop, Codex CLI). You refine them right on the slide.',
   'app.empty.how': 'How does it work?',
   'app.empty.new': 'New presentation',
   'app.empty.open': 'Open',

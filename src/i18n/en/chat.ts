@@ -25,7 +25,7 @@ export const chat: Record<Keys, string> = {
   'chat.noProjectBody':
     'Create or open a presentation. The agent works on this deck — it cannot create files on its own.',
 
-  'chat.composerPlaceholder': 'Ask anything…  Type @ to mention a slide',
+  'chat.composerPlaceholder': 'What kind of presentation do you need?  Type @ to mention a slide',
   'chat.send': 'Send',
   'chat.cancel': 'Stop',
   'chat.sending': 'Working…',
@@ -41,7 +41,7 @@ export const chat: Record<Keys, string> = {
   'chat.contextUsed': 'Context: {n}',
   'chat.removeChip': 'Remove',
   'chat.thinking': 'Thinking',
-  'chat.emptyHint': 'Describe what you need. Type @ to point at a slide.',
+  'chat.emptyHint': 'Describe the presentation you need. Type @ to point at a slide.',
   'chat.mentionEmpty': 'No matching slides',
   'chat.errorPrefix': 'Could not send',
   'chat.loginFailed': 'Sign-in did not complete.',

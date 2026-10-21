@@ -109,7 +109,14 @@ fn analyze_markdown(md: &str, base: f64) -> Estimate {
             "Estimated content height ~{height:.0}px extends beyond the safe area (592px) — consider tightening."
         ));
     }
-    Estimate { width: max_w, height, overflows_width: ow, overflows_height: oh, issues, measured: true }
+    Estimate {
+        width: max_w,
+        height,
+        overflows_width: ow,
+        overflows_height: oh,
+        issues,
+        measured: true,
+    }
 }
 
 /// HTML: pro `style="…"`-Block die px-Werte parsen → rechte/untere Kante schätzen.
@@ -180,7 +187,14 @@ fn analyze_html(html: &str) -> Estimate {
                 .to_string(),
         );
     }
-    Estimate { width: max_right, height: max_bottom, overflows_width: ow, overflows_height: oh, issues, measured }
+    Estimate {
+        width: max_right,
+        height: max_bottom,
+        overflows_width: ow,
+        overflows_height: oh,
+        issues,
+        measured,
+    }
 }
 
 /// Alle `style="…"`/`style='…'`-Werte aus dem HTML (roh, ohne DOM).
@@ -280,14 +294,19 @@ mod tests {
         assert_eq!(r["overflows_width"], false, "keine Breiten-Warnung mehr");
         let issues = r["issues"].as_array().unwrap();
         assert!(
-            !issues.iter().any(|i| i.as_str().unwrap_or("").contains("wide")),
+            !issues
+                .iter()
+                .any(|i| i.as_str().unwrap_or("").contains("wide")),
             "keine Breiten-Meldung im Report"
         );
     }
 
     #[test]
     fn many_lines_overflow_height() {
-        let md = (0..40).map(|i| format!("Zeile {i}")).collect::<Vec<_>>().join("\n");
+        let md = (0..40)
+            .map(|i| format!("Zeile {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
         let z = json!({ "content_type": "markdown", "markdown": md });
         let r = analyze(&z, &tokens());
         assert_eq!(r["overflows_height"], true);
@@ -316,7 +335,10 @@ mod tests {
         let r = analyze(&z, &tokens());
         assert!(r["fits"].is_null(), "fits muss unbekannt sein, nicht true");
         assert_eq!(r["measured"], false);
-        assert!(!r["issues"].as_array().unwrap().is_empty(), "Blindheit wird gemeldet");
+        assert!(
+            !r["issues"].as_array().unwrap().is_empty(),
+            "Blindheit wird gemeldet"
+        );
     }
 
     #[test]

@@ -69,7 +69,7 @@ export const ui = {
   // --- Onboarding-Hinweis ---------------------------------------------------
   'ui.nudge.headline': 'Dein KI-Agent baut deine Folien.',
   'ui.nudge.body':
-    'Öffne deinen MCP-Client (z.B. Claude Desktop, Codex CLI) und beschreib dein Thema — oder kopier dir einen fertigen Prompt.',
+    'Beschreib im Chat (Cmd/Strg+J), was für eine Präsentation du brauchst — oder kopier dir einen fertigen Prompt für einen anderen MCP-Client.',
   'ui.nudge.copy': 'Prompt kopieren',
   'ui.nudge.copied': 'Prompt kopiert — in deinen KI-Agent einfügen.',
   'ui.nudge.copyFailed': 'Kopieren nicht möglich.',
@@ -108,12 +108,15 @@ export const ui = {
   'ui.license.buyFailedUnconfigured':
     'Kauf-Seite konnte nicht geöffnet werden (Lizenzierung noch nicht konfiguriert): {error}',
 
-  // --- Editor-Shell (Spalten) ----------------------------------------------
-  'ui.shell.editor': 'Editor',
-  'ui.shell.preview': 'Vorschau',
+  // --- Editor-Shell (Canvas-first) -----------------------------------------
+  'ui.shell.editor': 'Quelle',
+  'ui.shell.preview': 'Folie',
+  'ui.shell.source': 'Quelle',
+  'ui.shell.sourceHint': 'Quelltext dieser Folie ein-/ausblenden (Cmd/Strg+E)',
+  'ui.shell.filmstrip': 'Folien',
   'ui.shell.collapse': '{name} einklappen',
   'ui.shell.expand': '{name} einblenden',
-  'ui.shell.resizePreview': 'Vorschau skalieren',
+  'ui.shell.resizeInspector': 'Quelle skalieren',
   'ui.shell.resizeChat': 'Chat skalieren',
 
   // --- Schliessen-Schutz ----------------------------------------------------
